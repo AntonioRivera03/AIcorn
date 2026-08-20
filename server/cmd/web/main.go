@@ -222,5 +222,9 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatal("Forced shutdown:", err)
 	}
+
+	if err := appdb.BackupOnShutdown(db, dbPath); err != nil {
+		log.Printf("shutdown backup: %v", err)
+	}
 	log.Println("Done")
 }

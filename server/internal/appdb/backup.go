@@ -174,6 +174,20 @@ func latestBackupTime(dir string) (time.Time, error) {
 	return latest, nil
 }
 
+// BackupNow snapshots the DB unconditionally, tagging the filename with
+// suffix (e.g. "-shutdown"), and rotates old snapshots. Shared by
+// BackupIfStale and the shutdown backup path.
+func BackupNow(db *sql.DB, dbPath, suffix string) error {
+	dir := ResolveBackupDir(dbPath)
+	dest := filepath.Join(dir, TimestampedName(suffix))
+	if err := Snapshot(db, dest); err != nil {
+		return fmt.Errorf("backup failed: %w", err)
+	}
+	RotateBackups(dir, BackupKeep())
+	log.Printf("Backup written to %s", dest)
+	return nil
+}
+
 // BackupIfStale snapshots the DB unless a snapshot already exists within
 // interval. Neither cmd/web nor cmd/mcp is guaranteed to run continuously —
 // the app is started and stopped by hand — so "on startup" is often the only
@@ -189,13 +203,16 @@ func BackupIfStale(db *sql.DB, dbPath string, interval time.Duration) error {
 	if !latest.IsZero() && time.Since(latest) < interval {
 		return nil
 	}
-	dest := filepath.Join(dir, TimestampedName(""))
-	if err := Snapshot(db, dest); err != nil {
-		return fmt.Errorf("periodic backup failed: %w", err)
-	}
-	RotateBackups(dir, BackupKeep())
-	log.Printf("Backup written to %s", dest)
-	return nil
+	return BackupNow(db, dbPath, "")
+}
+
+// BackupOnShutdown snapshots the DB unconditionally — called from the
+// SIGINT/SIGTERM handler, since a clean shutdown is often the last reliable
+// backup opportunity before the process exits (the next startup backup could
+// be arbitrarily far in the future). Best-effort: logs and returns rather
+// than blocking shutdown on failure.
+func BackupOnShutdown(db *sql.DB, dbPath string) error {
+	return BackupNow(db, dbPath, "-shutdown")
 }
 
 // RunBackupLoop takes a startup backup (via BackupIfStale) and then continues
