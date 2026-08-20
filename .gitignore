@@ -1,7 +1,7 @@
-app.db
+app.db*
 server/backups/
 server/ui/dist/
-server/dev.db
+server/dev.db*
 aycorn
 server/web
 dist-release/

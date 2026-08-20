@@ -1,13 +1,30 @@
 package services
 
 import (
+	"errors"
+
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 )
 
+var ErrStageConflict = errors.New("task is not currently in the expected stage")
+
 type TaskService struct {
 	TaskRepo     *repos.TaskRepo
 	TaskTypeRepo *repos.TaskTypeRepo
+}
+
+// TransitionStage moves a task between stages with an optimistic-concurrency
+// check. Unlike UpdateTask, this never touches any other column.
+func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, error) {
+	ok, err := s.TaskRepo.CompareAndSwapStage(taskId, fromStage, toStage)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, ErrStageConflict
+	}
+	return true, nil
 }
 
 func (s *TaskService) GetAllTasks(filters *repos.TaskFilters) ([]models.TaskWithProject, error) {
