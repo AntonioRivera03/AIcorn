@@ -7,12 +7,19 @@ UI_DIST  := $(SRV_DIR)/ui/dist
 # Falls back to "dev" when git isn't available or there are no tags yet.
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: dev build build-app build-app-dev build-server typecheck install upgrade stop clean backup restore
+.PHONY: dev dev-test build build-app build-app-dev build-server typecheck install upgrade stop clean backup restore backup-test restore-test
 
-# Development: build frontend with dev icon, then start Go server.
-# AYCORN_DB pins the dev DB to server/app.db so it doesn't touch the installed
-# binary's DB under ~/Library/Application Support/aycorn (or the OS equivalent).
+# Development: build frontend with dev icon, then start Go server against your
+# personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
+# back to <UserConfigDir>/aycorn/app.db, same DB the installed binary uses).
 dev: build-app-dev
+	@trap 'kill 0' INT; \
+    cd $(SRV_DIR) && go run ./cmd/web; \
+    wait
+
+# Development against a disposable test DB: pins AYCORN_DB to server/app.db so
+# it never touches your personal data. Safe to `rm -f server/app.db` anytime.
+dev-test: build-app-dev
 	@trap 'kill 0' INT; \
     cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web; \
     wait
@@ -55,13 +62,20 @@ upgrade:
 	$(MAKE) install
 	@echo "Upgraded to $$(aycorn --version)"
 
-# Snapshot / restore the DEV database (server/app.db) via the binary's subcommands.
-# These operate on the dev DB only (AYCORN_DB=./app.db); the installed binary's
-# `aycorn backup` / `aycorn restore` act on your real data under the OS config dir.
+# Snapshot / restore your personal database via the binary's subcommands (no
+# AYCORN_DB override → same DB `make dev` and the installed binary use).
 backup:
-	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && go run ./cmd/web backup $(DEST)
 
 restore:
+	cd $(SRV_DIR) && go run ./cmd/web restore $(SRC)
+
+# Snapshot / restore the disposable TEST database (server/app.db) — pairs with
+# `make dev-test`.
+backup-test:
+	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web backup $(DEST)
+
+restore-test:
 	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web restore $(SRC)
 
 clean:

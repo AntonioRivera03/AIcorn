@@ -1,6 +1,7 @@
 package appdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
@@ -19,6 +20,10 @@ import (
 // defaultBackupKeep is how many rotating snapshots to retain in the backups dir
 // when AYCORN_BACKUP_KEEP is unset.
 const defaultBackupKeep = 10
+
+// defaultBackupInterval is how often a periodic (non-migration) backup is
+// taken when AYCORN_BACKUP_INTERVAL is unset.
+const defaultBackupInterval = 24 * time.Hour
 
 // ResolveBackupDir returns the directory snapshots live in: a "backups" folder
 // alongside the DB file. So `make dev` snapshots land in server/backups/ and an
@@ -41,6 +46,17 @@ func BackupKeep() int {
 		}
 	}
 	return defaultBackupKeep
+}
+
+// BackupInterval reads the periodic-backup cadence from AYCORN_BACKUP_INTERVAL
+// (a Go duration string, e.g. "12h"), falling back to defaultBackupInterval.
+func BackupInterval() time.Duration {
+	if v := os.Getenv("AYCORN_BACKUP_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return defaultBackupInterval
 }
 
 // Snapshot writes a consistent, defragmented copy of the live DB to dest using
@@ -136,4 +152,72 @@ func BackupBeforeMigrate(db *sql.DB, dbPath string) error {
 	RotateBackups(dir, BackupKeep())
 	log.Printf("Pre-migration backup written to %s (db v%d → v%d)", dest, current, latest)
 	return nil
+}
+
+// latestBackupTime returns the mtime of the newest app-*.db snapshot in dir,
+// or the zero Time if none exist.
+func latestBackupTime(dir string) (time.Time, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "app-*.db"))
+	if err != nil {
+		return time.Time{}, err
+	}
+	var latest time.Time
+	for _, m := range matches {
+		fi, err := os.Stat(m)
+		if err != nil {
+			continue
+		}
+		if fi.ModTime().After(latest) {
+			latest = fi.ModTime()
+		}
+	}
+	return latest, nil
+}
+
+// BackupIfStale snapshots the DB unless a snapshot already exists within
+// interval. Neither cmd/web nor cmd/mcp is guaranteed to run continuously —
+// the app is started and stopped by hand — so "on startup" is often the only
+// reliable backup point available in a given day. Best-effort: logs and
+// returns nil on failure rather than blocking startup, since (unlike
+// BackupBeforeMigrate) no migration is at risk here.
+func BackupIfStale(db *sql.DB, dbPath string, interval time.Duration) error {
+	dir := ResolveBackupDir(dbPath)
+	latest, err := latestBackupTime(dir)
+	if err != nil {
+		return err
+	}
+	if !latest.IsZero() && time.Since(latest) < interval {
+		return nil
+	}
+	dest := filepath.Join(dir, TimestampedName(""))
+	if err := Snapshot(db, dest); err != nil {
+		return fmt.Errorf("periodic backup failed: %w", err)
+	}
+	RotateBackups(dir, BackupKeep())
+	log.Printf("Backup written to %s", dest)
+	return nil
+}
+
+// RunBackupLoop takes a startup backup (via BackupIfStale) and then continues
+// snapshotting every interval for as long as ctx is alive, covering the case
+// where the server runs long enough that a single startup backup isn't
+// enough. Intended to run in its own goroutine; cancel ctx to stop it.
+// Failures are logged, not fatal — a missed periodic backup shouldn't take
+// down a running server.
+func RunBackupLoop(ctx context.Context, db *sql.DB, dbPath string, interval time.Duration) {
+	if err := BackupIfStale(db, dbPath, interval); err != nil {
+		log.Printf("startup backup: %v", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := BackupIfStale(db, dbPath, interval); err != nil {
+				log.Printf("periodic backup: %v", err)
+			}
+		}
+	}
 }

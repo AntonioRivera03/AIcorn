@@ -35,6 +35,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Best-effort — a missed backup shouldn't stop the MCP server from
+	// starting. No ticker here: unlike cmd/web this process's lifetime is
+	// controlled by the MCP host, not guaranteed to run long enough to make
+	// one worthwhile beyond this startup check.
+	if err := appdb.BackupIfStale(db, dbPath, appdb.BackupInterval()); err != nil {
+		log.Printf("startup backup: %v", err)
+	}
+
 	taskRepo := &repos.TaskRepo{DB: db}
 	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	projectRepo := &repos.ProjectRepo{DB: db}

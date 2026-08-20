@@ -16,19 +16,22 @@ Implications an agent must account for:
 
 - **Backend changes do not take effect until the server is restarted.** After editing any Go file, the running process is still the old binary. If you (or the user) have a server running, it must be manually killed and re-run. Verifying a new endpoint against a still-running old process returns `404`/`405` — that's a stale binary, not a routing bug.
 - **`:8000` gets held by stale processes.** A previous `go run` leaves a `cmd/web`-built binary bound to `:8000`; a fresh run then fails to bind but the old one keeps serving old code (and possibly an old `app.db`). When something behaves like old code, check `lsof -nP -i :8000` before debugging further.
-- **`app.db` is not committed to git.** The server auto-creates and migrates it via goose on startup. Its path is controlled by `$AYCORN_DB`; if unset, the binary uses `<os.UserConfigDir()>/aycorn/app.db` (e.g. `~/Library/Application Support/aycorn/app.db` on macOS). `make dev` sets `AYCORN_DB=./app.db` so the dev DB stays at `server/app.db` and never touches an installed binary's DB. To reset the dev DB to a clean state:
+- **Two databases, two `make` targets.** `app.db` is not committed to git — the server auto-creates and migrates it via goose on startup. Its path is controlled by `$AYCORN_DB`; if unset, the binary uses `<os.UserConfigDir()>/aycorn/app.db` (e.g. `~/Library/Application Support/aycorn/app.db` on macOS) — your **personal**, persistent data.
+  - `make dev` — no `AYCORN_DB` override, runs against your personal DB. Same DB the installed `aycorn` binary uses.
+  - `make dev-test` — sets `AYCORN_DB=./app.db`, runs against a disposable DB at `server/app.db`. Safe to wipe anytime; never touches personal data.
+  To reset the test DB to a clean state:
   ```
   cd server
   rm -f app.db
   AYCORN_DB=./app.db go run ./cmd/web   # goose creates all tables automatically
   ```
-  (or just `make dev`, which sets `AYCORN_DB` for you).
+  (or just `make dev-test`, which sets `AYCORN_DB` for you).
 - **Schema changes go through migration files**, not `schema.sql` directly. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for the full migration workflow.
-- **`placeholder.sql` is seed data** for development. After a DB reset, load it manually if needed:
+- **`placeholder.sql` is seed data** for development — load it into the **test** DB only, never the personal one:
   ```
   sqlite3 app.db < assets/queries/placeholder.sql
   ```
-- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB (so `make dev` → `server/backups/`), rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Manual subcommands: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup` / `make restore SRC=...` are dev-DB wrappers. `server/backups/` is gitignored.
+- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Manual subcommands: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup` / `make restore SRC=...` act on your personal DB; `make backup-test` / `make restore-test SRC=...` act on the test DB (`server/backups/`, gitignored).
 
 ---
 

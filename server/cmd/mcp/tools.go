@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -11,6 +13,32 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
+
+// bodyParagraph mirrors the Plate.js document shape the frontend editor
+// expects (app/src/features/editor/rich-editor.tsx's DEFAULT_VALUE):
+// an array of paragraph nodes, each holding a single text leaf.
+type bodyParagraph struct {
+	Type     string         `json:"type"`
+	Children []bodyTextLeaf `json:"children"`
+}
+
+type bodyTextLeaf struct {
+	Text string `json:"text"`
+}
+
+// plainTextToBody converts a plain-text string (as an agent would write one)
+// into the Plate.js document JSON stored in task.body — one paragraph node
+// per newline-separated line, so the app's rich-text editor can open it
+// without choking on an unrecognized shape.
+func plainTextToBody(text string) string {
+	lines := strings.Split(text, "\n")
+	paragraphs := make([]bodyParagraph, len(lines))
+	for i, line := range lines {
+		paragraphs[i] = bodyParagraph{Type: "p", Children: []bodyTextLeaf{{Text: line}}}
+	}
+	encoded, _ := json.Marshal(paragraphs)
+	return string(encoded)
+}
 
 func parseRFC3339(s string) (*time.Time, error) {
 	ts, err := time.Parse(time.RFC3339, s)
@@ -58,7 +86,7 @@ func (t *toolset) register(srv *mcp.Server) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_task",
-		Description: "Update a task's name, priority, or assignee. Never changes stage — use move_task_stage for that.",
+		Description: "Update a task's name, priority, assignee, or body. Never changes stage — use move_task_stage for that.",
 	}, t.updateTask)
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -192,6 +220,7 @@ type UpdateTaskInput struct {
 	Name     *string `json:"name,omitempty"`
 	Priority *string `json:"priority,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
 	Assignee *string `json:"assignee,omitempty"`
+	Body     *string `json:"body,omitempty" jsonschema:"plain text — converted to the rich-text editor's document format, one paragraph per line. Overwrites the existing body."`
 }
 
 func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, bool, error) {
@@ -210,6 +239,17 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	}
 	// current.Stage is whatever it already was — never set from this tool.
 	ok, err := t.taskService.UpdateTask(&current.ChecklistTask)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+
+	if in.Body != nil {
+		// Written through UpdateTaskBody, not the UpdateTask call above — same
+		// separation the app itself relies on (taskRepo.go's UpdateTask never
+		// touches the body column, precisely so a property-only edit can't
+		// clobber it).
+		ok, err = t.taskService.UpdateTaskBody(in.TaskID, plainTextToBody(*in.Body))
+	}
 	return nil, ok, err
 }
 

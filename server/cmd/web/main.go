@@ -132,6 +132,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	backupCtx, stopBackups := context.WithCancel(context.Background())
+	defer stopBackups()
+	go appdb.RunBackupLoop(backupCtx, db, dbPath, appdb.BackupInterval())
+
 	projectRepo := &repos.ProjectRepo{DB: db}
 	checklistRepo := &repos.ChecklistRepo{DB: db}
 	taskRepo := &repos.TaskRepo{DB: db}
