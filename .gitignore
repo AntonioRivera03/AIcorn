@@ -4,6 +4,7 @@ server/ui/dist/
 server/dev.db*
 aycorn
 server/web
+server/bin/
 dist-release/
 .DS_Store
 
