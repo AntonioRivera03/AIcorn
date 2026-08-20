@@ -156,7 +156,7 @@ func main() {
 		dbExisted = true
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		log.Fatal(err)
 	}

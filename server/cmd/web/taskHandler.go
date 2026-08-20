@@ -144,6 +144,33 @@ func (app *app) putTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, success)
 }
 
+func (app *app) transitionTaskStage(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	taskId, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	body := struct {
+		FromStage int `json:"fromStage"`
+		ToStage   int `json:"toStage"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ok, err := app.taskService.TransitionStage(taskId, body.FromStage, body.ToStage)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, ok)
+}
+
 func (app *app) bulkUpdateTasks(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 

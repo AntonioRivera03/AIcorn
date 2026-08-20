@@ -1,6 +1,6 @@
 # Phase 0 — Foundations
 
-Status: Not started
+Status: Done
 
 No new tables. A weekend of work. Every line item below was verified directly against the current codebase (commit `df492ee`) — re-check if it's been a while, since these files may have moved on.
 
@@ -179,6 +179,12 @@ echo "exit code: $?"
 
 Note down: the shape of the JSON on stdout, what a non-zero exit code looks like for a deliberately-broken prompt, and roughly how long a trivial call takes. This is 30 minutes that will save re-reading Phase 4's harness research from scratch when you get there.
 
+**Spike notes (run 2026-08-19, `claude` CLI 2.1.233):**
+
+- Trivial prompt (`-p "list files in the current directory" --output-format json`): exit code `0`, ~5s wall time (`duration_api_ms` 4988). Top-level JSON keys: `is_error` (bool), `subtype`, `result` (the text answer), `session_id`, `num_turns`, `stop_reason`, `terminal_reason`, `total_cost_usd`, `usage` (token/cache counts), `modelUsage` (per-model cost/token breakdown), `permission_denials` (array). No `error` field on success.
+- Deliberately-broken prompt (invalid `--model`): exit code `1`, `is_error: true`, `terminal_reason: "api_error"`, `api_error_status: 404`, `result` holds a human-readable explanation, `total_cost_usd: 0`. Failure is cheap and fast (577ms) — it fails before making a model call.
+- Takeaway for Phase 4: exit code alone is a reliable success/failure signal; `is_error` + `result` in the JSON gives the failure reason without parsing stderr.
+
 ## 5. Decisions locked here
 
 Not implemented in this phase — decided, so Phase 2/3 don't relitigate them. (Full rationale in the plan artifact; this is the resolution only.)
@@ -191,8 +197,8 @@ Not implemented in this phase — decided, so Phase 2/3 don't relitigate them. (
 
 ## Done when
 
-- [ ] WAL mode + busy_timeout live in `main.go`, verified with real `app.db-wal`/`app.db-shm` files and a working backup/restore cycle.
-- [ ] `.gitignore` updated, no WAL sidecar files show up under `git status`.
-- [ ] `CompareAndSwapStage` / `TransitionStage` / `transitionTaskStage` merged, route registered, `ErrStageConflict` mapped to 409 — reachable via `curl` but not called from anywhere else yet.
-- [ ] Harness spike run once, notes kept somewhere findable (this file's history, or a scratch note).
-- [ ] The five decisions above are final — if any changed while doing this phase, this file has been edited to match, not just remembered.
+- [x] WAL mode + busy_timeout live in `main.go`, verified with real `app.db-wal`/`app.db-shm` files and a working backup/restore cycle.
+- [x] `.gitignore` updated, no WAL sidecar files show up under `git status`.
+- [x] `CompareAndSwapStage` / `TransitionStage` / `transitionTaskStage` merged, route registered, `ErrStageConflict` mapped to 409 — reachable via `curl` but not called from anywhere else yet.
+- [x] Harness spike run once, notes kept somewhere findable (this file's history, or a scratch note).
+- [x] The five decisions above are final — if any changed while doing this phase, this file has been edited to match, not just remembered.

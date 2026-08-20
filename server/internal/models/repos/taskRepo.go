@@ -227,6 +227,24 @@ func (repo *TaskRepo) UpdateTask(task *models.ChecklistTask) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
+// CompareAndSwapStage moves a task from fromStage to toStage only if it is
+// still in fromStage. Returns false (no error) if another writer already
+// moved it — the caller decides how to handle that, it is not a failure.
+func (repo *TaskRepo) CompareAndSwapStage(taskId, fromStage, toStage int) (bool, error) {
+	res, err := repo.DB.Exec(
+		`UPDATE task SET stage = ? WHERE id = ? AND stage = ?;`,
+		toStage, taskId, fromStage,
+	)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected > 0, nil
+}
+
 func (repo *TaskRepo) UpdateTaskBody(taskId int, body string) (bool, error) {
 	query := `UPDATE task SET body = ? WHERE id = ?;`
 
