@@ -24,9 +24,13 @@ function ProjectPageHeader() {
   );
 }
 
-function RouteComponent() {
-  const { projectId } = Route.useParams();
-  const { view } = Route.useSearch();
+function ProjectPageContent({
+  projectId,
+  view,
+}: {
+  projectId: number;
+  view?: string;
+}) {
   const navigate = useNavigate({ from: Route.fullPath });
   const { Project } = useContext(ProjectContext);
 
@@ -39,17 +43,29 @@ function RouteComponent() {
   const setView = (newView: string) => navigate({ search: { view: newView } });
 
   return (
+    <Page>
+      <ProjectPageHeader />
+      <PageContent>
+        <ProjectDetails
+          projectId={projectId}
+          view={(view ?? Project.DefaultView) || "list"}
+          setView={setView}
+        />
+      </PageContent>
+    </Page>
+  );
+}
+
+function RouteComponent() {
+  const { projectId } = Route.useParams();
+  const { view } = Route.useSearch();
+
+  return (
     <ProjectProvider>
-      <Page>
-        <ProjectPageHeader />
-        <PageContent>
-          <ProjectDetails
-            projectId={Number.parseInt(projectId)}
-            view={(view ?? Project.DefaultView) || "list"}
-            setView={setView}
-          />
-        </PageContent>
-      </Page>
+      <ProjectPageContent
+        projectId={Number.parseInt(projectId)}
+        view={view}
+      />
     </ProjectProvider>
   );
 }
