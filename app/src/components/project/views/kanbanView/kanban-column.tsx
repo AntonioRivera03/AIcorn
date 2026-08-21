@@ -2,18 +2,21 @@ import { StageIcon, stageTintClass } from "@/features/stage/stage-visual";
 import { Badge } from "@/components/ui/badge";
 import { ItemGroup } from "@/components/ui/item";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
+import { TaskContext, defaultTaskContextValue } from "@/contexts/task/TaskContext";
 import { useDropZone } from "@/hooks/useDropZone";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Stage } from "@/types/types";
-import { useContext, useMemo, type SyntheticEvent } from "react";
+import type { ChecklistTask, Stage } from "@/types/types";
+import { useCallback, useContext, useMemo, type SyntheticEvent } from "react";
 import { KanbanItem } from "./kanban-item";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
+import { useTaskMutation } from "@/queries/useTaskMutation";
+import TaskEditorDrawer from "@/features/task/task-editor-drawer";
 
 type DragListeners = Record<string, (e: SyntheticEvent) => void>;
 
@@ -21,6 +24,7 @@ export function KanbanColumn({
   stage,
   getItemProps,
   lastDrop,
+  setTaskDrawerOpen,
 }: {
   stage: Stage;
   getItemProps?: (
@@ -28,7 +32,31 @@ export function KanbanColumn({
     opts?: { listeners?: DragListeners },
   ) => Record<string, unknown>;
   lastDrop?: { taskIds: Set<number>; animClass: string } | null;
+  setTaskDrawerOpen: (open: boolean) => void;
 }) {
+  const { setState: setTask } = useContext(TaskContext);
+  const { Project, Checklists } = useContext(ProjectContext);
+  const { create } = useTaskMutation(Project.ID);
+
+  // Always build from the defaults, never from whatever the (long-lived)
+  // context happens to hold — a leftover value would be baked into the new task.
+  const handleAddTask = useCallback(
+    () =>
+      create.mutate(
+        {
+          ...defaultTaskContextValue.state,
+          Checklist: Checklists[0]?.ID,
+          Stage: stage.ID,
+        },
+        {
+          onSuccess: (newTask: ChecklistTask) => {
+            setTask(newTask);
+          },
+        },
+      ),
+    [create, Checklists, setTask, stage.ID],
+  );
+
   const { setNodeRef, isOver } = useDropZone(stage.ID);
 
   const { Tasks } = useContext(ProjectContext);
@@ -63,9 +91,18 @@ export function KanbanColumn({
                 </Tooltip>
             </div>
 
-            <Button variant="ghost" size="icon-sm">
-                <PlusIcon />
-            </Button>
+            <TaskEditorDrawer
+                onOpenChange={(open) => {
+                    setTaskDrawerOpen(open);
+                    if (!open) {
+                        setTask(defaultTaskContextValue.state);
+                    }
+                }}
+            >
+                <Button variant="ghost" size="icon-sm" onClick={handleAddTask}>
+                    <PlusIcon />
+                </Button>
+            </TaskEditorDrawer>
           </div>
       <ItemGroup
         className={cn(
