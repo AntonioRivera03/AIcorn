@@ -167,14 +167,30 @@ func (repo *TaskTypeRepo) DefaultTypeID() (int, error) {
 }
 
 func (repo *TaskTypeRepo) Create(tt *models.TaskType) (*models.TaskType, error) {
+	tx, err := repo.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	query := `
 		INSERT INTO task_type (name, description, icon, color, category)
 		VALUES (?, ?, ?, ?, ?)
 		RETURNING id;
 	`
 	var id int
-	err := repo.DB.QueryRow(query, tt.Name, tt.Description, tt.Icon, tt.Color, tt.Category).Scan(&id)
-	if err != nil {
+	if err := tx.QueryRow(query, tt.Name, tt.Description, tt.Icon, tt.Color, tt.Category).Scan(&id); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO project_task_type (project, task_type)
+		SELECT id, ? FROM project;
+	`, id); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return repo.FindOne(id)
