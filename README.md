@@ -4,6 +4,17 @@ A personal, self-hosted task manager that blends Jira-style project tracking wit
 
 ---
 
+## Versioning
+
+`app/package.json`'s `version` field uses a six-digit scheme: `X.X.X.Y.Y.Y`.
+
+- The first three digits (`X.X.X`) track changes Waseem brings into the project.
+- The last three digits (`Y.Y.Y`) track Antonio's own changes on top, starting at `0.1.1`.
+
+Example: `0.1.5.0.1.1` is Waseem's `0.1.5` plus Antonio's `0.1.1`.
+
+---
+
 ## Install from a pre-built binary (recommended)
 
 A binary is a ready-to-run program — no compiler, no dependencies, no installation wizard. Just download it and run it.

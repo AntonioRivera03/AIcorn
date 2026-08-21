@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	_ "modernc.org/sqlite"
@@ -52,6 +53,7 @@ func main() {
 		taskService:    &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo},
 		projectService: &services.ProjectService{ProjectRepo: projectRepo, TaskRepo: taskRepo},
 		stageService:   &services.StageService{StageRepo: stageRepo},
+		converter:      &markdown.Converter{},
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)

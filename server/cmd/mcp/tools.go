@@ -2,43 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
-
-// bodyParagraph mirrors the Plate.js document shape the frontend editor
-// expects (app/src/features/editor/rich-editor.tsx's DEFAULT_VALUE):
-// an array of paragraph nodes, each holding a single text leaf.
-type bodyParagraph struct {
-	Type     string         `json:"type"`
-	Children []bodyTextLeaf `json:"children"`
-}
-
-type bodyTextLeaf struct {
-	Text string `json:"text"`
-}
-
-// plainTextToBody converts a plain-text string (as an agent would write one)
-// into the Plate.js document JSON stored in task.body — one paragraph node
-// per newline-separated line, so the app's rich-text editor can open it
-// without choking on an unrecognized shape.
-func plainTextToBody(text string) string {
-	lines := strings.Split(text, "\n")
-	paragraphs := make([]bodyParagraph, len(lines))
-	for i, line := range lines {
-		paragraphs[i] = bodyParagraph{Type: "p", Children: []bodyTextLeaf{{Text: line}}}
-	}
-	encoded, _ := json.Marshal(paragraphs)
-	return string(encoded)
-}
 
 func parseRFC3339(s string) (*time.Time, error) {
 	ts, err := time.Parse(time.RFC3339, s)
@@ -56,17 +29,37 @@ type toolset struct {
 	taskService    *services.TaskService
 	projectService *services.ProjectService
 	stageService   *services.StageService
+	converter      *markdown.Converter
+}
+
+// bodiesToMarkdown rewrites each task's stored Plate.js document into markdown
+// in place, so a calling agent reads prose instead of a JSON tree. A conversion
+// failure is returned, never swallowed — handing back raw Plate JSON under the
+// guise of markdown would silently corrupt whatever the agent writes back.
+func (t *toolset) bodiesToMarkdown(ctx context.Context, tasks []models.TaskWithProject) error {
+	bodies := make([]string, len(tasks))
+	for i, task := range tasks {
+		bodies[i] = task.Body
+	}
+	markdowns, err := t.converter.ToMarkdown(ctx, bodies)
+	if err != nil {
+		return err
+	}
+	for i := range tasks {
+		tasks[i].Body = markdowns[i]
+	}
+	return nil
 }
 
 func (t *toolset) register(srv *mcp.Server) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "search_tasks",
-		Description: "Search and filter tasks across all projects. Call list_workflow_stages first if filtering by stage.",
+		Description: "Search and filter tasks across all projects. Task bodies are returned as markdown. Call list_workflow_stages first if filtering by stage.",
 	}, t.searchTasks)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "read_task",
-		Description: "Read a single task's full details by id.",
+		Description: "Read a single task's full details by id. The body is returned as markdown.",
 	}, t.readTask)
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -86,7 +79,7 @@ func (t *toolset) register(srv *mcp.Server) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_task",
-		Description: "Update a task's name, priority, assignee, or body. Never changes stage — use move_task_stage for that.",
+		Description: "Update a task's name, priority, assignee, or body (markdown). Never changes stage — use move_task_stage for that.",
 	}, t.updateTask)
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -130,6 +123,12 @@ func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in 
 	if len(tasks) > limit {
 		tasks = tasks[:limit]
 	}
+
+	// Convert after trimming to the limit — bodies past it are never returned,
+	// so converting them would be wasted subprocess work.
+	if err := t.bodiesToMarkdown(ctx, tasks); err != nil {
+		return nil, nil, err
+	}
 	return nil, tasks, nil
 }
 
@@ -142,6 +141,12 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 	if err != nil {
 		return nil, nil, err
 	}
+
+	body, err := t.converter.ToMarkdown(ctx, []string{task.Body})
+	if err != nil {
+		return nil, nil, err
+	}
+	task.Body = body[0]
 	return nil, task, nil
 }
 
@@ -220,7 +225,7 @@ type UpdateTaskInput struct {
 	Name     *string `json:"name,omitempty"`
 	Priority *string `json:"priority,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
 	Assignee *string `json:"assignee,omitempty"`
-	Body     *string `json:"body,omitempty" jsonschema:"plain text — converted to the rich-text editor's document format, one paragraph per line. Overwrites the existing body."`
+	Body     *string `json:"body,omitempty" jsonschema:"markdown — headings, lists, tables, code blocks and task checkboxes are all supported. Overwrites the existing body."`
 }
 
 func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, bool, error) {
@@ -228,6 +233,18 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	if err != nil {
 		return nil, false, err
 	}
+
+	// Convert before writing anything: a malformed body should leave the task
+	// entirely untouched rather than half-applying the property changes.
+	body := ""
+	if in.Body != nil {
+		converted, err := t.converter.ToBody(ctx, []string{*in.Body})
+		if err != nil {
+			return nil, false, err
+		}
+		body = converted[0]
+	}
+
 	if in.Name != nil {
 		current.Name = *in.Name
 	}
@@ -248,7 +265,7 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 		// separation the app itself relies on (taskRepo.go's UpdateTask never
 		// touches the body column, precisely so a property-only edit can't
 		// clobber it).
-		ok, err = t.taskService.UpdateTaskBody(in.TaskID, plainTextToBody(*in.Body))
+		ok, err = t.taskService.UpdateTaskBody(in.TaskID, body)
 	}
 	return nil, ok, err
 }

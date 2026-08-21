@@ -26,6 +26,7 @@ Implications an agent must account for:
   AYCORN_DB=./app.db go run ./cmd/web   # goose creates all tables automatically
   ```
   (or just `make dev-test`, which sets `AYCORN_DB` for you).
+- **`go build ./...` needs the markdown bundle.** `assets/bin/md-convert.cjs` is a gitignored build artifact (like `ui/dist`) that `internal/markdown` embeds, so a fresh clone must run `make build-md-convert` before any build that reaches it. `make build-mcp` does it for you. It is rebuilt from the frontend — see the Markdown Conversion section below.
 - **Schema changes go through migration files**, not `schema.sql` directly. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for the full migration workflow.
 - **`placeholder.sql` is seed data** for development — load it into the **test** DB only, never the personal one:
   ```
@@ -52,6 +53,21 @@ Handler → Service → Repository
 - Check errors immediately and bubble them up the call stack. No silent failures.
 - Log meaningful errors in the service/handler layer.
 - Map known service errors to the right HTTP status in the handler (e.g. an invalid-stage-type error → `400`, not `500`). Reserve `500` for genuinely unexpected failures.
+
+---
+
+## Markdown Conversion (`internal/markdown`)
+
+`task.body` is Plate.js document JSON, but the MCP tools speak markdown: `update_task` takes markdown, `read_task` / `search_tasks` return it.
+
+The conversion is **not** implemented in Go. Plate's own serializer is the only thing that knows the app's exact node inventory, so `app/scripts/md-convert.ts` builds a headless editor from the app's plugin kits (`app/src/features/editor/markdown-editor.ts`) and esbuild bundles it into the dependency-free `assets/bin/md-convert.cjs`. `internal/markdown.Converter` extracts that embedded bundle into the user's cache dir and shells out to `node`, one batched JSON request per call.
+
+Consequences:
+
+- **`node` must be on PATH** wherever `aycorn-mcp` runs. A missing node, a crash, or a timeout is a real Go error — never fall back to returning raw Plate JSON as if it were markdown.
+- **Conversion is batched.** Process startup dominates, so convert a whole slice in one call rather than looping single conversions.
+- **A new node-defining editor plugin needs two edits.** Adding one to `app/src/features/editor/rich-editor.tsx` without adding it to `markdown-editor.ts` means that node silently disappears on conversion.
+- **Rebuild the bundle after any editor plugin change**: `make build-md-convert`.
 
 ---
 

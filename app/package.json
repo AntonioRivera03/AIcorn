@@ -1,11 +1,12 @@
 {
   "name": "aycorn",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.5.0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:md-convert": "node scripts/build-md-convert.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -109,6 +110,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "babel-plugin-react-compiler": "^1.0.0",
+    "esbuild": "^0.27.7",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
