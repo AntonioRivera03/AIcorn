@@ -7,7 +7,7 @@ UI_DIST  := $(SRV_DIR)/ui/dist
 # Falls back to "dev" when git isn't available or there are no tags yet.
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck install upgrade stop clean backup restore backup-test restore-test
+.PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck test test-app test-server install upgrade stop clean backup restore backup-test restore-test
 
 # Development: build frontend with dev icon, then start Go server against your
 # personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
@@ -48,6 +48,18 @@ build-mcp: build-md-convert
 # Run TypeScript type check without building
 typecheck:
 	cd $(APP_DIR) && npx tsc -b --noEmit
+
+test: test-server test-app
+
+# Go tests. Depends on the markdown bundle for the same reason `build-mcp` does
+# — internal/markdown embeds it, so the package won't compile without it. Its
+# tests exercise the real bundle under node, and skip if node is missing.
+test-server: build-md-convert
+	cd $(SRV_DIR) && go test ./...
+
+# Vitest (vitest.config.ts). Headless, no browser or DOM needed.
+test-app:
+	cd $(APP_DIR) && npm test
 
 build-server:
 	cd $(SRV_DIR) && CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o ../$(BINARY) ./cmd/web

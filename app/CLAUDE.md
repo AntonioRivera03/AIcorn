@@ -54,6 +54,14 @@ src/
 
 ---
 
+## Tests
+
+Vitest, configured in `vitest.config.ts` (standalone from `vite.config.ts` — tests don't need the router codegen, React compiler, or Tailwind). Run with `make test-app` or `npm test`.
+
+Tests are colocated with the code they cover as `<name>.test.ts` under `src/`. Prefer headless tests — no DOM environment is configured, and none is needed for logic, serializers, and pure hooks-free helpers. If a test ever genuinely needs the DOM, add `jsdom` then, not before.
+
+---
+
 ## Frontend Gotcha: portal'd dialogs/menus bubble through the React tree
 
 Radix primitives (`AlertDialog`, `DropdownMenu`, etc., via shadcn) render their content through a **portal** — it's elsewhere in the DOM, but React **synthetic events still bubble through the React component tree**, not the DOM tree.

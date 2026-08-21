@@ -71,6 +71,14 @@ Consequences:
 
 ---
 
+## Tests
+
+Plain `go test` — no external assertion library. Run with `make test-server` (it builds the markdown bundle first, since `internal/markdown` embeds it) or `cd server && go test ./...`.
+
+`internal/markdown/converter_test.go` drives the real bundled `md-convert.cjs` under a real `node` rather than mocking the subprocess — the subprocess *is* the thing under test. It `t.Skip`s with a clear message when `node` isn't on PATH, so a machine without node still gets a green suite.
+
+---
+
 ## Backend Gotcha: NULL text columns can't scan into `string`
 
 Go's `database/sql` cannot scan a SQL `NULL` into a Go `string` — it errors at runtime (surfaces as a 500 with `converting NULL to string is unsupported`).
