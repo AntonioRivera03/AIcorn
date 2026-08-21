@@ -57,6 +57,16 @@ func (s *ProjectService) GetProjectWorkflowSettings(projectId int) (*projectWork
 var ErrNoOpenStage = errors.New("target workflow has no open stage")
 var ErrInvalidStageMapping = errors.New("stage mapping must map a current-workflow stage to a stage in the new workflow")
 
+var validProjectViews = map[string]struct{}{
+	"":       {},
+	"list":   {},
+	"kanban": {},
+	"month":  {},
+	"week":   {},
+}
+
+var ErrInvalidProjectView = errors.New("invalid default view")
+
 func (s *ProjectService) SwitchProjectWorkflow(projectId int, newWorkflowId int, mappings map[int]int) (models.BulkResult, error) {
 	project, err := s.ProjectRepo.FindOne(projectId)
 	if err != nil {
@@ -169,6 +179,10 @@ func (s *ProjectService) GetPinnedProjects() ([]models.Project, error) {
 }
 
 func (s *ProjectService) UpdateProject(project *models.Project) (bool, error) {
+	if _, ok := validProjectViews[project.DefaultView]; !ok {
+		return false, ErrInvalidProjectView
+	}
+
 	success, err := s.ProjectRepo.UpdateProject(project)
 	if err != nil {
 		return false, err

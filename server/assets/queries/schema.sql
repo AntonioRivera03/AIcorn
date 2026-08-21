@@ -52,6 +52,7 @@ CREATE TABLE project (
     name VARCHAR,
     pinned BOOLEAN,
     workflow INTEGER,
+    defaultView TEXT NOT NULL DEFAULT '',
     timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
