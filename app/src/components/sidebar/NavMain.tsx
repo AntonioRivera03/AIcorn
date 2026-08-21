@@ -3,12 +3,12 @@ import { Link } from "@tanstack/react-router";
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { CollapsibleNavGroup } from "@/components/sidebar/CollapsibleNavGroup";
 import { useIsMobile } from "@/hooks/useMobile";
 
 export function NavMain({
@@ -25,28 +25,39 @@ export function NavMain({
 }) {
   const isMobile = useIsMobile();
 
+  const menu = (
+    <SidebarMenu>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton
+            size={isMobile ? "lg" : "default"}
+            tooltip={item.title}
+            asChild
+          >
+            <Link to={item.url} className="flex">
+              {item.icon && <item.icon />}
+              <span>{item.title}</span>
+            </Link>
+          </SidebarMenuButton>
+          {item?.badge && <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>}
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  );
+
+  if (!label) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupContent className="flex flex-col gap-2">
+          {menu}
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
   return (
-    <SidebarGroup>
-      {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
-      <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                size={isMobile ? "lg" : "default"}
-                tooltip={item.title}
-                asChild
-              >
-                <Link to={item.url} className="flex">
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-              {item?.badge && <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>}
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <CollapsibleNavGroup section={label} label={label}>
+      {menu}
+    </CollapsibleNavGroup>
   );
 }
