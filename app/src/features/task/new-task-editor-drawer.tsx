@@ -12,8 +12,12 @@ import type { ChecklistTask } from "@/types/types";
 
 export function NewTaskEditorDrawer({
   setTaskDrawerOpen,
+  stageId,
+  children,
 }: {
   setTaskDrawerOpen: (open: boolean) => void;
+  stageId?: number;
+  children?: React.ReactNode;
 }) {
   const { setState: setTask } = useContext(TaskContext);
   const { Project, Checklists, Stages } = useContext(ProjectContext);
@@ -28,7 +32,10 @@ export function NewTaskEditorDrawer({
           ...defaultTaskContextValue.state,
           Checklist: Checklists[0]?.ID,
           Stage:
-            Stages.find((s) => s.Type === "open")?.ID ?? Stages[0]?.ID ?? 0,
+            stageId ??
+            Stages.find((s) => s.Type === "open")?.ID ??
+            Stages[0]?.ID ??
+            0,
         },
         {
           onSuccess: (newTask: ChecklistTask) => {
@@ -36,7 +43,18 @@ export function NewTaskEditorDrawer({
           },
         },
       ),
-    [create, Checklists, Stages, setTask],
+    [create, Checklists, Stages, setTask, stageId],
+  );
+
+  const trigger = children ? (
+    <span className="contents" onClick={handleAddTask}>
+      {children}
+    </span>
+  ) : (
+    <Button className="hover:cursor-pointer" onClick={handleAddTask}>
+      <Plus />
+      New Task
+    </Button>
   );
 
   return (
@@ -48,10 +66,7 @@ export function NewTaskEditorDrawer({
         }
       }}
     >
-      <Button className="hover:cursor-pointer" onClick={handleAddTask}>
-        <Plus />
-        New Task
-      </Button>
+      {trigger}
     </TaskEditorDrawer>
   );
 }
