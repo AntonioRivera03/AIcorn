@@ -54,6 +54,14 @@ src/
 
 ---
 
+## Tests
+
+Vitest, configured in `vitest.config.ts` (standalone from `vite.config.ts` — tests don't need the router codegen, React compiler, or Tailwind). Run with `make test-app` or `npm test`.
+
+Tests are colocated with the code they cover as `<name>.test.ts` under `src/`. Prefer headless tests — no DOM environment is configured, and none is needed for logic, serializers, and pure hooks-free helpers. If a test ever genuinely needs the DOM, add `jsdom` then, not before.
+
+---
+
 ## Frontend Gotcha: portal'd dialogs/menus bubble through the React tree
 
 Radix primitives (`AlertDialog`, `DropdownMenu`, etc., via shadcn) render their content through a **portal** — it's elsewhere in the DOM, but React **synthetic events still bubble through the React component tree**, not the DOM tree.
@@ -110,6 +118,12 @@ Add `cursor-text` to the `EditableHeader` className when it lives inside a `curs
 ---
 
 ## Feature Notes
+
+### Markdown (`features/editor/plugins/markdown-kit.tsx`)
+
+`MarkdownKit` is shared by the live editor's "Copy as markdown" export **and** the headless converter the MCP server shells out to (`markdown-editor.ts`) — one plugin config, two consumers. `remarkMdx` is loaded because the default rules for `callout`/`toc`/`kbd`/`highlight` all emit MDX JSX mdast nodes that `remark-stringify` can't render without it (an unconditional throw on export otherwise, for both consumers, since all of those node types exist in the live editor).
+
+Side effect: with `remarkMdx` loaded, literal `{braces}` typed directly into the editor now serialize as escaped `\{braces}` on "Copy as markdown" (still correct — round-trips to the same characters — just a visible formatting change from before this plugin was added). This is inherent to enabling MDX parsing, not a bug; splitting the live editor onto a separate non-MDX pipeline would just reintroduce the export crash for any document containing a callout, toggle, or toc.
 
 ### Task Types (`features/task-types/`)
 

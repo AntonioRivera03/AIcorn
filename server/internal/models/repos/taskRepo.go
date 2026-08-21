@@ -27,6 +27,12 @@ type TaskFilters struct {
 	CompletedTo          string
 	CompletedFromHasTime bool
 	CompletedToHasTime   bool
+	// Limit caps the number of rows the query itself returns. Zero means no
+	// limit — callers that need every matching row (e.g. the board views)
+	// leave this unset; callers that only need the first N (e.g. the MCP
+	// search_tasks tool) push their limit down here instead of fetching
+	// everything and slicing in Go.
+	Limit int
 }
 
 // taskTypeSelect is the SELECT fragment for the task_type JOIN columns.
@@ -213,6 +219,54 @@ func (repo *TaskRepo) UpdateTask(task *models.ChecklistTask) (bool, error) {
 		task.Priority,
 		task.Type.ID,
 		task.Stage,
+		task.ID,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
+// UpdateTaskProperties updates every column UpdateTask does except stage and
+// body. Stage is excluded deliberately (not just left unset by convention) so
+// a caller that isn't supposed to change it — the MCP update_task tool —
+// cannot do so even by accident; TransitionStage/CompareAndSwapStage is the
+// only path that may. Body is excluded for the same reason UpdateTask
+// excludes it: see UpdateTaskBody.
+func (repo *TaskRepo) UpdateTaskProperties(task *models.ChecklistTask) (bool, error) {
+	query := `
+		UPDATE task SET
+			name = ?,
+			checklist = ?,
+			timePlannedStart = ?,
+			timePlannedEnd = ?,
+			hasTimePlannedStart = ?,
+			hasTimePlannedEnd = ?,
+			timeCompleted = ?,
+			assignee = ?,
+			priority = ?,
+			type = ?
+		WHERE id = ?;
+	`
+
+	res, err := repo.DB.Exec(
+		query,
+		task.Name,
+		task.Checklist,
+		task.TimePlannedStart,
+		task.TimePlannedEnd,
+		task.HasTimePlannedStart,
+		task.HasTimePlannedEnd,
+		task.TimeCompleted,
+		task.Assignee,
+		task.Priority,
+		task.Type.ID,
 		task.ID,
 	)
 	if err != nil {
@@ -588,6 +642,11 @@ func (repo *TaskRepo) AllTasks(taskFilters *TaskFilters) ([]models.TaskWithProje
 	}
 
 	query += " ORDER BY t.timePlannedStart, t.timePlannedEnd, t.timeCreated DESC"
+
+	if taskFilters.Limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, taskFilters.Limit)
+	}
 
 	rows, err := repo.DB.Query(query, args...)
 	if err != nil {

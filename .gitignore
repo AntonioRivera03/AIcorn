@@ -1,9 +1,11 @@
 app.db*
 server/backups/
 server/ui/dist/
+server/assets/bin/md-convert.cjs
 server/dev.db*
 aycorn
 server/web
+server/bin/
 dist-release/
 .DS_Store
 

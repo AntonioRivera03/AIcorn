@@ -2,20 +2,17 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/pressly/goose/v3"
-	"github.com/waseem-polus/aycorn/server/internal/migrations"
+	"github.com/waseem-polus/aycorn/server/internal/appdb"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	_ "modernc.org/sqlite"
@@ -24,30 +21,6 @@ import (
 // version is set at build time via -ldflags "-X main.version=<tag>".
 // Falls back to "dev" for local builds without a tag.
 var version = "dev"
-
-// resolveDBPath returns the SQLite file path.
-//
-// Precedence:
-//  1. $AYCORN_DB — explicit override (used by `make dev` and for ad-hoc testing
-//     so dev builds don't clobber an installed user DB).
-//  2. <os.UserConfigDir()>/aycorn/app.db — the default for installed binaries.
-//     macOS:   ~/Library/Application Support/aycorn/app.db
-//     Linux:   ~/.config/aycorn/app.db   (or $XDG_CONFIG_HOME/aycorn/app.db)
-//     Windows: %AppData%\aycorn\app.db
-func resolveDBPath() (string, error) {
-	if p := os.Getenv("AYCORN_DB"); p != "" {
-		return p, nil
-	}
-	cfgDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(cfgDir, "aycorn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "app.db"), nil
-}
 
 // resolvePort returns the port to listen on.
 //
@@ -143,39 +116,29 @@ func main() {
 		}
 	}
 
-	dbPath, err := resolveDBPath()
+	dbPath, err := appdb.ResolveDBPath()
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("Using database at %s", dbPath)
 
-	// Note whether the DB already has data before we open it, so a brand-new
-	// DB's first boot doesn't trigger a useless pre-migration backup.
-	dbExisted := false
-	if fi, err := os.Stat(dbPath); err == nil && fi.Size() > 0 {
-		dbExisted = true
-	}
-
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(wal)&_pragma=busy_timeout(5000)")
+	db, err := appdb.Open(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	goose.SetBaseFS(migrations.Files)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	if err := appdb.Migrate(db, dbPath); err != nil {
 		log.Fatal(err)
 	}
-	// Snapshot before applying any pending migration so an upgrade can never
-	// silently lose data. Aborts startup if the snapshot fails.
-	if dbExisted {
-		if err := backupBeforeMigrate(db, dbPath); err != nil {
-			log.Fatal(err)
-		}
-	}
-	if err := goose.Up(db, "sql"); err != nil {
-		log.Fatal(err)
-	}
+
+	backupCtx, stopBackups := context.WithCancel(context.Background())
+	defer stopBackups()
+	backupLoopDone := make(chan struct{})
+	go func() {
+		defer close(backupLoopDone)
+		appdb.RunBackupLoop(backupCtx, db, dbPath, appdb.BackupInterval())
+	}()
 
 	projectRepo := &repos.ProjectRepo{DB: db}
 	checklistRepo := &repos.ChecklistRepo{DB: db}
@@ -262,6 +225,18 @@ func main() {
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatal("Forced shutdown:", err)
+	}
+
+	// Wait for the periodic backup loop to fully stop before touching db
+	// again — stopBackups() only cancels the context, which the loop notices
+	// between ticks, not mid-Snapshot. Without this wait, a backup in flight
+	// when the signal arrives could still be running when the deferred
+	// db.Close() fires below.
+	stopBackups()
+	<-backupLoopDone
+
+	if err := appdb.BackupOnShutdown(db, dbPath); err != nil {
+		log.Printf("shutdown backup: %v", err)
 	}
 	log.Println("Done")
 }

@@ -7,12 +7,19 @@ UI_DIST  := $(SRV_DIR)/ui/dist
 # Falls back to "dev" when git isn't available or there are no tags yet.
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: dev build build-app build-app-dev build-server typecheck install upgrade stop clean backup restore
+.PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck test test-app test-server install upgrade stop clean backup restore backup-test restore-test
 
-# Development: build frontend with dev icon, then start Go server.
-# AYCORN_DB pins the dev DB to server/app.db so it doesn't touch the installed
-# binary's DB under ~/Library/Application Support/aycorn (or the OS equivalent).
+# Development: build frontend with dev icon, then start Go server against your
+# personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
+# back to <UserConfigDir>/aycorn/app.db, same DB the installed binary uses).
 dev: build-app-dev
+	@trap 'kill 0' INT; \
+    cd $(SRV_DIR) && go run ./cmd/web; \
+    wait
+
+# Development against a disposable test DB: pins AYCORN_DB to server/app.db so
+# it never touches your personal data. Safe to `rm -f server/app.db` anytime.
+dev-test: build-app-dev
 	@trap 'kill 0' INT; \
     cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web; \
     wait
@@ -26,9 +33,33 @@ build-app:
 build-app-dev:
 	cd $(APP_DIR) && npx vite build --mode development
 
+# Bundle Plate's markdown serializer into a standalone Node script that the MCP
+# server embeds and shells out to. Required before any `go build` that reaches
+# server/assets/bin — the embed fails loudly without it.
+build-md-convert:
+	cd $(APP_DIR) && npm run build:md-convert
+
+# The MCP stdio server (Documentation/phase-1-mcp-server.md). Point your MCP
+# host at server/bin/aycorn-mcp. Needs `node` on PATH at runtime.
+build-mcp: build-md-convert
+	cd $(SRV_DIR) && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/aycorn-mcp ./cmd/mcp
+	@echo "Binary ready: $(SRV_DIR)/bin/aycorn-mcp"
+
 # Run TypeScript type check without building
 typecheck:
 	cd $(APP_DIR) && npx tsc -b --noEmit
+
+test: test-server test-app
+
+# Go tests. Depends on the markdown bundle for the same reason `build-mcp` does
+# — internal/markdown embeds it, so the package won't compile without it. Its
+# tests exercise the real bundle under node, and skip if node is missing.
+test-server: build-md-convert
+	cd $(SRV_DIR) && go test ./...
+
+# Vitest (vitest.config.ts). Headless, no browser or DOM needed.
+test-app:
+	cd $(APP_DIR) && npm test
 
 build-server:
 	cd $(SRV_DIR) && CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o ../$(BINARY) ./cmd/web
@@ -55,13 +86,20 @@ upgrade:
 	$(MAKE) install
 	@echo "Upgraded to $$(aycorn --version)"
 
-# Snapshot / restore the DEV database (server/app.db) via the binary's subcommands.
-# These operate on the dev DB only (AYCORN_DB=./app.db); the installed binary's
-# `aycorn backup` / `aycorn restore` act on your real data under the OS config dir.
+# Snapshot / restore your personal database via the binary's subcommands (no
+# AYCORN_DB override → same DB `make dev` and the installed binary use).
 backup:
-	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && go run ./cmd/web backup $(DEST)
 
 restore:
+	cd $(SRV_DIR) && go run ./cmd/web restore $(SRC)
+
+# Snapshot / restore the disposable TEST database (server/app.db) — pairs with
+# `make dev-test`.
+backup-test:
+	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web backup $(DEST)
+
+restore-test:
 	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web restore $(SRC)
 
 clean:

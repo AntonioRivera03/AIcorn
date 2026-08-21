@@ -78,6 +78,17 @@ func (s *TaskService) UpdateTask(updatedTask *models.ChecklistTask) (bool, error
 	return success, nil
 }
 
+// UpdateTaskProperties is UpdateTask without the ability to change stage. See
+// TaskRepo.UpdateTaskProperties.
+func (s *TaskService) UpdateTaskProperties(updatedTask *models.ChecklistTask) (bool, error) {
+	success, err := s.TaskRepo.UpdateTaskProperties(updatedTask)
+	if err != nil {
+		return false, err
+	}
+
+	return success, nil
+}
+
 func (s *TaskService) UpdateTaskBody(taskId int, body string) (bool, error) {
 	success, err := s.TaskRepo.UpdateTaskBody(taskId, body)
 	if err != nil {
@@ -97,11 +108,11 @@ func (s *TaskService) DeleteTask(taskId int) (bool, error) {
 }
 
 var bulkTaskUpdatableColumns = map[string]string{
-	"Stage":            "stage",
-	"Priority":         "priority",
-	"Type":             "type",
-	"Assignee":         "assignee",
-	"Checklist":        "checklist",
+	"Stage":               "stage",
+	"Priority":            "priority",
+	"Type":                "type",
+	"Assignee":            "assignee",
+	"Checklist":           "checklist",
 	"TimePlannedStart":    "timePlannedStart",
 	"TimePlannedEnd":      "timePlannedEnd",
 	"HasTimePlannedStart": "hasTimePlannedStart",
