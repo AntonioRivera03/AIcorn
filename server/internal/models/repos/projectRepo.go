@@ -12,14 +12,14 @@ type ProjectRepo struct {
 }
 
 const projectSelect = `
-SELECT p.id, p.name, p.pinned, p.workflow, w.name, p.timeCreated, p.timeModified
+SELECT p.id, p.name, p.pinned, p.workflow, w.name, p.defaultView, p.timeCreated, p.timeModified
 FROM project p
 JOIN workflow w ON p.workflow = w.id`
 
 func scanProject(scanner interface {
 	Scan(...any) error
 }, p *models.Project) error {
-	return scanner.Scan(&p.ID, &p.Name, &p.Pinned, &p.Workflow, &p.WorkflowName, &p.TimeCreated, &p.TimeModified)
+	return scanner.Scan(&p.ID, &p.Name, &p.Pinned, &p.Workflow, &p.WorkflowName, &p.DefaultView, &p.TimeCreated, &p.TimeModified)
 }
 
 func (repo *ProjectRepo) All() ([]models.Project, error) {
@@ -103,8 +103,8 @@ func (repo *ProjectRepo) FindPinnedProjects() ([]models.Project, error) {
 }
 
 func (repo *ProjectRepo) UpdateProject(project *models.Project) (bool, error) {
-	query := "UPDATE project SET name = ?, pinned = ?, workflow = ? WHERE id = ?;"
-	res, err := repo.DB.Exec(query, project.Name, project.Pinned, project.Workflow, project.ID)
+	query := "UPDATE project SET name = ?, pinned = ?, workflow = ?, defaultView = ? WHERE id = ?;"
+	res, err := repo.DB.Exec(query, project.Name, project.Pinned, project.Workflow, project.DefaultView, project.ID)
 	if err != nil {
 		return false, err
 	}
