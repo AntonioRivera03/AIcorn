@@ -134,7 +134,11 @@ func main() {
 
 	backupCtx, stopBackups := context.WithCancel(context.Background())
 	defer stopBackups()
-	go appdb.RunBackupLoop(backupCtx, db, dbPath, appdb.BackupInterval())
+	backupLoopDone := make(chan struct{})
+	go func() {
+		defer close(backupLoopDone)
+		appdb.RunBackupLoop(backupCtx, db, dbPath, appdb.BackupInterval())
+	}()
 
 	projectRepo := &repos.ProjectRepo{DB: db}
 	checklistRepo := &repos.ChecklistRepo{DB: db}
@@ -222,6 +226,14 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatal("Forced shutdown:", err)
 	}
+
+	// Wait for the periodic backup loop to fully stop before touching db
+	// again — stopBackups() only cancels the context, which the loop notices
+	// between ticks, not mid-Snapshot. Without this wait, a backup in flight
+	// when the signal arrives could still be running when the deferred
+	// db.Close() fires below.
+	stopBackups()
+	<-backupLoopDone
 
 	if err := appdb.BackupOnShutdown(db, dbPath); err != nil {
 		log.Printf("shutdown backup: %v", err)

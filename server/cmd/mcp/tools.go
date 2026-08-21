@@ -51,6 +51,26 @@ func (t *toolset) bodiesToMarkdown(ctx context.Context, tasks []models.TaskWithP
 	return nil
 }
 
+// bodyToMarkdown and bodyToBody are the single-item form of bodiesToMarkdown /
+// Converter.ToBody, for the two call sites (readTask, updateTask) that only
+// ever have one body to convert — avoids each hand-rolling its own
+// wrap-in-a-slice/unwrap-index-0 around the batch API.
+func (t *toolset) bodyToMarkdown(ctx context.Context, body string) (string, error) {
+	markdowns, err := t.converter.ToMarkdown(ctx, []string{body})
+	if err != nil {
+		return "", err
+	}
+	return markdowns[0], nil
+}
+
+func (t *toolset) bodyToBody(ctx context.Context, markdown string) (string, error) {
+	bodies, err := t.converter.ToBody(ctx, []string{markdown})
+	if err != nil {
+		return "", err
+	}
+	return bodies[0], nil
+}
+
 func (t *toolset) register(srv *mcp.Server) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "search_tasks",
@@ -108,11 +128,6 @@ func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in 
 		filters.StageQuery = append(filters.StageQuery, strconv.Itoa(id))
 	}
 
-	tasks, err := t.taskService.GetAllTasks(filters)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	limit := in.Limit
 	if limit <= 0 {
 		limit = 25
@@ -120,12 +135,13 @@ func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in 
 	if limit > 100 {
 		limit = 100
 	}
-	if len(tasks) > limit {
-		tasks = tasks[:limit]
+	filters.Limit = limit
+
+	tasks, err := t.taskService.GetAllTasks(filters)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Convert after trimming to the limit — bodies past it are never returned,
-	// so converting them would be wasted subprocess work.
 	if err := t.bodiesToMarkdown(ctx, tasks); err != nil {
 		return nil, nil, err
 	}
@@ -142,11 +158,11 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 		return nil, nil, err
 	}
 
-	body, err := t.converter.ToMarkdown(ctx, []string{task.Body})
+	body, err := t.bodyToMarkdown(ctx, task.Body)
 	if err != nil {
 		return nil, nil, err
 	}
-	task.Body = body[0]
+	task.Body = body
 	return nil, task, nil
 }
 
@@ -216,10 +232,10 @@ func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in C
 }
 
 // UpdateTaskInput is deliberately narrower than PUT /api/task's full
-// ChecklistTask body. TaskService.UpdateTask writes every column in one shot
-// including stage; if this tool round-tripped a caller-supplied stage
-// verbatim, an agent working from stale context could silently move a task
-// sideways of move_task_stage's CAS check.
+// ChecklistTask body. This tool writes through TaskService.UpdateTaskProperties,
+// which has no stage column in its UPDATE at all — unlike TaskService.UpdateTask
+// (used by PUT /api/task), it's not possible for this tool to move a task
+// sideways of move_task_stage's CAS check, even by accident.
 type UpdateTaskInput struct {
 	TaskID   int     `json:"taskId"`
 	Name     *string `json:"name,omitempty"`
@@ -238,11 +254,11 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	// entirely untouched rather than half-applying the property changes.
 	body := ""
 	if in.Body != nil {
-		converted, err := t.converter.ToBody(ctx, []string{*in.Body})
+		converted, err := t.bodyToBody(ctx, *in.Body)
 		if err != nil {
 			return nil, false, err
 		}
-		body = converted[0]
+		body = converted
 	}
 
 	if in.Name != nil {
@@ -254,8 +270,7 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	if in.Assignee != nil {
 		current.Assignee = *in.Assignee
 	}
-	// current.Stage is whatever it already was — never set from this tool.
-	ok, err := t.taskService.UpdateTask(&current.ChecklistTask)
+	ok, err := t.taskService.UpdateTaskProperties(&current.ChecklistTask)
 	if err != nil || !ok {
 		return nil, ok, err
 	}

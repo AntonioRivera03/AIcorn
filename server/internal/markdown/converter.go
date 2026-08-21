@@ -26,7 +26,14 @@ import (
 	"github.com/waseem-polus/aycorn/server/assets/bin"
 )
 
-const defaultTimeout = 5 * time.Second
+const (
+	defaultTimeout = 5 * time.Second
+	// perItemTimeout scales the deadline up for large batches (search_tasks can
+	// send up to 100 bodies in one call) — Node's own startup cost is fixed, but
+	// serializing N Plate documents is not, so a single flat timeout that's
+	// comfortable for one item can fail a full batch under load.
+	perItemTimeout = 100 * time.Millisecond
+)
 
 // Converter runs the bundled Node script. Use it as a pointer: it caches the
 // extracted script path across calls.
@@ -104,6 +111,9 @@ func (c *Converter) run(ctx context.Context, direction string, items []string) (
 	timeout := c.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
+		if scaled := time.Duration(len(items)) * perItemTimeout; scaled > timeout {
+			timeout = scaled
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

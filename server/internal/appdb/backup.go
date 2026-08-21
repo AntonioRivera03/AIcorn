@@ -195,15 +195,21 @@ func BackupNow(db *sql.DB, dbPath, suffix string) error {
 // returns nil on failure rather than blocking startup, since (unlike
 // BackupBeforeMigrate) no migration is at risk here.
 func BackupIfStale(db *sql.DB, dbPath string, interval time.Duration) error {
-	dir := ResolveBackupDir(dbPath)
-	latest, err := latestBackupTime(dir)
-	if err != nil {
-		return err
-	}
-	if !latest.IsZero() && time.Since(latest) < interval {
-		return nil
-	}
-	return BackupNow(db, dbPath, "")
+	// Locked so cmd/web and cmd/mcp starting within the same stale window
+	// don't both see "no recent backup" and each run their own VACUUM INTO —
+	// the second process re-checks staleness after acquiring the lock, by
+	// which point the first process's backup (if any) already counts.
+	return withFileLock(dbPath, func() error {
+		dir := ResolveBackupDir(dbPath)
+		latest, err := latestBackupTime(dir)
+		if err != nil {
+			return err
+		}
+		if !latest.IsZero() && time.Since(latest) < interval {
+			return nil
+		}
+		return BackupNow(db, dbPath, "")
+	})
 }
 
 // BackupOnShutdown snapshots the DB unconditionally — called from the
@@ -212,7 +218,9 @@ func BackupIfStale(db *sql.DB, dbPath string, interval time.Duration) error {
 // be arbitrarily far in the future). Best-effort: logs and returns rather
 // than blocking shutdown on failure.
 func BackupOnShutdown(db *sql.DB, dbPath string) error {
-	return BackupNow(db, dbPath, "-shutdown")
+	return withFileLock(dbPath, func() error {
+		return BackupNow(db, dbPath, "-shutdown")
+	})
 }
 
 // RunBackupLoop takes a startup backup (via BackupIfStale) and then continues
