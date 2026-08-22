@@ -48,12 +48,16 @@ func main() {
 	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	projectRepo := &repos.ProjectRepo{DB: db}
 	stageRepo := &repos.StageRepo{DB: db}
+	checklistRepo := &repos.ChecklistRepo{DB: db}
+	categoryRepo := &repos.TaskTypeCategoryRepo{DB: db}
 
 	toolset := &toolset{
-		taskService:    &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo},
-		projectService: &services.ProjectService{ProjectRepo: projectRepo, TaskRepo: taskRepo},
-		stageService:   &services.StageService{StageRepo: stageRepo},
-		converter:      &markdown.Converter{},
+		taskService:      &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo},
+		projectService:   &services.ProjectService{ProjectRepo: projectRepo, TaskRepo: taskRepo},
+		stageService:     &services.StageService{StageRepo: stageRepo},
+		checklistService: &services.ChecklistService{ChecklistRepo: checklistRepo, TaskRepo: taskRepo},
+		taskTypeService:  &services.TaskTypeService{TaskTypeRepo: taskTypeRepo, CategoryRepo: categoryRepo},
+		converter:        &markdown.Converter{},
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)

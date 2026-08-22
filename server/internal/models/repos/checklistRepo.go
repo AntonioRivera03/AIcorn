@@ -10,6 +10,44 @@ type ChecklistRepo struct {
 	DB *sql.DB
 }
 
+func (repo *ChecklistRepo) All() ([]models.Checklist, error) {
+	query := "SELECT id, name, COALESCE(description, ''), project, timeCreated, timeModified, isDefault FROM checklist ORDER BY project ASC, id ASC;"
+	rows, err := repo.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	checklists := []models.Checklist{}
+	for rows.Next() {
+		c := models.Checklist{}
+		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Project, &c.TimeCreated, &c.TimeModified, &c.IsDefault); err != nil {
+			return nil, err
+		}
+		checklists = append(checklists, c)
+	}
+	return checklists, rows.Err()
+}
+
+func (repo *ChecklistRepo) AllByProject(projectId int) ([]models.Checklist, error) {
+	query := "SELECT id, name, COALESCE(description, ''), project, timeCreated, timeModified, isDefault FROM checklist WHERE project = ? ORDER BY id ASC;"
+	rows, err := repo.DB.Query(query, projectId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	checklists := []models.Checklist{}
+	for rows.Next() {
+		c := models.Checklist{}
+		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Project, &c.TimeCreated, &c.TimeModified, &c.IsDefault); err != nil {
+			return nil, err
+		}
+		checklists = append(checklists, c)
+	}
+	return checklists, rows.Err()
+}
+
 func (repo *ChecklistRepo) InProject(projectId int) ([]models.ChecklistDetails, error) {
 	query := `
 		SELECT c.id,

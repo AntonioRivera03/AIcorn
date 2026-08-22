@@ -21,7 +21,6 @@ import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { TaskContext } from "@/contexts/task/TaskContext";
 import { WorkflowStageChip } from "@/features/workflows/shared/workflow-stage-chip";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useTaskMutation } from "@/queries/useTaskMutation";
 import {
   ChevronsRightIcon,
   ClipboardIcon,
@@ -31,15 +30,15 @@ import {
   PinIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 import type { Stage } from "@/types/types";
 import { Badge } from "@/components/ui/badge";
 import { priorityOutlineBadgeClass } from "../properties/task-priority-palette";
 import TaskPriorityIcon from "../properties/icons/TaskPriorityIcon";
 import { cn } from "@/lib/utils";
 import TaskTypeBadge from "../properties/task-type-badge";
+import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
 
 export function TaskEditorHeader({
   setOpen = () => {},
@@ -56,10 +55,10 @@ export function TaskEditorHeader({
 }) {
   const { state: task } = useContext(TaskContext);
   const { Project } = useContext(ProjectContext);
-  const { deleteTask } = useTaskMutation(Project.ID);
   const navigate = useNavigate();
 
   const isMobile = useIsMobile();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <DrawerHeader className="p-2 sm:border-b">
@@ -102,20 +101,17 @@ export function TaskEditorHeader({
         </div>
 
         <div className="flex gap-1 sm:gap-2 items-center">
-            <Badge
-              variant="outline"
-              className={cn("sm:hidden", priorityOutlineBadgeClass(task.Priority))}
-            >
-              <TaskPriorityIcon variant={task.Priority} />
-              {task.Priority}
-            </Badge>
-            <TaskTypeBadge type={task.Type} />
-            {taskStage && (
-                <WorkflowStageChip
-                className="rounded-full"
-                stage={taskStage}
-                />
-            )}
+          <Badge
+            variant="outline"
+            className={cn("sm:hidden", priorityOutlineBadgeClass(task.Priority))}
+          >
+            <TaskPriorityIcon variant={task.Priority} />
+            {task.Priority}
+          </Badge>
+          <TaskTypeBadge type={task.Type} />
+          {taskStage && (
+            <WorkflowStageChip className="rounded-full" stage={taskStage} />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -156,29 +152,26 @@ export function TaskEditorHeader({
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DrawerClose asChild>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      const taskName = task.Name === "" ? "Untitled Task" : task.Name;
-                      deleteTask.mutate(task.ID, {
-                        onSuccess: () => toast(`Deleted '${taskName}'`),
-                        onError: () => {
-                          toast(`Failed deleting '${taskName}'`);
-                          setOpen(true);
-                        },
-                      });
-                    }}
-                    variant="destructive"
-                  >
-                    <Trash2Icon className="text-muted-foreground" />
-                    Delete
-                  </DropdownMenuItem>
-                </DrawerClose>
+                <DropdownMenuItem
+                  onClick={() => setDeleteOpen(true)}
+                  variant="destructive"
+                >
+                  <Trash2Icon className="text-muted-foreground" />
+                  Delete
+                </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      <DeleteTaskDialog
+        task={task}
+        projectId={Project.ID}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={() => setOpen(false)}
+      />
     </DrawerHeader>
   );
 }

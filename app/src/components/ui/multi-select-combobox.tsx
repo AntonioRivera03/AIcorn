@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { DynamicIcon, type IconName } from "lucide-react/dynamic";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,16 @@ export function MultiSelectCombobox({
 
   const count = selected.length;
 
+  const handleClearKeyDown = (
+    e: KeyboardEvent<HTMLSpanElement>,
+    onClearClick: () => void,
+  ) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    e.stopPropagation();
+    onClearClick();
+  };
+
   return (
     <div className="flex flex-col gap-1.5">
       <Popover
@@ -108,12 +118,14 @@ export function MultiSelectCombobox({
                 </Badge>
                 <span
                   role="button"
+                  tabIndex={0}
                   aria-label={`Clear ${label} filter`}
                   className="ml-auto rounded-full p-0.5 hover:bg-muted-foreground/20"
                   onClick={(e) => {
                     e.stopPropagation();
                     onClear();
                   }}
+                  onKeyDown={(e) => handleClearKeyDown(e, onClear)}
                 >
                   <X className="size-3.5" />
                 </span>
@@ -209,6 +221,7 @@ export function MultiSelectCombobox({
                   {option?.label ?? String(key)}
                 </span>
                 <button
+                  type="button"
                   onClick={() => onToggle(key)}
                   className="rounded-full hover:bg-muted-foreground/20 p-0.5"
                   aria-label={`Remove ${option?.label ?? key}`}

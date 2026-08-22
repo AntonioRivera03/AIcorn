@@ -56,6 +56,7 @@ import { WorkflowStageChip } from "@/features/workflows/shared/workflow-stage-ch
 import { Separator } from "@/components/ui/separator";
 import { TaskRelationshipsCard } from "@/features/task/relationships/task-relationships-card";
 import { TaskRelationshipBadges } from "@/features/task/relationships/task-relationship-badges";
+import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
 
 export function TaskPage({ projectId }: { projectId: number }) {
   const { state: task, setState: setTask } = useContext(TaskContext);
@@ -67,8 +68,9 @@ export function TaskPage({ projectId }: { projectId: number }) {
     SetTasks,
     Stages,
   } = useContext(ProjectContext);
-  const { update, updateBody, deleteTask } = useTaskMutation(projectId);
+  const { update, updateBody } = useTaskMutation(projectId);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const editorRef = useRef<PlateEditor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
 
@@ -122,17 +124,6 @@ export function TaskPage({ projectId }: { projectId: number }) {
   };
 
   const stage = Stages.find((s) => s.ID === task.Stage);
-
-  const handleDelete = () => {
-    const taskName = task.Name === "" ? "Untitled Task" : task.Name;
-    deleteTask.mutate(task.ID, {
-      onSuccess: () => {
-        toast(`Deleted '${taskName}'`);
-        window.history.back();
-      },
-      onError: () => toast.error(`Failed deleting '${taskName}'`),
-    });
-  };
 
   if (isPending) {
     return (
@@ -200,7 +191,10 @@ export function TaskPage({ projectId }: { projectId: number }) {
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={handleDelete} variant="destructive">
+                <DropdownMenuItem
+                  onClick={() => setDeleteOpen(true)}
+                  variant="destructive"
+                >
                   <Trash2Icon className="text-muted-foreground" />
                   Delete
                 </DropdownMenuItem>
@@ -269,6 +263,14 @@ export function TaskPage({ projectId }: { projectId: number }) {
           </section>
         </CollapsibleContent>
       </Collapsible>
+
+      <DeleteTaskDialog
+        task={task}
+        projectId={projectId}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={() => window.history.back()}
+      />
 
       <RichEditor
         key={task.ID}
