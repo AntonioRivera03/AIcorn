@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { TaskWithProject } from "@/types/types";
+import { toValidBody } from "@/lib/plate";
 
 const tryParse = (value: string): unknown => {
   try {
@@ -18,7 +19,7 @@ export function useTaskQuery(taskId: number) {
         typeof raw.Body === "string" ? tryParse(raw.Body) : raw.Body;
       return {
         ...raw,
-        Body: Array.isArray(parsedBody) ? parsedBody : [],
+        Body: toValidBody(parsedBody),
       } as TaskWithProject;
     },
     enabled: taskId !== 0,
@@ -36,7 +37,7 @@ export function useTaskBodyQuery(taskId: number, enabled: boolean) {
       // an empty/invalid body (e.g. a row damaged by the historical body-clobber
       // bug) — JSON.parse("") throws, and a damaged row can parse to "".
       const parsed = typeof res === "string" ? tryParse(res) : res;
-      return Array.isArray(parsed) ? parsed : [];
+      return toValidBody(parsed);
     },
     enabled: enabled && taskId !== 0,
   });

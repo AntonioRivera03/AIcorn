@@ -49,6 +49,76 @@ func scanTaskTypeInto(scanner interface{ Scan(...any) error }, tt *models.TaskTy
 	return scanner.Scan(&tt.ID, &tt.Name, &tt.Description, &tt.Icon, &tt.Color, &tt.IsDefault)
 }
 
+func appendTaskFilterClauses(query string, args []any, f *TaskFilters) (string, []any) {
+	if f.SearchQuery != "" {
+		query += " AND t.name LIKE ?"
+		args = append(args, "%"+f.SearchQuery+"%")
+	}
+	if len(f.ChecklistQuery) > 0 {
+		query += " AND t.checklist IN (" + strings.TrimRight(strings.Repeat("?,", len(f.ChecklistQuery)), ",") + ")"
+		for _, v := range f.ChecklistQuery {
+			args = append(args, v)
+		}
+	}
+	if len(f.TypeIDQuery) > 0 {
+		query += " AND t.type IN (" + strings.TrimRight(strings.Repeat("?,", len(f.TypeIDQuery)), ",") + ")"
+		for _, v := range f.TypeIDQuery {
+			args = append(args, v)
+		}
+	}
+	if len(f.StageQuery) > 0 {
+		query += " AND t.stage IN (" + strings.TrimRight(strings.Repeat("?,", len(f.StageQuery)), ",") + ")"
+		for _, v := range f.StageQuery {
+			args = append(args, v)
+		}
+	}
+	if len(f.PriorityQuery) > 0 {
+		query += " AND t.priority IN (" + strings.TrimRight(strings.Repeat("?,", len(f.PriorityQuery)), ",") + ")"
+		for _, v := range f.PriorityQuery {
+			args = append(args, v)
+		}
+	}
+	if len(f.AssigneeQuery) > 0 {
+		query += " AND t.assignee IN (" + strings.TrimRight(strings.Repeat("?,", len(f.AssigneeQuery)), ",") + ")"
+		for _, v := range f.AssigneeQuery {
+			args = append(args, v)
+		}
+	}
+	if f.PlannedFrom != "" {
+		if f.PlannedFromHasTime {
+			query += " AND COALESCE(t.timePlannedEnd, t.timePlannedStart) >= ?"
+		} else {
+			query += " AND COALESCE(DATE(t.timePlannedEnd), DATE(t.timePlannedStart)) >= ?"
+		}
+		args = append(args, f.PlannedFrom)
+	}
+	if f.PlannedTo != "" {
+		if f.PlannedToHasTime {
+			query += " AND t.timePlannedStart <= ?"
+		} else {
+			query += " AND DATE(t.timePlannedStart) <= ?"
+		}
+		args = append(args, f.PlannedTo)
+	}
+	if f.CompletedFrom != "" {
+		if f.CompletedFromHasTime {
+			query += " AND t.timeCompleted >= ?"
+		} else {
+			query += " AND DATE(t.timeCompleted) >= ?"
+		}
+		args = append(args, f.CompletedFrom)
+	}
+	if f.CompletedTo != "" {
+		if f.CompletedToHasTime {
+			query += " AND t.timeCompleted <= ?"
+		} else {
+			query += " AND DATE(t.timeCompleted) <= ?"
+		}
+		args = append(args, f.CompletedTo)
+	}
+	return query, args
+}
+
 func (repo *TaskRepo) InProject(projectId int, taskFilters *TaskFilters) ([]models.ChecklistTask, error) {
 	query := `
 		SELECT
@@ -73,46 +143,7 @@ func (repo *TaskRepo) InProject(projectId int, taskFilters *TaskFilters) ([]mode
 		WHERE c.project = ?
 	`
 	args := []any{projectId}
-
-	if taskFilters.SearchQuery != "" {
-		query += " AND t.name LIKE ?"
-		args = append(args, "%"+taskFilters.SearchQuery+"%")
-	}
-
-	if len(taskFilters.ChecklistQuery) > 0 {
-		query += " AND t.checklist IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.ChecklistQuery)), ",") + ")"
-		for _, v := range taskFilters.ChecklistQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.TypeIDQuery) > 0 {
-		query += " AND t.type IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.TypeIDQuery)), ",") + ")"
-		for _, v := range taskFilters.TypeIDQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.StageQuery) > 0 {
-		query += " AND t.stage IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.StageQuery)), ",") + ")"
-		for _, v := range taskFilters.StageQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.PriorityQuery) > 0 {
-		query += " AND t.priority IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.PriorityQuery)), ",") + ")"
-		for _, v := range taskFilters.PriorityQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.AssigneeQuery) > 0 {
-		query += " AND t.assignee IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.AssigneeQuery)), ",") + ")"
-		for _, v := range taskFilters.AssigneeQuery {
-			args = append(args, v)
-		}
-	}
+	query, args = appendTaskFilterClauses(query, args, taskFilters)
 
 	query += " ORDER BY t.timePlannedStart, t.timePlannedEnd, t.timeCreated DESC"
 
@@ -379,6 +410,7 @@ func (repo *TaskRepo) FindOne(taskId int64) (*models.ChecklistTask, error) {
 	if err != nil {
 		return nil, err
 	}
+	task.Body = models.NormalizeBody(task.Body)
 
 	return &task, nil
 }
@@ -531,6 +563,7 @@ func (repo *TaskRepo) FindOneWithProject(taskId int) (*models.TaskWithProject, e
 	if err != nil {
 		return nil, err
 	}
+	task.Body = models.NormalizeBody(task.Body)
 
 	return &task, nil
 }
@@ -561,85 +594,13 @@ func (repo *TaskRepo) AllTasks(taskFilters *TaskFilters) ([]models.TaskWithProje
 	`
 	args := []any{}
 
-	if taskFilters.SearchQuery != "" {
-		query += " AND t.name LIKE ?"
-		args = append(args, "%"+taskFilters.SearchQuery+"%")
-	}
-
 	if len(taskFilters.ProjectIDQuery) > 0 {
 		query += " AND c.project IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.ProjectIDQuery)), ",") + ")"
 		for _, v := range taskFilters.ProjectIDQuery {
 			args = append(args, v)
 		}
 	}
-
-	if len(taskFilters.ChecklistQuery) > 0 {
-		query += " AND t.checklist IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.ChecklistQuery)), ",") + ")"
-		for _, v := range taskFilters.ChecklistQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.TypeIDQuery) > 0 {
-		query += " AND t.type IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.TypeIDQuery)), ",") + ")"
-		for _, v := range taskFilters.TypeIDQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.StageQuery) > 0 {
-		query += " AND t.stage IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.StageQuery)), ",") + ")"
-		for _, v := range taskFilters.StageQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.PriorityQuery) > 0 {
-		query += " AND t.priority IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.PriorityQuery)), ",") + ")"
-		for _, v := range taskFilters.PriorityQuery {
-			args = append(args, v)
-		}
-	}
-
-	if len(taskFilters.AssigneeQuery) > 0 {
-		query += " AND t.assignee IN (" + strings.TrimRight(strings.Repeat("?,", len(taskFilters.AssigneeQuery)), ",") + ")"
-		for _, v := range taskFilters.AssigneeQuery {
-			args = append(args, v)
-		}
-	}
-
-	if taskFilters.PlannedFrom != "" {
-		if taskFilters.PlannedFromHasTime {
-			query += " AND COALESCE(t.timePlannedEnd, t.timePlannedStart) >= ?"
-		} else {
-			query += " AND COALESCE(DATE(t.timePlannedEnd), DATE(t.timePlannedStart)) >= ?"
-		}
-		args = append(args, taskFilters.PlannedFrom)
-	}
-	if taskFilters.PlannedTo != "" {
-		if taskFilters.PlannedToHasTime {
-			query += " AND t.timePlannedStart <= ?"
-		} else {
-			query += " AND DATE(t.timePlannedStart) <= ?"
-		}
-		args = append(args, taskFilters.PlannedTo)
-	}
-	if taskFilters.CompletedFrom != "" {
-		if taskFilters.CompletedFromHasTime {
-			query += " AND t.timeCompleted >= ?"
-		} else {
-			query += " AND DATE(t.timeCompleted) >= ?"
-		}
-		args = append(args, taskFilters.CompletedFrom)
-	}
-	if taskFilters.CompletedTo != "" {
-		if taskFilters.CompletedToHasTime {
-			query += " AND t.timeCompleted <= ?"
-		} else {
-			query += " AND DATE(t.timeCompleted) <= ?"
-		}
-		args = append(args, taskFilters.CompletedTo)
-	}
+	query, args = appendTaskFilterClauses(query, args, taskFilters)
 
 	query += " ORDER BY t.timePlannedStart, t.timePlannedEnd, t.timeCreated DESC"
 
@@ -738,26 +699,22 @@ func (repo *TaskRepo) GetTaskBody(taskId int) (string, error) {
 	query := "SELECT COALESCE(t.body, '') FROM task t WHERE t.id = ?;"
 	rows, err := repo.DB.Query(query, taskId)
 	if err != nil {
-		return "[]", err
+		return models.EmptyBody, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return "[]", rows.Err()
+		return models.EmptyBody, rows.Err()
 	}
 
-	taskBody := "[]"
+	taskBody := models.EmptyBody
 	err = rows.Scan(&taskBody)
 	if err != nil {
-		return "[]", err
+		return models.EmptyBody, err
 	}
 
-	// A valid body is always a serialized Plate document (a JSON array). Rows
-	// damaged by the historical body-clobber bug hold "" or the JSON-encoded
-	// empty string (`""`), neither of which parses into a document. Normalize
-	// anything that isn't array-shaped to an empty document.
-	if !strings.HasPrefix(strings.TrimSpace(taskBody), "[") {
-		return "[]", nil
+	if models.NormalizeBody(taskBody) == models.EmptyBody {
+		return models.EmptyBody, nil
 	}
 
 	return taskBody, nil

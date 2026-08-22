@@ -46,7 +46,7 @@ func (s *TaskService) GetTask(taskId int) (*models.TaskWithProject, error) {
 func (s *TaskService) GetTaskBody(taskId int) (string, error) {
 	taskBody, err := s.TaskRepo.GetTaskBody(taskId)
 	if err != nil {
-		return "[]", err
+		return models.EmptyBody, err
 	}
 
 	return taskBody, nil
@@ -60,6 +60,7 @@ func (s *TaskService) CreateChecklistTask(task *models.ChecklistTask) (*models.C
 		}
 		task.Type.ID = defaultID
 	}
+	task.Body = models.NormalizeBody(task.Body)
 
 	newTask, err := s.TaskRepo.CreateTask(task)
 	if err != nil {

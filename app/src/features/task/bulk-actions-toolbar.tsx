@@ -50,6 +50,7 @@ export function BulkActionsToolbar({ selectedTasks, onClear }: Props) {
             toast(`No tasks needed updating.`);
           } else {
             toast(`Updated ${label} on ${pluralize(result.success, "task")}.`);
+            onClear();
           }
         },
         onError: () => toast.error(`Failed updating ${label}.`),

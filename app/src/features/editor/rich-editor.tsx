@@ -28,8 +28,8 @@ import { CursorOverlayKit } from "./plugins/cursor-overlay-kit";
 import { cn } from "@/lib/utils";
 import { TrailingBlockKit } from "./plugins/trailing-block-kit";
 import { ExitBreakKit } from "./plugins/exit-break-kit";
-
-const DEFAULT_VALUE = [{ type: "p", children: [{ text: "" }] }];
+import { emptyDocument as DEFAULT_VALUE } from "@/lib/plate";
+import { LinkKit } from "@/features/editor/plugins/link-kit";
 
 export function RichEditor({
   initialValue = DEFAULT_VALUE,
@@ -64,6 +64,7 @@ export function RichEditor({
       ...CodeBlockKit,
       ...EmojiKit,
       ...IndentKit,
+      ...LinkKit,
       ...ListKit,
       ...MarkdownKit,
       ...MathKit,

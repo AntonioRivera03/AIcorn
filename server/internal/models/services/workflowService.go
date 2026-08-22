@@ -86,15 +86,11 @@ func (s *WorkflowService) GetWorkflowDetails(id int) (*WorkflowSummary, error) {
 }
 
 func (s *WorkflowService) CreateWorkflow() (int64, error) {
-	id, err := s.WorkflowRepo.Create("", "")
-	if err != nil {
-		return 0, err
-	}
-
+	stages := make([]models.Stage, 0, len(defaultWorkflowStageTypes))
 	for i, stageType := range defaultWorkflowStageTypes {
 		defaults := repos.StageDefaults[stageType]
-		_, err := s.StageRepo.Create(&models.Stage{
-			Workflow:    int(id),
+		stages = append(stages, models.Stage{
+			Workflow:    0,
 			Name:        defaults.Name,
 			Description: defaults.Description,
 			Color:       defaults.Color,
@@ -102,12 +98,8 @@ func (s *WorkflowService) CreateWorkflow() (int64, error) {
 			Position:    i + 1,
 			Type:        defaults.Type,
 		})
-		if err != nil {
-			return 0, err
-		}
 	}
-
-	return id, nil
+	return s.WorkflowRepo.CreateWithStages("", "", stages)
 }
 
 func (s *WorkflowService) UpdateWorkflow(workflow *models.Workflow) (bool, error) {
