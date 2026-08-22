@@ -1,0 +1,29 @@
+{
+  "objective": "Break Documentation/phase-2-personas.md into capability tickets and load them into Aycorn (checklist 'AI - Modeling & Persona', Dev task types, plus one broad UI task typed Bundle).",
+  "units": [
+    {
+      "id": "plan-breakdown",
+      "agent": "ox-alpha (direct)",
+      "status": "completed",
+      "attempts": 1,
+      "result": "5 tickets drafted from phase-2-personas.md Ships/Build/Done-when.",
+      "verification": "Derived directly from Documentation/phase-2-personas.md."
+    },
+    {
+      "id": "mcp-discovery",
+      "agent": "ox-alpha (direct, via stdio MCP client /tmp/opencode/aycorn_mcp.py)",
+      "status": "completed",
+      "attempts": 2,
+      "result": "Subagents lack MCP tools in this session; fell back to driving server/bin/aycorn-mcp over stdio JSON-RPC. checklist 'AI - Modeling & Persona' = id 9 (project 1 Aycorn); Dev type = id 2; Bundle = id 6; Backlog open stage = id 1.",
+      "verification": "list_projects/list_checklists/list_task_types/list_workflow_stages read-back."
+    },
+    {
+      "id": "create-tickets",
+      "agent": "ox-alpha (direct)",
+      "status": "completed",
+      "attempts": 2,
+      "result": "Tasks 52 Persona Data Model, 53 Persona Management API, 54 Stage-to-Persona Binding API, 55 First Narrow Research Persona (all Dev), 56 Personas UI (Bundle). Priority Medium set explicitly (omitted priority hits CHECK constraint — known bug tracked as task 51).",
+      "verification": "read_task on all 5: name/checklist/type/stage/body all verified; headers intact after app markdown round-trip."
+    }
+  ]
+}
