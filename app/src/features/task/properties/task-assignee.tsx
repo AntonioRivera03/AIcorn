@@ -51,8 +51,8 @@ export function TaskAssignee({
         />
         {localValue && (
           <InputGroupAddon align="inline-end">
-            <span
-              role="button"
+            <button
+              type="button"
               aria-label="Clear assignee"
               className="rounded-full p-0.5 hover:bg-muted-foreground/20 cursor-pointer"
               onClick={() => {
@@ -61,7 +61,7 @@ export function TaskAssignee({
               }}
             >
               <X className="size-3.5" />
-            </span>
+            </button>
           </InputGroupAddon>
         )}
       </InputGroup>
@@ -93,8 +93,8 @@ export function TaskAssignee({
       />
       {task.Assignee && (
         <InputGroupAddon align="inline-end">
-          <span
-            role="button"
+          <button
+            type="button"
             aria-label="Clear assignee"
             className="rounded-full p-0.5 hover:bg-muted-foreground/20 cursor-pointer"
             onClick={() => {
@@ -104,7 +104,7 @@ export function TaskAssignee({
             }}
           >
             <X className="size-3.5" />
-          </span>
+          </button>
         </InputGroupAddon>
       )}
     </InputGroup>

@@ -4,13 +4,13 @@ import { ProjectProvider } from "@/contexts/project/ProjectProvider";
 import { ProjectDetails } from "@/components/project/project-details";
 import { ProjectHeader } from "@/components/project/project-header";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: RouteComponent,
   validateSearch: (search: Record<string, unknown>): { view?: string } => {
     return {
-      view: (search.view as string) ?? "list",
+      view: search.view as string | undefined,
     };
   },
 });
@@ -24,24 +24,48 @@ function ProjectPageHeader() {
   );
 }
 
-function RouteComponent() {
-  const { projectId } = Route.useParams();
-  const { view } = Route.useSearch();
+function ProjectPageContent({
+  projectId,
+  view,
+}: {
+  projectId: number;
+  view?: string;
+}) {
   const navigate = useNavigate({ from: Route.fullPath });
+  const { Project } = useContext(ProjectContext);
+
+  useEffect(() => {
+    if (!view && Project.DefaultView) {
+      navigate({ search: { view: Project.DefaultView }, replace: true });
+    }
+  }, [view, Project.DefaultView, navigate]);
+
   const setView = (newView: string) => navigate({ search: { view: newView } });
 
   return (
+    <Page>
+      <ProjectPageHeader />
+      <PageContent>
+        <ProjectDetails
+          projectId={projectId}
+          view={(view ?? Project.DefaultView) || "list"}
+          setView={setView}
+        />
+      </PageContent>
+    </Page>
+  );
+}
+
+function RouteComponent() {
+  const { projectId } = Route.useParams();
+  const { view } = Route.useSearch();
+
+  return (
     <ProjectProvider>
-      <Page>
-        <ProjectPageHeader />
-        <PageContent>
-          <ProjectDetails
-            projectId={Number.parseInt(projectId)}
-            view={view ?? "list"}
-            setView={setView}
-          />
-        </PageContent>
-      </Page>
+      <ProjectPageContent
+        projectId={Number.parseInt(projectId)}
+        view={view}
+      />
     </ProjectProvider>
   );
 }

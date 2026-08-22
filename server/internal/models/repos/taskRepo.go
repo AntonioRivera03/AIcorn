@@ -63,7 +63,7 @@ func (repo *TaskRepo) InProject(projectId int, taskFilters *TaskFilters) ([]mode
 		    t.hasTimePlannedStart,
 		    t.hasTimePlannedEnd,
 		    t.timeCompleted,
-		    t.assignee,
+				COALESCE(t.assignee, ''),
 		    t.priority,
 			t.stage,
 			` + taskTypeSelect + `

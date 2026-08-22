@@ -6,14 +6,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { CollapsibleNavGroup } from "@/components/sidebar/CollapsibleNavGroup";
 import {
   Fullscreen,
   Link2,
@@ -30,8 +29,11 @@ export function NavPinnedProjects() {
   const { data: pinnedProjects, isFetching } = usePinnedProjectsQuery();
 
   return (
-    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Pinned Projects</SidebarGroupLabel>
+    <CollapsibleNavGroup
+      section="pinned-projects"
+      label="Pinned Projects"
+      className="group-data-[collapsible=icon]:hidden"
+    >
       <SidebarMenu>
         {!isFetching &&
           pinnedProjects &&
@@ -87,6 +89,6 @@ export function NavPinnedProjects() {
             </SidebarMenuItem>
           ))}
       </SidebarMenu>
-    </SidebarGroup>
+    </CollapsibleNavGroup>
   );
 }

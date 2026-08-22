@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "mcp": {
+    "aycorn": {
+      "type": "local",
+      "command": ["/home/hal/Projects/AIcorn/server/bin/aycorn-mcp"],
+      "enabled": true
+    }
+  }
+}

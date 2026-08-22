@@ -26,10 +26,12 @@ func parseRFC3339(s string) (*time.Time, error) {
 // "manage_task" tool that branches on an action field, since that pattern
 // causes agents to sequence calls incorrectly.
 type toolset struct {
-	taskService    *services.TaskService
-	projectService *services.ProjectService
-	stageService   *services.StageService
-	converter      *markdown.Converter
+	taskService      *services.TaskService
+	projectService   *services.ProjectService
+	stageService     *services.StageService
+	checklistService *services.ChecklistService
+	taskTypeService  *services.TaskTypeService
+	converter        *markdown.Converter
 }
 
 // bodiesToMarkdown rewrites each task's stored Plate.js document into markdown
@@ -99,13 +101,23 @@ func (t *toolset) register(srv *mcp.Server) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_task",
-		Description: "Update a task's name, priority, assignee, or body (markdown). Never changes stage — use move_task_stage for that.",
+		Description: "Update a task's name, priority, assignee, body (markdown), checklist, or type. Never changes stage — use move_task_stage for that.",
 	}, t.updateTask)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "move_task_stage",
 		Description: "Move a task to a different workflow stage. Requires the stage you currently believe the task is in (fromStage); fails safely if the task has moved since you last read it.",
 	}, t.moveTaskStage)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_checklists",
+		Description: "List all checklists, optionally filtered by project. Use this to learn valid checklist ids before calling create_task or update_task.",
+	}, t.listChecklists)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_task_types",
+		Description: "List all task types. Use this to learn valid type ids before calling create_task or update_task.",
+	}, t.listTaskTypes)
 }
 
 type SearchTasksInput struct {
@@ -117,7 +129,35 @@ type SearchTasksInput struct {
 	Limit      int      `json:"limit,omitempty" jsonschema:"default 25, max 100"`
 }
 
-func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in SearchTasksInput) (*mcp.CallToolResult, []models.TaskWithProject, error) {
+// MCP structuredContent must be a JSON object, never an array — list results
+// are wrapped in these single-field structs.
+type TasksOutput struct {
+	Tasks []models.TaskWithProject `json:"tasks"`
+}
+
+type ProjectsOutput struct {
+	Projects []models.Project `json:"projects"`
+}
+
+type StagesOutput struct {
+	Stages []models.Stage `json:"stages"`
+}
+
+type ChecklistsOutput struct {
+	Checklists []models.Checklist `json:"checklists"`
+}
+
+type TaskTypesOutput struct {
+	TaskTypes []models.TaskType `json:"taskTypes"`
+}
+
+// OkOutput wraps boolean results (update_task, move_task_stage) — same rule as
+// above: structuredContent must be an object.
+type OkOutput struct {
+	Ok bool `json:"ok"`
+}
+
+func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in SearchTasksInput) (*mcp.CallToolResult, TasksOutput, error) {
 	filters := &repos.TaskFilters{
 		SearchQuery:    in.Query,
 		ProjectIDQuery: in.ProjectIDs,
@@ -139,13 +179,13 @@ func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in 
 
 	tasks, err := t.taskService.GetAllTasks(filters)
 	if err != nil {
-		return nil, nil, err
+		return nil, TasksOutput{}, err
 	}
 
 	if err := t.bodiesToMarkdown(ctx, tasks); err != nil {
-		return nil, nil, err
+		return nil, TasksOutput{}, err
 	}
-	return nil, tasks, nil
+	return nil, TasksOutput{Tasks: tasks}, nil
 }
 
 type ReadTaskInput struct {
@@ -162,26 +202,29 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 	if err != nil {
 		return nil, nil, err
 	}
+	if err != nil {
+		return nil, nil, err
+	}
 	task.Body = body
 	return nil, task, nil
 }
 
 type NoInput struct{}
 
-func (t *toolset) listProjects(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, []models.Project, error) {
+func (t *toolset) listProjects(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, ProjectsOutput, error) {
 	projects, err := t.projectService.GetAllProjects()
 	if err != nil {
-		return nil, nil, err
+		return nil, ProjectsOutput{}, err
 	}
-	return nil, projects, nil
+	return nil, ProjectsOutput{Projects: projects}, nil
 }
 
-func (t *toolset) listWorkflowStages(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, []models.Stage, error) {
+func (t *toolset) listWorkflowStages(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, StagesOutput, error) {
 	stages, err := t.stageService.GetAllStages()
 	if err != nil {
-		return nil, nil, err
+		return nil, StagesOutput{}, err
 	}
-	return nil, stages, nil
+	return nil, StagesOutput{Stages: stages}, nil
 }
 
 type CreateTaskInput struct {
@@ -237,17 +280,19 @@ func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in C
 // (used by PUT /api/task), it's not possible for this tool to move a task
 // sideways of move_task_stage's CAS check, even by accident.
 type UpdateTaskInput struct {
-	TaskID   int     `json:"taskId"`
-	Name     *string `json:"name,omitempty"`
-	Priority *string `json:"priority,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
-	Assignee *string `json:"assignee,omitempty"`
-	Body     *string `json:"body,omitempty" jsonschema:"markdown — headings, lists, tables, code blocks and task checkboxes are all supported. Overwrites the existing body."`
+	TaskID      int     `json:"taskId"`
+	Name        *string `json:"name,omitempty"`
+	Priority    *string `json:"priority,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
+	Assignee    *string `json:"assignee,omitempty"`
+	Body        *string `json:"body,omitempty" jsonschema:"markdown — headings, lists, tables, code blocks and task checkboxes are all supported. Overwrites the existing body."`
+	ChecklistID *int    `json:"checklistId,omitempty" jsonschema:"move the task to a different checklist — call list_checklists for valid ids"`
+	TypeID      *int    `json:"typeId,omitempty" jsonschema:"change the task's type — call list_task_types for valid ids"`
 }
 
-func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, bool, error) {
+func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, OkOutput, error) {
 	current, err := t.taskService.GetTask(in.TaskID)
 	if err != nil {
-		return nil, false, err
+		return nil, OkOutput{}, err
 	}
 
 	// Convert before writing anything: a malformed body should leave the task
@@ -256,7 +301,7 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	if in.Body != nil {
 		converted, err := t.bodyToBody(ctx, *in.Body)
 		if err != nil {
-			return nil, false, err
+			return nil, OkOutput{}, err
 		}
 		body = converted
 	}
@@ -270,9 +315,29 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	if in.Assignee != nil {
 		current.Assignee = *in.Assignee
 	}
+	if in.ChecklistID != nil {
+		if t.checklistService == nil || t.checklistService.ChecklistRepo == nil {
+			return nil, OkOutput{}, errors.New("checklist service not configured")
+		}
+		ch, err := t.checklistService.ChecklistRepo.FindOne(int64(*in.ChecklistID))
+		if err != nil {
+			return nil, OkOutput{}, err
+		}
+		current.Checklist = ch.ID
+	}
+	if in.TypeID != nil {
+		if t.taskTypeService == nil || t.taskTypeService.TaskTypeRepo == nil {
+			return nil, OkOutput{}, errors.New("task type service not configured")
+		}
+		tt, err := t.taskTypeService.TaskTypeRepo.FindOne(*in.TypeID)
+		if err != nil {
+			return nil, OkOutput{}, err
+		}
+		current.Type = *tt
+	}
 	ok, err := t.taskService.UpdateTaskProperties(&current.ChecklistTask)
 	if err != nil || !ok {
-		return nil, ok, err
+		return nil, OkOutput{Ok: ok}, err
 	}
 
 	if in.Body != nil {
@@ -282,7 +347,7 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 		// clobber it).
 		ok, err = t.taskService.UpdateTaskBody(in.TaskID, body)
 	}
-	return nil, ok, err
+	return nil, OkOutput{Ok: ok}, err
 }
 
 type MoveTaskStageInput struct {
@@ -291,14 +356,40 @@ type MoveTaskStageInput struct {
 	ToStage   int `json:"toStage"`
 }
 
-func (t *toolset) moveTaskStage(ctx context.Context, req *mcp.CallToolRequest, in MoveTaskStageInput) (*mcp.CallToolResult, bool, error) {
+func (t *toolset) moveTaskStage(ctx context.Context, req *mcp.CallToolRequest, in MoveTaskStageInput) (*mcp.CallToolResult, OkOutput, error) {
 	ok, err := t.taskService.TransitionStage(in.TaskID, in.FromStage, in.ToStage)
 	if errors.Is(err, services.ErrStageConflict) {
 		// Return this as a tool error with an actionable message, not a bare
 		// conflict — the calling model should re-read the task and retry, not give up.
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
 			&mcp.TextContent{Text: "task is no longer in fromStage — call read_task again and retry with the current stage"},
-		}}, false, nil
+		}}, OkOutput{}, nil
 	}
-	return nil, ok, err
+	return nil, OkOutput{Ok: ok}, err
+}
+
+type ListChecklistsInput struct {
+	ProjectID *int `json:"projectId,omitempty"`
+}
+
+func (t *toolset) listChecklists(ctx context.Context, req *mcp.CallToolRequest, in ListChecklistsInput) (*mcp.CallToolResult, ChecklistsOutput, error) {
+	checklists, err := t.checklistService.ListChecklists(in.ProjectID)
+	if err != nil {
+		return nil, ChecklistsOutput{}, err
+	}
+	if checklists == nil {
+		checklists = []models.Checklist{}
+	}
+	return nil, ChecklistsOutput{Checklists: checklists}, nil
+}
+
+func (t *toolset) listTaskTypes(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, TaskTypesOutput, error) {
+	types, err := t.taskTypeService.TaskTypeRepo.All()
+	if err != nil {
+		return nil, TaskTypesOutput{}, err
+	}
+	if types == nil {
+		types = []models.TaskType{}
+	}
+	return nil, TaskTypesOutput{TaskTypes: types}, nil
 }

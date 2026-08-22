@@ -24,6 +24,13 @@ func (s *ChecklistService) GetChecklistsInProject(checklistId int) ([]models.Che
 	return checklists, nil
 }
 
+func (s *ChecklistService) ListChecklists(projectId *int) ([]models.Checklist, error) {
+	if projectId != nil {
+		return s.ChecklistRepo.AllByProject(*projectId)
+	}
+	return s.ChecklistRepo.All()
+}
+
 func (s *ChecklistService) CreateChecklist(projectId int, name string) (*models.Checklist, error) {
 	checklist, err := s.ChecklistRepo.CreateChecklist(projectId, name)
 	if err != nil {

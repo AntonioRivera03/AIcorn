@@ -2,6 +2,7 @@ import { StageIcon, stageTintClass } from "@/features/stage/stage-visual";
 import { Badge } from "@/components/ui/badge";
 import { ItemGroup } from "@/components/ui/item";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
+import { TaskProvider } from "@/contexts/task/TaskProvider";
 import { useDropZone } from "@/hooks/useDropZone";
 import {
   Tooltip,
@@ -14,6 +15,7 @@ import { KanbanItem } from "./kanban-item";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
+import { NewTaskEditorDrawer } from "@/features/task/new-task-editor-drawer";
 
 type DragListeners = Record<string, (e: SyntheticEvent) => void>;
 
@@ -21,6 +23,7 @@ export function KanbanColumn({
   stage,
   getItemProps,
   lastDrop,
+  setTaskDrawerOpen,
 }: {
   stage: Stage;
   getItemProps?: (
@@ -28,14 +31,15 @@ export function KanbanColumn({
     opts?: { listeners?: DragListeners },
   ) => Record<string, unknown>;
   lastDrop?: { taskIds: Set<number>; animClass: string } | null;
+  setTaskDrawerOpen: (open: boolean) => void;
 }) {
-  const { setNodeRef, isOver } = useDropZone(stage.ID);
-
   const { Tasks } = useContext(ProjectContext);
   const filteredTasks = useMemo(
     () => Tasks.filter((task) => task.Stage === stage.ID),
     [Tasks, stage.ID],
   );
+
+  const { setNodeRef, isOver } = useDropZone(stage.ID);
 
   const tint = stageTintClass(stage.Color);
 
@@ -63,9 +67,16 @@ export function KanbanColumn({
                 </Tooltip>
             </div>
 
-            <Button variant="ghost" size="icon-sm">
-                <PlusIcon />
-            </Button>
+            <TaskProvider>
+                <NewTaskEditorDrawer
+                    stageId={stage.ID}
+                    setTaskDrawerOpen={setTaskDrawerOpen}
+                >
+                    <Button variant="ghost" size="icon-sm">
+                        <PlusIcon />
+                    </Button>
+                </NewTaskEditorDrawer>
+            </TaskProvider>
           </div>
       <ItemGroup
         className={cn(

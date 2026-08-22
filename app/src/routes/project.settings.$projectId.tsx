@@ -10,12 +10,18 @@ import { EmptyPanel } from "@/features/settings/empty-panel";
 import { useProjectWorkflowSettingsQuery } from "@/features/settings/project-workflow/queries/useProjectWorkflowSettingsQuery";
 import { ProjectWorkflowTab } from "@/features/settings/project-workflow/project-workflow-tab";
 import { ProjectTaskTypesTab } from "@/features/settings/project-task-types/project-task-types-tab";
+import { ProjectGeneralTab } from "@/features/settings/project-general/project-general-tab";
 import { createFileRoute } from "@tanstack/react-router";
-import { LandPlotIcon, TagsIcon, WorkflowIcon } from "lucide-react";
+import {
+  LandPlotIcon,
+  Settings2Icon,
+  TagsIcon,
+  WorkflowIcon,
+} from "lucide-react";
 
 export const Route = createFileRoute("/project/settings/$projectId")({
   validateSearch: (search: Record<string, unknown>) => ({
-    tab: (search.tab as string | undefined) ?? "workflow",
+    tab: (search.tab as string | undefined) ?? "general",
   }),
   component: RouteComponent,
 });
@@ -48,6 +54,10 @@ function RouteComponent() {
 
         <Tabs defaultValue={tab} className="flex-1 min-h-0">
           <TabsList>
+            <TabsTrigger value="general">
+              <Settings2Icon />
+              General
+            </TabsTrigger>
             <TabsTrigger value="workflow">
               <WorkflowIcon />
               Workflow
@@ -63,6 +73,10 @@ function RouteComponent() {
           </TabsList>
 
           <Separator />
+
+          <TabsContent value="general">
+            <ProjectGeneralTab projectId={id} />
+          </TabsContent>
 
           <TabsContent value="workflow">
             <ProjectWorkflowTab projectId={id} />

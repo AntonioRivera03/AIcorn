@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { CalendarIcon, ClockIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -63,6 +63,16 @@ const clearTimeFromISO = (iso: string | null): string | null => {
   const d = new Date(iso);
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
+};
+
+const handleClearKeyDown = (
+  e: KeyboardEvent<HTMLSpanElement>,
+  onClear: () => void,
+) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  e.stopPropagation();
+  onClear();
 };
 
 export function DateRangePicker({
@@ -132,10 +142,14 @@ export function DateRangePicker({
     emit(newFrom, newTo);
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const clearRange = () => {
     setLocalRange(undefined);
     emit(null, null, false, false);
+  };
+
+  const handleClearClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    clearRange();
   };
 
   const label = (() => {
@@ -173,9 +187,11 @@ export function DateRangePicker({
           {(localRange?.from || localRange?.to) && (
             <span
               role="button"
+              tabIndex={0}
               aria-label="Clear date range"
-              className="ml-auto rounded-full p-0.5 hover:bg-muted-foreground/20 text-muted-foreground"
-              onClick={handleClear}
+              className="ml-auto rounded-full p-0.5 text-muted-foreground hover:bg-muted-foreground/20"
+              onClick={handleClearClick}
+              onKeyDown={(e) => handleClearKeyDown(e, clearRange)}
             >
               <X className="size-3.5" />
             </span>

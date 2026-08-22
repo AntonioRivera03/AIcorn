@@ -20,6 +20,9 @@ export function useProjectMutation(projectId: number) {
         queryKey: ["projectDetails", projectId],
       });
       queryClient.invalidateQueries({
+        queryKey: ["projectWorkflowSettings", projectId],
+      });
+      queryClient.invalidateQueries({
         queryKey: ["pinnedProjects"],
       });
       queryClient.invalidateQueries({

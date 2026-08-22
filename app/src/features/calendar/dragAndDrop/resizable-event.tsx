@@ -175,7 +175,7 @@ export function ResizableEvent({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg z-50 whitespace-nowrap"
+          className="absolute -top-8 left-1/2 z-50 transform -translate-x-1/2 whitespace-nowrap rounded border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-lg"
         >
           {resizePreview.start} - {resizePreview.end}
         </motion.div>
