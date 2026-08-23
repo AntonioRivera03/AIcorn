@@ -11,6 +11,7 @@ import { IconColorPicker } from "@/features/icon-picker/icon-color-picker";
 import { stageStrokeClass } from "@/features/stage/stage-palette";
 import { StageTypeSelect } from "@/features/workflows/details/stage-type-select";
 import { StageRowMenu } from "@/features/workflows/details/stage-row-menu";
+import { StagePersonaPicker } from "@/features/workflows/details/stage-persona-picker";
 import { DeleteStagesDialog } from "@/features/workflows/details/delete-stages-dialog";
 import { useStageMutation } from "@/features/workflows/shared/queries/useStageMutation";
 import { selectedItemClasses, useSharedSelection } from "@/hooks/useSelection";
@@ -87,7 +88,7 @@ export function StageRow({
       data-task-card=""
       onClick={itemOnClick}
       className={cn(
-        "relative flex-row items-center gap-3 rounded-lg px-3 py-3 shadow-none selectable",
+        "relative flex-row flex-wrap items-center gap-3 rounded-lg px-3 py-3 shadow-none selectable lg:flex-nowrap",
         selectedItemClasses(),
         isDragging && "opacity-50 z-10",
         itemClassName,
@@ -131,16 +132,20 @@ export function StageRow({
         />
       </div>
 
-      <div className="shrink-0 w-fit sm:w-20">
-        <StageTypeSelect stage={stage} workflowId={workflowId} />
-      </div>
+      <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
+        <StagePersonaPicker stage={stage} workflowId={workflowId} />
 
-      <StageRowMenu
-        isTheOpenStage={stage.Type === "open"}
-        onRename={() => setIsEditingName(true)}
-        onEditDescription={() => setIsEditingDescription(true)}
-        onDelete={() => setDeleteOpen(true)}
-      />
+        <div className="shrink-0 w-fit sm:w-20">
+          <StageTypeSelect stage={stage} workflowId={workflowId} />
+        </div>
+
+        <StageRowMenu
+          isTheOpenStage={stage.Type === "open"}
+          onRename={() => setIsEditingName(true)}
+          onEditDescription={() => setIsEditingDescription(true)}
+          onDelete={() => setDeleteOpen(true)}
+        />
+      </div>
 
       <DeleteStagesDialog
         stages={stages}

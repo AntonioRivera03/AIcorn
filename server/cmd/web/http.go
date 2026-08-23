@@ -45,6 +45,8 @@ func httpStatusForError(err error) int {
 	case errors.Is(err, sql.ErrNoRows):
 		return http.StatusNotFound
 	case errors.Is(err, services.ErrInvalidStageType),
+		errors.Is(err, services.ErrInvalidPersonaHarness),
+		errors.Is(err, services.ErrInvalidPersonaModel),
 		errors.Is(err, services.ErrInvalidStageColor),
 		errors.Is(err, services.ErrCannotDeleteOpenStage),
 		errors.Is(err, services.ErrInvalidMoveDestination),

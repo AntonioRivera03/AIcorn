@@ -34,6 +34,26 @@ export type TaskTypeWithCount = TaskType & {
   TaskCount: number;
 };
 
+export const PERSONA_HARNESSES = ["claude-code"] as const;
+export const PERSONA_MODELS = ["sonnet", "opus", "haiku"] as const;
+
+export type PersonaHarness = (typeof PERSONA_HARNESSES)[number];
+export type PersonaModel = (typeof PERSONA_MODELS)[number];
+
+export type PersonaSummary = {
+  ID: number;
+  Name: string;
+  Harness: PersonaHarness;
+  Model: PersonaModel;
+};
+
+export type Persona = PersonaSummary & {
+  SystemPrompt: string;
+  AllowedTools: string[];
+  TimeCreated: string;
+  TimeModified: string;
+};
+
 export type ProjectTaskTypeSettings = {
   AllTypes: TaskTypeWithCount[];
   EnabledTypeIDs: number[];
@@ -83,6 +103,7 @@ export type Stage = {
   TaskCount: number;
   TimeCreated: string;
   TimeModified: string;
+  Persona?: PersonaSummary | null;
 };
 
 export type Checklist = {

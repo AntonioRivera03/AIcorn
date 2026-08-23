@@ -121,6 +121,7 @@ type Stage struct {
 	TaskCount    int
 	TimeCreated  *time.Time
 	TimeModified *time.Time
+	Persona      *PersonaSummary
 }
 
 type TaskRelationshipType struct {

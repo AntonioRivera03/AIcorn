@@ -86,6 +86,7 @@ type app struct {
 	taskTypeRepo         *repos.TaskTypeRepo
 	taskTypeCategoryRepo *repos.TaskTypeCategoryRepo
 	taskRelationshipRepo *repos.TaskRelationshipRepo
+	personaRepo          *repos.PersonaRepo
 
 	projectService          *services.ProjectService
 	checklistService        *services.ChecklistService
@@ -95,6 +96,7 @@ type app struct {
 	taskTypeService         *services.TaskTypeService
 	taskTypeCategoryService *services.TaskTypeCategoryService
 	taskRelationshipService *services.TaskRelationshipService
+	personaService          *services.PersonaService
 }
 
 func main() {
@@ -145,9 +147,11 @@ func main() {
 	taskRepo := &repos.TaskRepo{DB: db}
 	workflowRepo := &repos.WorkflowRepo{DB: db}
 	stageRepo := &repos.StageRepo{DB: db}
+	stagePersonaRepo := &repos.StagePersonaRepo{DB: db}
 	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	taskTypeCategoryRepo := &repos.TaskTypeCategoryRepo{DB: db}
 	taskRelationshipRepo := &repos.TaskRelationshipRepo{DB: db}
+	personaRepo := &repos.PersonaRepo{DB: db}
 
 	projectService := &services.ProjectService{
 		ProjectRepo:   projectRepo,
@@ -167,7 +171,10 @@ func main() {
 		ProjectRepo:  projectRepo,
 		StageRepo:    stageRepo,
 	}
-	stageService := &services.StageService{StageRepo: stageRepo}
+	stageService := &services.StageService{
+		StageRepo:        stageRepo,
+		StagePersonaRepo: stagePersonaRepo,
+	}
 	taskTypeService := &services.TaskTypeService{
 		TaskTypeRepo: taskTypeRepo,
 		CategoryRepo: taskTypeCategoryRepo,
@@ -179,6 +186,7 @@ func main() {
 	taskRelationshipService := &services.TaskRelationshipService{
 		TaskRelationshipRepo: taskRelationshipRepo,
 	}
+	personaService := &services.PersonaService{PersonaRepo: personaRepo}
 
 	app := app{
 		projectRepo:          projectRepo,
@@ -188,6 +196,7 @@ func main() {
 		taskTypeRepo:         taskTypeRepo,
 		taskTypeCategoryRepo: taskTypeCategoryRepo,
 		taskRelationshipRepo: taskRelationshipRepo,
+		personaRepo:          personaRepo,
 
 		projectService:          projectService,
 		checklistService:        checklistService,
@@ -197,6 +206,7 @@ func main() {
 		taskTypeService:         taskTypeService,
 		taskTypeCategoryService: taskTypeCategoryService,
 		taskRelationshipService: taskRelationshipService,
+		personaService:          personaService,
 	}
 
 	host := resolveHost()

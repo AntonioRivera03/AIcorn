@@ -8,11 +8,20 @@ import (
 )
 
 type StageService struct {
-	StageRepo *repos.StageRepo
+	StageRepo        *repos.StageRepo
+	StagePersonaRepo *repos.StagePersonaRepo
 }
 
 func (s *StageService) GetAllStages() ([]models.Stage, error) {
 	return s.StageRepo.All()
+}
+
+func (s *StageService) BindPersona(stageID int, personaID int) error {
+	return s.StagePersonaRepo.Bind(stageID, personaID)
+}
+
+func (s *StageService) UnbindPersona(stageID int) (bool, error) {
+	return s.StagePersonaRepo.Unbind(stageID)
 }
 
 var ErrInvalidStageType = errors.New("stage type must be one of: todo, doing, done")

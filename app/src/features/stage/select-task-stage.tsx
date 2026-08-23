@@ -19,6 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { SELF_ASSIGNEE } from "@/features/task/properties/task-assignee";
 
 type Props = {
   onChange?: (task: Task) => void;
@@ -47,8 +48,14 @@ export function SelectTaskStage({
       onValueChange(stageId);
       return;
     }
-    setState({ ...state, Stage: stageId });
-    onChange({ ...state, Stage: stageId });
+    const stage = Stages.find((candidate) => candidate.ID === stageId);
+    const assignee =
+      state.ID !== 0 && state.Assignee !== SELF_ASSIGNEE && stage?.Persona?.Name
+        ? stage.Persona.Name
+        : state.Assignee;
+    const updatedTask = { ...state, Stage: stageId, Assignee: assignee };
+    setState(updatedTask);
+    onChange(updatedTask);
   };
 
   return (

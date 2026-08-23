@@ -103,6 +103,10 @@ stage     (id, workflow→workflow.id ON DELETE CASCADE, name, description,
            color, icon, position,
            type CHECK in ('open','todo','doing','done'),
            timeCreated, timeModified)
+persona   (id, name, system_prompt, harness, model, allowed_tools JSON array,
+           timeCreated, timeModified)
+stage_persona (stage_id→stage.id ON DELETE CASCADE,
+               persona_id→persona.id ON DELETE CASCADE; one row per stage)
 project   (id, name, pinned, workflow→workflow.id, timeCreated, timeModified)
 checklist (id, project→project.id, name, timeCreated, timeModified, isDefault)
 task      (id, checklist→checklist.id, stage→stage.id ON DELETE RESTRICT,
@@ -114,6 +118,7 @@ task      (id, checklist→checklist.id, stage→stage.id ON DELETE RESTRICT,
 
 Hierarchy & relationships:
 - `workflow → stage` (a workflow owns an ordered list of stages; deleting a workflow cascades to its stages).
+- `stage → stage_persona → persona` (a stage has at most one bound persona; deleting either endpoint removes the binding).
 - `project → checklist → task`. Tasks belong to a **checklist**, not directly to a project.
 - A `project` references one `workflow`. A `task` references one `stage` — that's the task's status. There is no `status` column.
 
@@ -127,4 +132,5 @@ Trigger-enforced invariants (don't reimplement these in app code — rely on the
 
 Migration notes:
 - `body` is a JSON array (Plate.js document format).
+- `persona.allowed_tools` is a JSON array with a restrictive `[]` default; harness/model values are validated against curated Go constants rather than SQLite `CHECK` constraints.
 - Workflows/stages are fully implemented (custom workflows no longer need a migration). The remaining hardcoded `CHECK` constraints are **`task.priority`, `task.type`, and `stage.type`** — changing those allowed values still requires a **schema migration**. Flag this whenever a feature touches them.

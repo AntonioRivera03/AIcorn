@@ -90,18 +90,18 @@ Two follow-on changes ship in the same Phase 0 commit:
 
 | Table | Introduced | Key columns | Notes |
 |---|---|---|---|
-| `agent_persona` | Phase 2 | id, name, systemPrompt, harness, model, allowedTools (JSON array, `NOT NULL`) | Personas are rows, not Go types — the extensibility mechanism (§6). |
-| `stage_persona` | Phase 2 | stage (PK, FK→stage, CASCADE), persona (FK→agent_persona) | One persona per stage. Pickup eligibility = a binding exists here **and** the task has an explicit opt-in flag — not derived from `stage.type`. |
-| `agent_job` | Phase 3 | id, task (FK→task), persona (FK→agent_persona), status (`TEXT`, not CHECK), fromStage, toStage, claimedAt, startedAt, finishedAt, attempts, error, createdAt | `status` deliberately isn't a CHECK constraint — see §4's migration note; job statuses will grow and a CHECK would mean a table-recreate migration every time. |
+| `persona` | Phase 2 | id, name, system_prompt, harness, model, allowed_tools (JSON array, `NOT NULL`) | Personas are rows, not Go types — the extensibility mechanism (§6). |
+| `stage_persona` | Phase 2 | stage_id (PK, FK→stage, CASCADE), persona_id (FK→persona, CASCADE) | One persona per stage. Pickup eligibility = a binding exists here **and** the task has an explicit opt-in flag — not derived from `stage.type`. |
+| `agent_job` | Phase 3 | id, task (FK→task), persona (FK→persona), status (`TEXT`, not CHECK), fromStage, toStage, claimedAt, startedAt, finishedAt, attempts, error, createdAt | `status` deliberately isn't a CHECK constraint — see §4's migration note; job statuses will grow and a CHECK would mean a table-recreate migration every time. |
 | `agent_run` | Phase 3 | id, job (FK→agent_job), output (`TEXT`, markdown), summary, exitCode, usageJson, createdAt | Agent output lands here, **never** in `task.body` (which is Plate.js JSON) — don't make an LLM emit Plate's schema. |
 
 `task.assignee` is **not** touched by this plan — it stays the free-text human field it is today (`server/internal/models/repos/taskRepo.go`, `app/src/features/task/properties/task-assignee.tsx`). Pickup eligibility is derived from `stage_persona`, not from anything on `task`.
 
 ## 6. Trust Boundary & Extensibility
 
-**No app-wide auth is introduced by this plan.** Aycorn binds to `127.0.0.1` by design (`server/cmd/web/main.go`, `resolveHost`) and has no user/session table today. The MCP stdio transport is a same-machine trust boundary on its own — the host spawns `cmd/mcp` as a child process, so environment-level trust is sufficient. Once Phase 4 lets a harness run LLM-generated code, the risk shifts from "unauthorized access" to "blast radius," and the mitigation is architectural, not a login system: each persona's `allowedTools` (compiled into that job's MCP config) and per-job git worktree isolation. Revisit this section specifically if the MCP server is ever exposed over Streamable HTTP to a non-local client — that changes the trust boundary and needs real auth (OAuth 2.1 / bearer tokens).
+**No app-wide auth is introduced by this plan.** Aycorn binds to `127.0.0.1` by design (`server/cmd/web/main.go`, `resolveHost`) and has no user/session table today. The MCP stdio transport is a same-machine trust boundary on its own — the host spawns `cmd/mcp` as a child process, so environment-level trust is sufficient. Once Phase 4 lets a harness run LLM-generated code, the risk shifts from "unauthorized access" to "blast radius," and the mitigation is architectural, not a login system: each persona's `allowed_tools` (compiled into that job's MCP config) and per-job git worktree isolation. Revisit this section specifically if the MCP server is ever exposed over Streamable HTTP to a non-local client — that changes the trust boundary and needs real auth (OAuth 2.1 / bearer tokens).
 
-**Personas are configuration, not code.** Adding a new persona (a QA persona, a docs persona) is a row insert into `agent_persona`, never a new Go type or a new switch-case. `allowedTools` is `NOT NULL` with a restrictive default — a persona with no explicit tool list should have *no* tools, not all of them.
+**Personas are configuration, not code.** Adding a new persona (a QA persona, a docs persona) is a row insert into `persona`, never a new Go type or a new switch-case. `allowed_tools` is `NOT NULL` with a restrictive default — a persona with no explicit tool list should have *no* tools, not all of them.
 
 **The coding harness is behind an interface, not hardcoded to one vendor.** OpenCode (the harness originally scoped for this plan) is archived; Claude Code, Crush, Aider, Cline, and Goose all expose roughly the same invocation shape (prompt in, working directory, MCP config, JSON out, exit code). `server/internal/harness.Harness` is the interface; `ClaudeCodeHarness` is the only implementation until there's a real reason for a second one.
 
@@ -117,7 +117,7 @@ type Harness interface {
 |---|---|---|
 | 0 | `phase-0-foundations.md` | WAL mode, CAS transition endpoint, gitignore fix, decisions locked |
 | 1 | `phase-1-mcp-server.md` | `cmd/mcp` binary, shared `internal/appdb`, read/write MCP tools |
-| 2 | `phase-2-personas.md` | `agent_persona` / `stage_persona` tables, persona CRUD UI |
+| 2 | `phase-2-personas.md` | `persona` / `stage_persona` tables, persona CRUD UI |
 | 3 | `phase-3-job-queue.md` | `agent_job` / `agent_run` tables, single-worker ticker, first read-only persona |
 | 4 | `phase-4-coding-harness.md` | `Harness` interface, `ClaudeCodeHarness`, git-worktree-per-job, Coder persona |
 | 5 | `phase-5-scale.md` | Concurrency, retries, observability — evidence-driven, no fixed scope |
