@@ -1,0 +1,4 @@
+## 2026-08-23 Tasks 76+80: System Prompt DB alignment decision
+- Chose to keep `persona.system_prompt` as `TEXT NOT NULL DEFAULT '[]'` (adding `NOT NULL` consistency with original) rather than nullable `TEXT DEFAULT '[]'` like `task.body`; TEXT type and `DEFAULT '[]'` are the parity signal, `NOT NULL` is a stricter constraint not a type divergence. Migration recreates table with `PRAGMA foreign_keys=OFF` to avoid `stage_persona` cascade issues, handles legacy plain-text seed (`placeholder.sql`) by wrapping via `json_array(json_object(...))`.
+- Chose to not create a separate `PUT /api/persona/{id}/body` endpoint — persona prompt updates flow through existing `PUT /api/persona/{id}` with `JSON.stringify(Value)`; keeps API surface minimal while achieving same Plate JSON path as task via dedicated `updateTaskBody`. Frontend normalizes empty strings to `EmptyBody` on both create and update paths.
+

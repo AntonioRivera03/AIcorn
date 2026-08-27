@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { normalizePersona } from "@/features/persona/queries/persona-query-normalization";
+import type { PersonaResponse } from "@/features/persona/queries/persona-query-normalization";
 import type { Persona } from "@/types/types";
 
 export function usePersonasQuery() {
@@ -7,7 +9,8 @@ export function usePersonasQuery() {
     queryFn: async () => {
       const response = await fetch("/api/persona");
       if (!response.ok) throw new Error(await response.text());
-      return response.json() as Promise<Persona[]>;
+      const raw = (await response.json()) as PersonaResponse[];
+      return raw.map(normalizePersona);
     },
   });
 }

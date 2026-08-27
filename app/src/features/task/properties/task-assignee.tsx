@@ -7,24 +7,27 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { TaskContext } from "@/contexts/task/TaskContext";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import type { Task } from "@/types/types";
-import { Check, ChevronDown, User, Users, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Bot, Check, ChevronDown, User, Users, X } from "lucide-react";
 import { useContext, useMemo, useState } from "react";
-
-export const SELF_ASSIGNEE = "Me";
+import {
+  createPersonaNames,
+  isPersona,
+  SELF_ASSIGNEE,
+} from "@/features/task/stage-move-assignee";
+import {
+  createAssigneeOptions,
+  getAssigneeOptionState,
+} from "@/features/task/properties/task-assignee-options";
 
 type Props = {
   onChange?: (task: Task) => void;
@@ -37,34 +40,38 @@ export function TaskAssignee({
   onChange = () => {},
   value,
   onValueChange,
-  placeholder = "Assignee (optional)",
+  placeholder = "Select an assignee",
 }: Props) {
   const { state: task, setState: setTask } = useContext(TaskContext);
   const { Tasks, Stages } = useContext(ProjectContext);
   const { data: personas = [] } = usePersonasQuery();
   const isControlled = onValueChange !== undefined;
-  const [localValue, setLocalValue] = useState(value ?? "");
-  const [prevPropValue, setPrevPropValue] = useState(value);
   const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
-  if (isControlled && value !== prevPropValue) {
-    setPrevPropValue(value);
-    setLocalValue(value ?? "");
-  }
+  const currentValue = isControlled ? (value ?? "") : task.Assignee;
 
-  const currentValue = isControlled ? localValue : task.Assignee;
-  const options = useMemo(() => {
-    const names = new Set<string>([SELF_ASSIGNEE]);
-    for (const candidate of Tasks) if (candidate.Assignee) names.add(candidate.Assignee);
-    for (const persona of personas) names.add(persona.Name);
-    for (const stage of Stages) if (stage.Persona?.Name) names.add(stage.Persona.Name);
-    return [...names];
-  }, [personas, Stages, Tasks]);
+  const personaNames = useMemo(
+    () => createPersonaNames(personas, Stages),
+    [personas, Stages],
+  );
+
+  const isPersonaAssignee = (name: string) => isPersona(name, personaNames);
+
+  const options = useMemo(
+    () => createAssigneeOptions(Tasks, personas, Stages),
+    [personas, Stages, Tasks],
+  );
+
+  const { filteredOptions, showCreate, trimmedSearch } = useMemo(
+    () => getAssigneeOptionState(options, searchValue),
+    [options, searchValue],
+  );
 
   const selectAssignee = (assignee: string) => {
     setOpen(false);
+    setSearchValue("");
     if (isControlled) {
-      setLocalValue(assignee);
       onValueChange(assignee);
       return;
     }
@@ -73,80 +80,99 @@ export function TaskAssignee({
     onChange(updated);
   };
 
-  const handleChange = (assignee: string) => {
-    if (isControlled) {
-      setLocalValue(assignee);
-      return;
-    }
-    setTask({ ...task, Assignee: assignee });
-  };
-
-  const commit = () => {
-    if (isControlled) {
-      if (currentValue !== (value ?? "")) onValueChange(currentValue);
-      return;
-    }
-    onChange({ ...task, Assignee: task.Assignee });
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) setSearchValue("");
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <InputGroup>
-        <InputGroupAddon>
-          <User />
-        </InputGroupAddon>
-        <InputGroupInput
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
           id="assignee"
-          value={currentValue}
-          placeholder={placeholder}
-          className="placeholder:text-muted-foreground text-sm"
-          aria-keyshortcuts="Control+Enter Meta+Enter"
-          onChange={(event) => handleChange(event.target.value)}
-          onBlur={commit}
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
           onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
               event.preventDefault();
               selectAssignee(SELF_ASSIGNEE);
             }
           }}
-        />
-        <InputGroupAddon align="inline-end">
-          {currentValue && (
-            <button
-              type="button"
-              aria-label="Clear assignee"
-              className="rounded-full p-0.5 hover:bg-muted-foreground/20 cursor-pointer"
-              onClick={() => selectAssignee("")}
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-          <PopoverTrigger asChild>
-            <InputGroupButton size="icon-xs" aria-label="Choose assignee">
-              <ChevronDown className="size-3.5" />
-            </InputGroupButton>
-          </PopoverTrigger>
-        </InputGroupAddon>
-      </InputGroup>
-      <PopoverContent className="w-64 p-0" align="end">
-        <Command>
-          <CommandInput placeholder="Search people or personas..." />
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            {currentValue ? (
+              isPersonaAssignee(currentValue) ? (
+                <Bot className="size-4 shrink-0 text-primary" />
+              ) : (
+                <User className="size-4 shrink-0" />
+              )
+            ) : (
+              <User className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className={cn("truncate", !currentValue && "text-muted-foreground")}>
+              {currentValue || placeholder}
+            </span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search people or personas..."
+            value={searchValue}
+            onValueChange={setSearchValue}
+          />
           <CommandList>
             <CommandEmpty>No assignees found.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value={SELF_ASSIGNEE} onSelect={() => selectAssignee(SELF_ASSIGNEE)}>
-                <User />
-                <span>Assign to Self</span>
-                {currentValue === SELF_ASSIGNEE && <Check className="ml-auto" />}
-              </CommandItem>
-              {options.filter((option) => option !== SELF_ASSIGNEE).map((option) => (
-                <CommandItem key={option} value={option} onSelect={() => selectAssignee(option)}>
-                  <Users />
-                  <span>{option}</span>
-                  {currentValue === option && <Check className="ml-auto" />}
+            {currentValue && (
+              <CommandGroup>
+                <CommandItem value="__clear__" onSelect={() => selectAssignee("")}>
+                  <X className="size-4 shrink-0" />
+                  <span>Clear assignee</span>
                 </CommandItem>
-              ))}
-            </CommandGroup>
+              </CommandGroup>
+            )}
+            {filteredOptions.length > 0 && (
+              <CommandGroup>
+                {filteredOptions.map((option) => {
+                  const isMe = option === SELF_ASSIGNEE;
+                  const isPersona = !isMe && isPersonaAssignee(option);
+                  return (
+                    <CommandItem
+                      key={option}
+                      value={option}
+                      onSelect={() => selectAssignee(option)}
+                    >
+                      {isMe ? (
+                        <User className="size-4 shrink-0" />
+                      ) : isPersona ? (
+                        <Bot className="size-4 shrink-0 text-primary" />
+                      ) : (
+                        <Users className="size-4 shrink-0" />
+                      )}
+                      <span>{isMe ? "Assign to Self" : option}</span>
+                      {currentValue === option && <Check className="ml-auto size-4 shrink-0" />}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+            {showCreate && (
+              <CommandGroup>
+                <CommandItem
+                  value={`__create__${trimmedSearch}`}
+                  onSelect={() => selectAssignee(trimmedSearch)}
+                >
+                  <Users className="size-4 shrink-0" />
+                  <span>
+                    Assign to <span className="font-medium">"{trimmedSearch}"</span>
+                  </span>
+                </CommandItem>
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

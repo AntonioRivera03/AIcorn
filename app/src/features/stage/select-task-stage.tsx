@@ -1,5 +1,5 @@
 import type { Task } from "@/types/types";
-import { useContext, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { TaskContext } from "@/contexts/task/TaskContext";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { ChevronDown, Layers2 } from "lucide-react";
@@ -19,7 +19,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { SELF_ASSIGNEE } from "@/features/task/properties/task-assignee";
+import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import {
+  createPersonaNames,
+  getStageMoveAssignee,
+} from "@/features/task/stage-move-assignee";
 
 type Props = {
   onChange?: (task: Task) => void;
@@ -36,8 +40,13 @@ export function SelectTaskStage({
 }: Props) {
   const { state, setState } = useContext(TaskContext);
   const { Stages } = useContext(ProjectContext);
+  const { data: personas = [] } = usePersonasQuery();
   const isControlled = onValueChange !== undefined;
   const [open, setOpen] = useState(false);
+  const personaNames = useMemo(
+    () => createPersonaNames(personas, Stages),
+    [personas, Stages],
+  );
 
   const currentId = isControlled ? value : state.Stage;
   const current = Stages.find((s) => s.ID === currentId);
@@ -50,8 +59,12 @@ export function SelectTaskStage({
     }
     const stage = Stages.find((candidate) => candidate.ID === stageId);
     const assignee =
-      state.ID !== 0 && state.Assignee !== SELF_ASSIGNEE && stage?.Persona?.Name
-        ? stage.Persona.Name
+      state.ID !== 0
+        ? getStageMoveAssignee({
+            currentAssignee: state.Assignee,
+            targetPersonaName: stage?.Persona?.Name,
+            personaNames,
+          })
         : state.Assignee;
     const updatedTask = { ...state, Stage: stageId, Assignee: assignee };
     setState(updatedTask);

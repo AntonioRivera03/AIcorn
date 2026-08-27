@@ -50,7 +50,7 @@ END;
 CREATE TABLE persona (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL DEFAULT '',
-    system_prompt TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '[]',
     harness       TEXT NOT NULL,
     model         TEXT NOT NULL,
     allowed_tools TEXT NOT NULL DEFAULT '[]'

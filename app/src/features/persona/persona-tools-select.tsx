@@ -59,10 +59,20 @@ export function PersonaToolsSelect({
           <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
+      <PopoverContent
+        align="start"
+        className="w-(--radix-popover-trigger-width) p-0"
+        data-vaul-no-drag
+        onWheel={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+      >
         <Command>
           <CommandInput placeholder="Search tools..." />
-          <CommandList>
+          <CommandList
+            data-vaul-no-drag
+            onWheel={(e) => e.stopPropagation()}
+            className="max-h-[min(320px,50vh)]"
+          >
             <CommandEmpty>No tools found.</CommandEmpty>
             <CommandGroup>
               {tools.map((tool) => {

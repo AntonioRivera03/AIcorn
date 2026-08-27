@@ -27,7 +27,7 @@ INSERT INTO stage (id, workflow, name, description, color, icon, position, type)
 
 
 INSERT INTO persona (id, name, system_prompt, harness, model, allowed_tools) VALUES
-(1, 'Read-only Researcher', 'Read the assigned task and related project context, then produce research findings without modifying Aycorn data.', 'claude-code', 'sonnet', '["read_task","search_tasks","list_projects"]');
+(1, 'Read-only Researcher', '[{"type":"p","children":[{"text":"Read the assigned task and related project context, then produce research findings without modifying Aycorn data."}]}]', 'claude-code', 'sonnet', '["read_task","search_tasks","list_projects"]');
 
 INSERT INTO stage_persona (stage_id, persona_id) VALUES
 (11, 1);

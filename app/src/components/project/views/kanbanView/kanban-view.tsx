@@ -8,8 +8,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { KanbanColumn } from "@/components/project/views/kanbanView/kanban-column";
 import { ViewHeader } from "@/components/project/views/view-header";
-import { useCallback, useContext, useRef, useState } from "react";
-import type { ChecklistTask, Task } from "@/types/types";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
+import type { BulkResult, ChecklistTask, Task } from "@/types/types";
 import { KanbanItem } from "./kanban-item";
 import { useTaskMutation } from "@/queries/useTaskMutation";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
@@ -21,6 +21,16 @@ import {
 } from "@dnd-kit/core";
 import { useSharedSelection } from "@/hooks/useSelection";
 import { toast } from "sonner";
+import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import {
+  createPersonaNames,
+  getStageMoveAssignee,
+} from "@/features/task/stage-move-assignee";
+
+type BulkMove = {
+  readonly tasks: Task[];
+  readonly changes: Partial<Task>;
+};
 
 const overlayDropAnimation: DropAnimation = {
   duration: 200,
@@ -41,6 +51,11 @@ export function KanbanView({
 }) {
   const { Project, Tasks, Stages } = useContext(ProjectContext);
   const { update, bulkUpdate } = useTaskMutation(Project.ID);
+  const { data: personas = [] } = usePersonasQuery();
+  const personaNames = useMemo(
+    () => createPersonaNames(personas, Stages),
+    [personas, Stages],
+  );
 
   const [draggedTask, setDraggedTask] = useState<ChecklistTask | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -86,6 +101,7 @@ export function KanbanView({
       }
       const newStage = Number(overId);
       if (draggedTask && newStage !== draggedTask.Stage) {
+        const targetStage = Stages.find((stage) => stage.ID === newStage);
         setDropAnimation(
           new Set([draggedTask.ID]),
           draggedTask.Stage,
@@ -94,7 +110,12 @@ export function KanbanView({
         update.mutate({
           ...draggedTask,
           Stage: newStage,
-        } as Task);
+          Assignee: getStageMoveAssignee({
+            currentAssignee: draggedTask.Assignee,
+            targetPersonaName: targetStage?.Persona?.Name,
+            personaNames,
+          }),
+        });
       }
       setDraggedTask(null);
     },
@@ -115,16 +136,57 @@ export function KanbanView({
           newStage,
         );
       }
-      const stageName = Stages.find((s) => s.ID === newStage)?.Name ?? "stage";
-      bulkUpdate.mutate(
-        { tasks: movingTasks, changes: { Stage: newStage } },
-        {
-          onSuccess: (result) =>
-            toast(
-              `Moved ${result.success} task${result.success !== 1 ? "s" : ""} to ${stageName}.`,
-            ),
-          onError: () => toast.error("Failed moving tasks."),
+      const targetStage = Stages.find((stage) => stage.ID === newStage);
+      const targetPersonaName = targetStage?.Persona?.Name;
+      const personaTasks = targetPersonaName
+        ? movingTasks.filter(
+            (task) =>
+              getStageMoveAssignee({
+                currentAssignee: task.Assignee,
+                targetPersonaName,
+                personaNames,
+              }) !== task.Assignee,
+          )
+        : [];
+      const personaTaskIds = new Set(personaTasks.map((task) => task.ID));
+      const stageOnlyTasks = movingTasks.filter(
+        (task) => !personaTaskIds.has(task.ID),
+      );
+      const personaBatch: BulkMove | null = targetPersonaName && personaTasks.length > 0
+        ? {
+            tasks: personaTasks,
+            changes: { Stage: newStage, Assignee: targetPersonaName },
+          }
+        : null;
+      const stageBatch: BulkMove | null = stageOnlyTasks.length > 0
+        ? { tasks: stageOnlyTasks, changes: { Stage: newStage } }
+        : null;
+      const batches = [personaBatch, stageBatch].filter(
+        (batch): batch is BulkMove => batch !== null,
+      );
+
+      void Promise.all(
+        batches.map((batch) => bulkUpdate.mutateAsync(batch)),
+      ).then(
+        (results) => {
+          const result = results.reduce<BulkResult>(
+            (total, current) => ({
+              success: total.success + current.success,
+              failed: total.failed + current.failed,
+              skipped: total.skipped + current.skipped,
+            }),
+            { success: 0, failed: 0, skipped: 0 },
+          );
+          const message = [
+            `Moved ${result.success} task${result.success !== 1 ? "s" : ""} to ${targetStage?.Name ?? "stage"}.`,
+            ...(result.skipped > 0 ? [`${result.skipped} skipped.`] : []),
+            ...(result.failed > 0
+              ? [`${result.failed} failed — try again.`]
+              : []),
+          ].join(" ");
+          toast(message);
         },
+        () => toast.error("Failed moving tasks."),
       );
     },
   );

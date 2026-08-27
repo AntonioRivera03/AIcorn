@@ -14,11 +14,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { User } from "lucide-react";
+import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dayOnly } from "@/utils/date";
 import UpcomingRowProjectChecklist from "./upcoming-task-row/upcoming-row-project-checklist";
 import { useSharedSelection, selectedItemClasses } from "@/hooks/useSelection";
+import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { useMemo } from "react";
 
 type Props = {
   task: TaskWithProject;
@@ -37,6 +39,16 @@ function UpcomingTaskRowInner({ task, stageById, project }: Props) {
     new Date(task.TimePlannedStart) < dayOnly(new Date())
   );
   const itemProps = getItemProps(id);
+  const { data: personas = [] } = usePersonasQuery();
+  const isPersonaAssignee = useMemo(() => {
+    if (!task.Assignee) return false;
+    const names = new Set<string>();
+    for (const persona of personas) if (persona.Name) names.add(persona.Name);
+    if (stage?.Persona?.Name) names.add(stage.Persona.Name);
+    // also include all stage personas from stageById for correctness
+    for (const s of Object.values(stageById)) if ((s as { Persona?: { Name: string } }).Persona?.Name) names.add((s as { Persona: { Name: string } }).Persona.Name);
+    return names.has(task.Assignee);
+  }, [personas, stage, stageById, task.Assignee]);
 
   return (
     <ProjectProvider defaultState={project}>
@@ -100,11 +112,14 @@ function UpcomingTaskRowInner({ task, stageById, project }: Props) {
               <TaskTypeBadge type={task.Type} />
             </span>
 
-            {/* Assignee */}
             <span className="shrink-0 hidden lg:flex w-1/10">
               {task.Assignee ? (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <User className="size-3" />
+                  {isPersonaAssignee ? (
+                    <Bot className="size-3 text-primary" />
+                  ) : (
+                    <User className="size-3" />
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="max-w-24 truncate">{task.Assignee}</span>

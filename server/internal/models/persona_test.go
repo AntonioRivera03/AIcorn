@@ -36,7 +36,7 @@ func TestPersonaModelIsValid_whenValueIsUnknown(t *testing.T) {
 }
 
 func TestParseAllowedTools_whenValueIsOmittedNullOrEmpty(t *testing.T) {
-	for _, raw := range []string{"", "null", "[]"} {
+	for _, raw := range []string{"", " ", "null", " null ", "[]"} {
 		tools, err := models.ParseAllowedTools(raw)
 		if err != nil {
 			t.Fatalf("ParseAllowedTools(%q) returned error: %v", raw, err)
@@ -75,5 +75,46 @@ func TestEncodeAllowedTools_whenValueIsNil(t *testing.T) {
 	}
 	if encoded != "[]" {
 		t.Fatalf("EncodeAllowedTools(nil) = %q; want []", encoded)
+	}
+}
+
+func TestNormalizeBody_whenBodyIsEmptyOrNotPlateJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty", body: ""},
+		{name: "whitespace", body: "   "},
+		{name: "empty array", body: "[]"},
+		{name: "null", body: "null"},
+		{name: "encoded empty string", body: `""`},
+		{name: "legacy plain text", body: "legacy_token"},
+		{name: "JSON object", body: `{"type":"p"}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given an empty-compatible or non-Plate body representation
+			// When it crosses the model normalization boundary
+			got := models.NormalizeBody(test.body)
+
+			// Then it becomes the canonical empty Plate document
+			if got != models.EmptyBody {
+				t.Fatalf("NormalizeBody(%q) = %q; want %q", test.body, got, models.EmptyBody)
+			}
+		})
+	}
+}
+
+func TestNormalizeBody_whenBodyIsPlateJSONArray(t *testing.T) {
+	// Given a non-empty Plate document with surrounding storage whitespace
+	body := `  [{"type":"p","children":[{"text":"structured_token"}]}]  `
+
+	// When it crosses the model normalization boundary
+	got := models.NormalizeBody(body)
+
+	// Then the original serialized document is preserved byte-for-byte
+	if got != body {
+		t.Fatalf("NormalizeBody() = %q; want original %q", got, body)
 	}
 }

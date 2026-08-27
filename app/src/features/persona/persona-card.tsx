@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { Bot, Cable, Wrench } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,23 +13,20 @@ import type { Persona } from "@/types/types";
 type PersonaCardProps = {
   persona: Persona;
   boundStageCount: number;
+  onOpen: (personaId: number) => void;
 };
 
-export function PersonaCard({ persona, boundStageCount }: PersonaCardProps) {
-  const navigate = useNavigate();
+export function PersonaCard({ persona, boundStageCount, onOpen }: PersonaCardProps) {
   const { getItemProps } = useSharedSelection();
   const itemProps = getItemProps(`persona-${persona.ID}`);
   const itemOnClick = itemProps.onClick;
 
   const openPersona = () => {
-    navigate({
-      to: "/personas/$personaId",
-      params: { personaId: String(persona.ID) },
-    });
+    onOpen(persona.ID);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     openPersona();
   };
@@ -39,7 +35,7 @@ export function PersonaCard({ persona, boundStageCount }: PersonaCardProps) {
     <Card
       {...itemProps}
       data-task-card=""
-      role="link"
+      role="button"
       tabIndex={0}
       aria-label={`Open ${persona.Name || "Untitled Persona"}`}
       className={cn(

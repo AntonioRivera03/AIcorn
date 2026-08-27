@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,13 +9,15 @@ import {
 } from "@/components/ui/input-group";
 import { PersonaCard } from "@/features/persona/persona-card";
 import { PersonasBulkActionsToolbar } from "@/features/persona/personas-bulk-actions-toolbar";
+import { PersonaEditorDrawer } from "@/features/persona/persona-editor-drawer";
 import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { useAllWorkflowsQuery } from "@/features/workflows/shared/queries/useAllWorkflowsQuery";
 
 export function PersonasPage() {
   const [search, setSearch] = useState("");
-  const navigate = useNavigate();
+  const [drawerPersonaId, setDrawerPersonaId] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const { data: personas = [], isFetching } = usePersonasQuery();
   const { data: workflows = [] } = useAllWorkflowsQuery();
   const { createPersona } = usePersonaMutations();
@@ -45,14 +46,16 @@ export function PersonasPage() {
   const handleCreate = () => {
     createPersona.mutate(undefined, {
       onSuccess: (persona) => {
-        navigate({
-          to: "/personas/$personaId",
-          params: { personaId: String(persona.ID) },
-          search: { new: true },
-        });
+        setDrawerPersonaId(persona.ID);
+        setDrawerOpen(true);
       },
       onError: () => toast.error("Failed to create persona."),
     });
+  };
+
+  const handleOpenPersona = (personaId: number) => {
+    setDrawerPersonaId(personaId);
+    setDrawerOpen(true);
   };
 
   const isLoading = isFetching && personas.length === 0;
@@ -101,12 +104,22 @@ export function PersonasPage() {
               key={persona.ID}
               persona={persona}
               boundStageCount={stageCounts.get(persona.ID) ?? 0}
+              onOpen={handleOpenPersona}
             />
           ))}
         </div>
       )}
 
       <PersonasBulkActionsToolbar personas={personas} stageCounts={stageCounts} />
+
+      <PersonaEditorDrawer
+        personaId={drawerPersonaId}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setDrawerPersonaId(null);
+        }}
+      />
     </div>
   );
 }

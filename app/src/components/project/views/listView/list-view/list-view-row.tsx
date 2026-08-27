@@ -8,7 +8,7 @@ import {
   ItemMedia,
 } from "@/components/ui/item";
 import { ListViewTaskName } from "@/components/project/views/listView/list-view/list-view-task-name";
-import { ChevronRightIcon, LandPlot, User } from "lucide-react";
+import { Bot, ChevronRightIcon, LandPlot, User } from "lucide-react";
 import TaskEditorDrawer from "@/features/task/task-editor-drawer";
 import { StageIcon } from "@/features/stage/stage-visual";
 import TaskTypeBadge from "@/features/task/properties/task-type-badge";
@@ -21,6 +21,9 @@ import { SubtaskProgressBar } from "@/features/task/relationships/subtask-progre
 import { cn } from "@/lib/utils";
 import type { ChecklistTask, Stage } from "@/types/types";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
+import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { useContext, useMemo } from "react";
+import { ProjectContext } from "@/contexts/project/ProjectContext";
 
 export function ListViewRow({
   task,
@@ -35,6 +38,15 @@ export function ListViewRow({
 }) {
   const itemClassName = (itemProps.className as string | undefined) ?? "";
   const subtaskProgress = useSubtaskProgress(task.ID);
+  const { Stages } = useContext(ProjectContext);
+  const { data: personas = [] } = usePersonasQuery();
+  const isPersonaAssignee = useMemo(() => {
+    if (!task.Assignee) return false;
+    const names = new Set<string>();
+    for (const persona of personas) if (persona.Name) names.add(persona.Name);
+    for (const s of Stages) if (s.Persona?.Name) names.add(s.Persona.Name);
+    return names.has(task.Assignee);
+  }, [personas, Stages, task.Assignee]);
 
   return (
     <TaskProvider defaultState={task}>
@@ -63,7 +75,11 @@ export function ListViewRow({
                         : "bg-background text-muted-foreground"
                     }
                   >
-                    <User className="size-2" />
+                    {isPersonaAssignee ? (
+                      <Bot className="size-2 text-primary" />
+                    ) : (
+                      <User className="size-2" />
+                    )}
                     {task.Assignee === "" ? "Not Assigned" : task.Assignee}
                   </Badge>
 

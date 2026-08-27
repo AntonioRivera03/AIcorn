@@ -55,3 +55,43 @@
 - `/personas/$personaId?new=true` autofocuses the editable persona name once, then replaces the URL without the search flag. System prompt persists on blur; harness, model, and allowed tools persist on selection.
 - Curated UI vocabularies mirror the backend: harness `claude-code`; models `sonnet`, `opus`, and `haiku`. The tools picker comes from `GET /api/mcp/tools`, and its empty state explicitly means no tool access.
 - `PersonaSummary` is now separate from the full `Persona` type so `Stage.Persona` carries only `{ID, Name, Harness, Model}` while persona pages retain prompt, tool, and timestamp fields.
+
+## 2026-08-23 Task 75: Assignee Field Visual Parity
+- Normalized `app/src/features/task/properties/task-assignee.tsx` to the shared property field pattern: `Popover` + `Button variant=outline w-full justify-between font-normal` + `PopoverContent w-60 p-0 align=start` + searchable `Command` (`shouldFilter=false` with manual `includes` filtering). Label/spacing handled by `TaskProperty` wrapper; no custom `InputGroup` remains.
+- Preserved free-text capability via inline "Assign to \"...\"" create item when typed value has no exact match (mirrors `SelectChecklist` create flow) and preserved `SELF_ASSIGNEE = "Me"` as first option rendered as "Assign to Self" with `User` icon; other assignees use `Users`. Clearing is now an explicit `Clear assignee` command at top when a value exists.
+- Semantic tokens only: `text-muted-foreground` for placeholder/empty icon, `opacity-50` for `ChevronDown`, `border-border` via Button outline; removed `InputGroup` hover `bg-muted-foreground/20` divergence. Keyboard parity: `PopoverTrigger` handles Enter/Space, `CommandInput` provides search + arrow navigation, `Ctrl/Cmd+Enter` on trigger still assigns Me. `make typecheck` clean; no hardcoded colors.
+
+## 2026-08-23 Tasks 76+80: Persona Creation Drawer & System Prompt Parity (DB verification)
+
+- Persona creation now follows create-empty-then-edit via `PersonaEditorDrawer` (`Drawer` from `vaul`, `direction=right/bottom`, `repositionInputs` handleOnly) mirroring `TaskEditorDrawer` pattern: `POST /api/persona` with `{}` immediately creates sensibly-defaulted empty persona (`harness=claude-code`, `model=sonnet`, `system_prompt=EmptyBody`) and opens drawer for in-place editing; direct navigation `/personas/$personaId` page preserved (same `PersonaEditorPage` but now RichEditor-based).
+- System Prompt is now the exact same `RichEditor` component as `task.Body` (`app/src/features/editor/rich-editor.tsx` + plugin kits) with identical `debounceDuration=250`, `onDebounceChange` autosave, `onEditorReady` + `savedPromptRef` baseline (normalized on mount) and `commitPendingPrompt` on drawer close / page unmount; no Save button, no duplicate textarea. `Persona.SystemPrompt` frontend type changed from `string` to `Value` (Plate `Value`) with `JSON.stringify` on write and `toValidBody` parse on read, handling legacy plain-text fallback by wrapping as paragraph.
+- DB type mismatch found and fixed: `persona.system_prompt TEXT NOT NULL DEFAULT ''` vs `task.body TEXT DEFAULT '[]'` — defaults differed and persona stored plain text. Added migration `00010_align_persona_system_prompt.sql` recreating `persona` as `TEXT NOT NULL DEFAULT '[]'` with `PRAGMA foreign_keys=OFF`, preserving valid Plate arrays, wrapping legacy plain-text via `json_array(json_object(...))`, and restoring `persona_timeModified` trigger; synced `server/assets/queries/schema.sql` and converted `placeholder.sql` seed to Plate JSON; added `models.NormalizeBody` to `personaRepo.scanPersona` and `personaService.validatePersona` so empty/ `[]`/`""` map to `EmptyBody` (`[{"type":"p","children":[{"text":""}]}]`) matching `task.Body` semantics.
+- Query layer now normalizes both `usePersonaQuery`/`usePersonasQuery` and `usePersonaMutations` (create/update) via `tryParse` + `toValidBody` + `serializePersona` (`JSON.stringify(SystemPrompt)`) ensuring single Plate JSON path for both persona and task; `go test ./...` and `make typecheck` clean, fresh DB schema verified both `TEXT DEFAULT '[]'` parity.
+
+## 2026-08-23 Task 77: Link Personas to Assignee List with Distinct Icon
+
+- `TaskAssignee` now builds a `Set` of persona names from `usePersonasQuery()` plus `Stages[].Persona.Name`; helper `isPersonaAssignee(name)` drives icon choice in trigger button (`Bot text-primary` for persona vs `User` for human/Me) and in dropdown rows (`Bot text-primary` for persona, `User` for Me, `Users` for generic humans, `Users` for create-new free text). No DB schema change, stays name-based; preserved `SELF_ASSIGNEE = "Me"` and `Ctrl/Cmd+Enter` shortcut.
+- Secondary surfaces also differentiated using same persona-name set via `usePersonasQuery`: `kanban-item.tsx` badge, `list-view-row.tsx` badge, and `upcoming-task-row.tsx` row assignee now render `Bot size-2/3 text-primary` for persona assignees and `User` otherwise; empty stays `User text-muted-foreground/50`. All use semantic tokens only (`text-primary`, `text-muted-foreground`), no hardcoded colors.
+- `make typecheck` clean; established `Bot` convention from `workflow-stage-chip.tsx` and `persona-card.tsx` reused verbatim.
+
+## 2026-08-23 Task 78: Auto-Assign Persona on Stage Move
+
+- `stage-move-assignee.ts` is the shared name-based policy seam. Its persona-name set combines the full persona catalog with every hydrated stage persona; moving to a bound stage assigns empty tasks and replaces known persona assignees, while explicitly preserving `Me` and names absent from that set.
+- The task stage dropdown and single kanban drag both resolve `Assignee` alongside `Stage`. New unsaved tasks retain the dropdown's prior no-auto-assignment behavior.
+- Mixed kanban bulk drags partition into at most two real bulk requests: eligible tasks receive `{Stage, Assignee}` and protected human tasks receive `{Stage}`. This avoids per-task fan-out, retains the existing optimistic mutation/rollback path, and aggregates both `BulkResult` values into one toast.
+- Server `TransitionStage` remains unchanged because the frontend does not use it and changing it would alter MCP `move_task_stage` semantics; Task 78 is enforced at the two current UI stage-move seams.
+
+## 2026-08-23 Task 79: Kanban Stage Header Persona Indicator
+
+- `KanbanColumn` header now renders a blue `Bot size-3.5 text-primary` adjacent to the count `Badge` when `stage.Persona` exists, wrapped in a focusable `Tooltip` (`Persona: {Name}`) matching the `WorkflowStageChip` seam but with `text-primary` to satisfy the "blue robot" spec.
+- Implementation is inline in the existing `flex items-center gap-2` header span after the `Badge`; no extra fetch or query needed because `Stage.Persona` is already hydrated via `StageRepo` LEFT JOIN and `ProjectContext.Stages`. Uses semantic token `text-primary` (not hardcoded hex/blue-500) and `focus-visible:ring-ring` for keyboard parity.
+- Responsive: header retains `flex justify-between items-center` with `flex-1` left block; Bot adds only 14px + gap, no overflow at 375px. `make typecheck` clean; no drag/drop or assignee logic touched.
+- Touched: `app/src/components/project/views/kanbanView/kanban-column.tsx` (added `Bot` import + conditional Tooltip/Bot after Badge).
+
+## 2026-08-23 Phase 2 Persona Test Coverage
+
+- Expanded the headless stage-move suite to cover `createPersonaNames`, case-sensitive `isPersona` classification, catalog and stage-only personas, null/undefined target bindings, empty persona sets, self assignment, and protected human/free-text assignees.
+- Consolidated the three duplicated persona query normalization paths into `persona-query-normalization.ts`; Vitest now covers parsed Plate arrays, already-parsed values, legacy text wrapping, canonical empty forms (`""`, `[]`, `null`), malformed array JSON, metadata preservation, and write serialization.
+- Extracted pure TaskAssignee option helpers without changing the component structure. Tests lock option ordering/deduplication, stage-persona inclusion, Bot-versus-Users classification, case-insensitive search, exact-match suppression, and free-text create visibility.
+- Routed the existing kanban Bot condition through a typed `shouldShowPersonaIndicator` predicate, with bound, null, and omitted persona cases tested without a DOM environment.
+- Added server coverage for restrictive non-nil allowed-tool defaults, `NormalizeBody`, fresh `system_prompt DEFAULT '[]'`, and a real goose v9-to-v10 migration proving empty, legacy text, and structured Plate rows normalize without losing content.

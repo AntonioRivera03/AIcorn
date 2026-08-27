@@ -48,7 +48,7 @@ export type PersonaSummary = {
 };
 
 export type Persona = PersonaSummary & {
-  SystemPrompt: string;
+  SystemPrompt: import("platejs").Value;
   AllowedTools: string[];
   TimeCreated: string;
   TimeModified: string;

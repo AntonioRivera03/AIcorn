@@ -1,4 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  normalizePersona,
+  serializePersona,
+} from "@/features/persona/queries/persona-query-normalization";
+import type { PersonaResponse } from "@/features/persona/queries/persona-query-normalization";
 import type { BulkResult, Persona } from "@/types/types";
 
 export function usePersonaMutations(personaId?: number) {
@@ -20,17 +25,19 @@ export function usePersonaMutations(personaId?: number) {
         body: JSON.stringify({}),
       });
       if (!response.ok) throw new Error(await response.text());
-      return response.json() as Promise<Persona>;
+      const raw = (await response.json()) as PersonaResponse;
+      return normalizePersona(raw);
     },
     onSuccess: invalidate,
   });
 
   const updatePersona = useMutation({
     mutationFn: async (persona: Persona) => {
+      const payload = serializePersona(persona);
       const response = await fetch(`/api/persona/${persona.ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(persona),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error(await response.text());
       return response.json() as Promise<boolean>;

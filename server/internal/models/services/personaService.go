@@ -30,6 +30,7 @@ func validatePersona(persona *models.Persona) error {
 	if persona.AllowedTools == nil {
 		persona.AllowedTools = []string{}
 	}
+	persona.SystemPrompt = models.NormalizeBody(persona.SystemPrompt)
 	return nil
 }
 

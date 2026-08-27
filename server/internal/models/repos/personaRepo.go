@@ -45,6 +45,7 @@ func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Person
 		return fmt.Errorf("parse persona %d allowed tools: %w", persona.ID, err)
 	}
 	persona.AllowedTools = tools
+	persona.SystemPrompt = models.NormalizeBody(persona.SystemPrompt)
 	return nil
 }
 
