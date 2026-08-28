@@ -313,32 +313,37 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 		log.Printf("worker: repoRoot not found, running without worktree isolation for job %d", job.ID)
 	}
 
-	// --- Phase 4: per-job MCP config ---
 	var mcpCleanup func()
+	var mcpPath string
 	if wt != nil {
-		// Generate inside worktree dir so harness / OpencodeHarness can discover it if needed.
-		// Even if harness currently ignores the file, generating + deferring cleanup ensures
-		// per-job file exists for verification (future Proof).
-		mcpPath, cleanup, merr := mcptools.GenerateMCPConfig(allowedTools, wt.Path)
+		generatedPath, cleanup, merr := mcptools.GenerateMCPConfig(allowedTools, wt.Path)
 		if merr != nil {
 			log.Printf("worker: GenerateMCPConfig failed for job %d: %v", job.ID, merr)
-			// Non-fatal: continue without MCP config (restrictive bypass already handled by catalog)
 		} else {
+			mcpPath = generatedPath
 			mcpCleanup = cleanup
 			log.Printf("worker: MCP config generated at %s for job %d (tools=%v)", mcpPath, job.ID, allowedTools)
-			// MCP config file is ephemeral per-job; defer cleanup until after harness + diff.
-			defer mcpCleanup()
+			defer func() {
+				if mcpCleanup != nil {
+					mcpCleanup()
+				}
+			}()
 		}
 	} else {
-		// No worktree: still generate a temp config in OS temp dir for verification.
-		_, cleanup, merr := mcptools.GenerateMCPConfig(allowedTools, "")
+		generatedPath, cleanup, merr := mcptools.GenerateMCPConfig(allowedTools, "")
 		if merr != nil {
 			log.Printf("worker: GenerateMCPConfig (no worktree) failed for job %d: %v", job.ID, merr)
 		} else {
+			mcpPath = generatedPath
 			mcpCleanup = cleanup
-			defer mcpCleanup()
+			defer func() {
+				if mcpCleanup != nil {
+					mcpCleanup()
+				}
+			}()
 		}
 	}
+	spec.MCPConfigPath = mcpPath
 
 	// Execute harness with exponential backoff on rate-limit errors.
 	var result harness.RunResult
@@ -399,18 +404,18 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 		return true, herr
 	}
 
-	// Success — remove MCP config before diff so ephemeral file does not pollute diff.
-	if mcpCleanup != nil {
-		mcpCleanup()
-	}
-	// Capture diff if worktree exists.
 	if wt != nil {
 		diff, derr := wt.Diff()
 		if derr != nil {
 			log.Printf("worker: Diff failed for job %d worktree %s: %v", job.ID, wt.Path, derr)
 		} else if diff != "" {
-			result.Diff = diff
-			log.Printf("worker: diff captured (%d bytes) for job %d", len(diff), job.ID)
+			filtered := filterMCPFromDiff(diff)
+			if filtered != "" {
+				result.Diff = filtered
+				log.Printf("worker: diff captured (%d bytes) for job %d", len(filtered), job.ID)
+			} else {
+				log.Printf("worker: no diff for job %d (filtered MCP only)", job.ID)
+			}
 		} else {
 			log.Printf("worker: no diff for job %d", job.ID)
 		}
@@ -453,6 +458,38 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func filterMCPFromDiff(diff string) string {
+	lines := strings.Split(diff, "\n")
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		trim := strings.TrimSpace(l)
+		if strings.Contains(trim, "mcp-") && strings.HasSuffix(trim, ".json") {
+			continue
+		}
+		out = append(out, l)
+	}
+	filtered := strings.Join(out, "\n")
+	if strings.TrimSpace(filtered) == "Untracked files:" {
+		return ""
+	}
+	if strings.TrimSpace(filtered) == "" {
+		return ""
+	}
+	lines2 := strings.Split(strings.TrimSpace(filtered), "\n")
+	onlyHeader := true
+	for _, l := range lines2 {
+		if strings.TrimSpace(l) == "" || strings.TrimSpace(l) == "Untracked files:" {
+			continue
+		}
+		onlyHeader = false
+		break
+	}
+	if onlyHeader {
+		return ""
+	}
+	return strings.TrimSpace(filtered)
 }
 
 func isWorktreeExistsErr(err error) bool {

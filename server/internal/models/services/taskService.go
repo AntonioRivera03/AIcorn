@@ -1,9 +1,14 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -11,11 +16,19 @@ import (
 
 var ErrStageConflict = errors.New("task is not currently in the expected stage")
 
+var (
+	ErrNoPersonaBound   = errors.New("no persona bound to this stage — bind one in Workflow Editor or use Ready For Work/Plan Phase")
+	ErrRepoPathMissing  = errors.New("project has no repo folder linked")
+	ErrRepoInvalid      = errors.New("linked repo folder is not a valid git repository")
+	ErrJobAlreadyPending = errors.New("agent job already pending for this task")
+)
+
 type TaskService struct {
 	TaskRepo         *repos.TaskRepo
 	TaskTypeRepo     *repos.TaskTypeRepo
 	AgentJobService  *AgentJobService
 	StagePersonaRepo *repos.StagePersonaRepo
+	ProjectRepo      *repos.ProjectRepo
 }
 
 func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, error) {
@@ -274,4 +287,66 @@ func (s *TaskService) BulkDelete(ids []int) (models.BulkResult, error) {
 		Success: affected,
 		Skipped: len(ids) - affected,
 	}, nil
+}
+
+// RequestAgent manually enqueues a job for a task's current stage without moving the stage.
+// It resolves the persona bound to the task's current stage, validates the project's
+// RepoPath (non-empty and git-valid), checks idempotency (no pending job already exists),
+// then inserts a pending agent_job row. Does NOT change task.stage.
+func (s *TaskService) RequestAgent(taskID int) (*models.AgentJob, error) {
+	task, err := s.TaskRepo.FindOneWithProject(taskID)
+	if err != nil {
+		return nil, err
+	}
+	// Resolve persona for current stage
+	sp, err := s.StagePersonaRepo.FindByStage(task.Stage)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNoPersonaBound
+		}
+		return nil, err
+	}
+	personaID := sp.PersonaID
+
+	// Project RepoPath guard — fail fast before enqueue
+	if s.ProjectRepo != nil {
+		proj, err := s.ProjectRepo.FindOne(task.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		repoPath := strings.TrimSpace(proj.RepoPath)
+		if repoPath == "" {
+			return nil, ErrRepoPathMissing
+		}
+		info, statErr := os.Stat(repoPath)
+		if statErr != nil || !info.IsDir() {
+			return nil, fmt.Errorf("%w: %s", ErrRepoInvalid, repoPath)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--show-toplevel")
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrRepoInvalid, repoPath)
+		}
+	}
+
+	// Idempotent: if a pending job already exists for this task, reject
+	if s.AgentJobService != nil && s.AgentJobService.JobRepo != nil {
+		existing, err := s.AgentJobService.JobRepo.FindPendingByTask(taskID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		if existing != nil {
+			return nil, ErrJobAlreadyPending
+		}
+		// Also check claimed/running to avoid duplicate active work
+		// We treat pending as the idempotent key; claimed/running will be caught by FindPendingByTask not covering them,
+		// so explicitly check active as well via ListFiltered is heavy. Instead check any pending only per spec.
+	}
+
+	if s.AgentJobService == nil {
+		return nil, errors.New("agent job service not configured")
+	}
+	toStage := task.Stage
+	return s.AgentJobService.Enqueue(taskID, personaID, nil, &toStage)
 }

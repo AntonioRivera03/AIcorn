@@ -55,7 +55,9 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidStageMapping),
 		errors.Is(err, services.ErrTransferTypeRequired),
 		errors.Is(err, services.ErrInvalidTransferType),
-		errors.Is(err, services.ErrInvalidProjectView):
+		errors.Is(err, services.ErrInvalidProjectView),
+		errors.Is(err, services.ErrRepoPathMissing),
+		errors.Is(err, services.ErrRepoInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
@@ -63,7 +65,9 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrDuplicateRelationship),
 		errors.Is(err, services.ErrStageConflict),
 		errors.Is(err, services.ErrInvalidJobStatus),
-		errors.Is(err, services.ErrJobStatusConflict):
+		errors.Is(err, services.ErrJobStatusConflict),
+		errors.Is(err, services.ErrNoPersonaBound),
+		errors.Is(err, services.ErrJobAlreadyPending):
 		return http.StatusConflict
 	case errors.Is(err, services.ErrDefaultTaskType):
 		return http.StatusForbidden

@@ -139,6 +139,14 @@ func (repo *AgentJobRepo) FindOne(id int) (*models.AgentJob, error) {
 	return &job, nil
 }
 
+func (repo *AgentJobRepo) FindPendingByTask(taskID int) (*models.AgentJob, error) {
+	job := models.AgentJob{}
+	if err := scanAgentJob(repo.DB.QueryRow("SELECT "+agentJobColumns+" FROM agent_job WHERE task = ? AND status = 'pending' ORDER BY createdAt ASC LIMIT 1;", taskID), &job); err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
 // FindByTask returns all jobs for a given task ordered by createdAt.
 func (repo *AgentJobRepo) FindByTask(taskID int) ([]models.AgentJob, error) {
 	rows, err := repo.DB.Query("SELECT "+agentJobColumns+" FROM agent_job WHERE task = ? ORDER BY createdAt ASC;", taskID)

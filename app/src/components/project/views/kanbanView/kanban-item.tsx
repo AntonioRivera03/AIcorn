@@ -11,7 +11,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { TaskProvider } from "@/contexts/task/TaskProvider";
-import { Bot, GripVertical, LandPlot, User } from "lucide-react";
+import { Bot, Ellipsis, GripVertical, LandPlot, User } from "lucide-react";
 import { UnresolvedBlockersBadge } from "@/features/task/relationships/unresolved-blockers-badge";
 import type { ChecklistTask } from "@/types/types";
 import { useDraggableItem } from "@/hooks/useDraggableItem";
@@ -23,6 +23,14 @@ import { SubtaskProgressBar } from "@/features/task/relationships/subtask-progre
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
 
 type DragListeners = Record<string, (e: React.SyntheticEvent) => void>;
 
@@ -67,28 +75,30 @@ export function KanbanItem({
   }, [personas, Stages, task.Assignee]);
 
   const subtaskProgress = useSubtaskProgress(task.ID);
+  const requestAgent = useRequestAgent();
 
   return (
     <TaskProvider defaultState={task} key={task.ID}>
-      <TaskEditorDrawer>
-        <Item
-          asChild
-          className="border border-border bg-background rounded-lg w-full box-border"
-        >
-          <a
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...itemProps}
-            data-task-card=""
-            className={cn(
-              "overflow-clip select-none",
-              selectedItemClasses(),
-              itemClassName,
-              animClass,
-            )}
+      <div className="relative group/card">
+        <TaskEditorDrawer>
+          <Item
+            asChild
+            className="border border-border bg-background rounded-lg w-full box-border"
           >
-            <ItemHeader className="flex justify-between items-center gap-1">
+            <a
+              ref={setNodeRef}
+              style={style}
+              {...attributes}
+              {...itemProps}
+              data-task-card=""
+              className={cn(
+                "overflow-clip select-none",
+                selectedItemClasses(),
+                itemClassName,
+                animClass,
+              )}
+            >
+              <ItemHeader className="flex justify-between items-center gap-1 pr-8">
               <div className="flex flex-1 gap-2 justify-between items-center min-w-0">
                 <TaskPriorityIcon variant={task.Priority} />
                 <TaskTypeBadge type={task.Type} />
@@ -152,6 +162,28 @@ export function KanbanItem({
           </a>
         </Item>
       </TaskEditorDrawer>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Task actions"
+              className="absolute top-1.5 right-1 size-7 text-muted-foreground opacity-60 hover:opacity-100 group-hover/card:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:bg-muted"
+            >
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuItem
+              onClick={() => requestAgent.mutate(task.ID)}
+              disabled={requestAgent.isPending || task.ID === 0}
+            >
+              <Bot className="size-4" />
+              Request Agent
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </TaskProvider>
   );
 }

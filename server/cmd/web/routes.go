@@ -38,6 +38,7 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/task", app.postTask)
 	mux.HandleFunc("PUT /api/task", app.putTask)
 	mux.HandleFunc("POST /api/task/{taskId}/transition", app.transitionTaskStage)
+	mux.HandleFunc("POST /api/task/{taskId}/request-agent", app.requestAgent)
 	mux.HandleFunc("PUT /api/task/bulk", app.bulkUpdateTasks)
 	mux.HandleFunc("POST /api/task/bulk/delete", app.bulkDeleteTasks)
 	mux.HandleFunc("DELETE /api/task/{taskId}", app.deleteTask)

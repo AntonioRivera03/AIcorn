@@ -118,17 +118,19 @@ func buildPrompt(spec RunSpec) string {
 
 func buildArgs(kind string, spec RunSpec, prompt string) []string {
 	if kind == "opencode" {
-		// opencode run [message..] --format json
-		// No --bare or --output-format; --format json is the equivalent.
-		// Budget for opencode is passed via env MAX_BUDGET_USD fallback.
 		args := []string{"run", prompt, "--format", "json"}
+		if spec.MCPConfigPath != "" {
+			args = append(args, "--mcp-config", spec.MCPConfigPath)
+		}
 		return args
 	}
-	// claude -p
 	args := []string{"-p", prompt, "--output-format", "json", "--bare"}
 	budget := budgetValue(spec)
 	if budget > 0 {
 		args = append(args, "--max-budget-usd", strconv.FormatFloat(budget, 'f', -1, 64))
+	}
+	if spec.MCPConfigPath != "" {
+		args = append(args, "--mcp-config", spec.MCPConfigPath)
 	}
 	return args
 }
@@ -195,12 +197,13 @@ func (h *OpencodeHarness) Run(ctx context.Context, spec RunSpec) (RunResult, err
 	cmd := exec.CommandContext(ctx, cli, args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
-	// Budget fallback for opencode (no --max-budget-usd flag in opencode run).
-	// Documented fallback: env MAX_BUDGET_USD.
 	if kind == "opencode" {
 		if b := budgetValue(spec); b > 0 {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("MAX_BUDGET_USD=%g", b))
 		}
+	}
+	if spec.MCPConfigPath != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("AYCORN_MCP_CONFIG=%s", spec.MCPConfigPath))
 	}
 
 	var stdout, stderr bytes.Buffer

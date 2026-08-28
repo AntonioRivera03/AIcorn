@@ -39,6 +39,11 @@ type RunSpec struct {
 	// Maps to Claude's error_max_budget_usd; the harness enforces it
 	// alongside ctx deadline (see Risks in phase-4 doc).
 	BudgetUSD *float64
+
+	// MCPConfigPath is the absolute path to the per-job MCP config file
+	// generated via mcptools.GenerateMCPConfig. Empty means no MCP config.
+	// Set by worker after generation; consumed by OpencodeHarness.Run.
+	MCPConfigPath string
 }
 
 // RunResult is what the harness produced.

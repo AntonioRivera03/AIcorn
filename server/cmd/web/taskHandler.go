@@ -225,3 +225,17 @@ func (app *app) deleteTask(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, success)
 }
+
+func (app *app) requestAgent(w http.ResponseWriter, r *http.Request) {
+	taskId, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	job, err := app.taskService.RequestAgent(taskId)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+}

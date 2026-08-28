@@ -182,6 +182,7 @@ func main() {
 		TaskTypeRepo:     taskTypeRepo,
 		AgentJobService:  agentJobService,
 		StagePersonaRepo: stagePersonaRepo,
+		ProjectRepo:      projectRepo,
 	}
 	workflowService := &services.WorkflowService{
 		WorkflowRepo: workflowRepo,
@@ -210,7 +211,10 @@ func main() {
 	// WAL + busy_timeout already handles concurrent DB access.
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
-	w := worker.New(agentJobService, taskService, harness.NewReadOnlyShim())
+	shim := harness.NewReadOnlyShim()
+	real := harness.NewOpencodeHarness()
+	router := harness.NewRoutingHarness(shim, real)
+	w := worker.New(agentJobService, taskService, router)
 	w.ProjectRepo = projectRepo
 	if err := w.Start(workerCtx, 10*time.Second); err != nil {
 		log.Printf("worker start: %v", err)

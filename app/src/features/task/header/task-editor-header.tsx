@@ -22,6 +22,7 @@ import { TaskContext } from "@/contexts/task/TaskContext";
 import { WorkflowStageChip } from "@/features/workflows/shared/workflow-stage-chip";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
+  Bot,
   ChevronsRightIcon,
   ClipboardIcon,
   CopyCheckIcon,
@@ -39,6 +40,7 @@ import TaskPriorityIcon from "../properties/icons/TaskPriorityIcon";
 import { cn } from "@/lib/utils";
 import TaskTypeBadge from "../properties/task-type-badge";
 import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
+import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
 
 export function TaskEditorHeader({
   setOpen = () => {},
@@ -59,6 +61,7 @@ export function TaskEditorHeader({
 
   const isMobile = useIsMobile();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const requestAgent = useRequestAgent();
 
   return (
     <DrawerHeader className="p-2 sm:border-b">
@@ -149,6 +152,16 @@ export function TaskEditorHeader({
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => requestAgent.mutate(task.ID)}
+                  disabled={requestAgent.isPending || task.ID === 0}
+                >
+                  <Bot className="size-4" />
+                  Request Agent
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
