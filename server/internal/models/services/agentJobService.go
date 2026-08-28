@@ -209,9 +209,9 @@ func (s *AgentJobService) ListActiveMapByProject(projectID int) (map[int]bool, e
 	return m, nil
 }
 
-func (s *AgentJobService) LoadTaskForRun(taskID int) (*models.ChecklistTask, error) {
+func (s *AgentJobService) LoadTaskForRun(taskID int) (*models.TaskWithProject, error) {
 	if s.TaskRepo != nil {
-		task, err := s.TaskRepo.FindOne(int64(taskID))
+		task, err := s.TaskRepo.FindOneWithProject(taskID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrInvalidTask
@@ -222,13 +222,14 @@ func (s *AgentJobService) LoadTaskForRun(taskID int) (*models.ChecklistTask, err
 	}
 	if s.JobRepo != nil && s.JobRepo.DB != nil {
 		var name, body string
-		if err := s.JobRepo.DB.QueryRow(`SELECT COALESCE(name,''), COALESCE(body,'[]') FROM task WHERE id = ?;`, taskID).Scan(&name, &body); err != nil {
+		var projectID int
+		if err := s.JobRepo.DB.QueryRow(`SELECT t.name, COALESCE(t.body,'[]'), c.project FROM task t JOIN checklist c ON c.id = t.checklist WHERE t.id = ?;`, taskID).Scan(&name, &body, &projectID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrInvalidTask
 			}
 			return nil, err
 		}
-		return &models.ChecklistTask{Task: models.Task{ID: taskID, Name: name, Body: body}}, nil
+		return &models.TaskWithProject{ChecklistTask: models.ChecklistTask{Task: models.Task{ID: taskID, Name: name, Body: body}}, ProjectID: projectID}, nil
 	}
 	return nil, ErrInvalidTask
 }

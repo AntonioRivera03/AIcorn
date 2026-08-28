@@ -45,6 +45,7 @@ export const defaultProjectContextValue: ProjectContextType = {
     Pinned: false,
     Workflow: 0,
     DefaultView: "",
+    RepoPath: "",
     TimeCreated: "",
     TimeModified: "",
   },

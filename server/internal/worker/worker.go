@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/mcptools"
+	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 )
@@ -38,6 +40,7 @@ import (
 type Worker struct {
 	JobService  *services.AgentJobService
 	TaskService *services.TaskService
+	ProjectRepo *repos.ProjectRepo
 	Harness     harness.Harness
 
 	mu       sync.Mutex
@@ -232,7 +235,44 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 
 	// --- Phase 4: worktree isolation ---
 	var wt *worktree.Worktree
-	repoRoot := resolveRepoRoot(ctx)
+	var repoRoot string
+	if w.ProjectRepo != nil {
+		proj, perr := w.ProjectRepo.FindOne(task.ProjectID)
+		if perr != nil {
+			msg := perr.Error()
+			if _, ferr := w.JobService.Fail(job.ID, msg); ferr != nil {
+				log.Printf("worker: ProjectRepo.FindOne failed for job %d project %d: %v (also failed to Fail: %v)", job.ID, task.ProjectID, perr, ferr)
+			}
+			return true, perr
+		}
+		repoPath := strings.TrimSpace(proj.RepoPath)
+		if repoPath == "" {
+			msg := "project has no repo folder linked — set it in Project Settings → General"
+			if _, ferr := w.JobService.Fail(job.ID, msg); ferr != nil {
+				log.Printf("worker: also failed to Fail after empty repoPath: %v", ferr)
+			}
+			return true, errors.New(msg)
+		}
+		info, serr := os.Stat(repoPath)
+		if serr != nil || !info.IsDir() {
+			msg := fmt.Sprintf("linked repo folder is not a valid git repository: %s", repoPath)
+			if _, ferr := w.JobService.Fail(job.ID, msg); ferr != nil {
+				log.Printf("worker: also failed to Fail after invalid repoPath: %v", ferr)
+			}
+			return true, errors.New(msg)
+		}
+		resolved, rerr := worktree.RepoRootFromDir(ctx, repoPath)
+		if rerr != nil || resolved == "" {
+			msg := fmt.Sprintf("linked repo folder is not a valid git repository: %s", repoPath)
+			if _, ferr := w.JobService.Fail(job.ID, msg); ferr != nil {
+				log.Printf("worker: also failed to Fail after git rev-parse: %v", ferr)
+			}
+			return true, errors.New(msg)
+		}
+		repoRoot = resolved
+	} else {
+		repoRoot = resolveRepoRoot(ctx)
+	}
 	if repoRoot != "" {
 		// Create worktree on branch aycorn/task-{jobID}. Documented: uses jobID for uniqueness.
 		// If strict spec compliance (taskID) is required, substitute job.Task here.

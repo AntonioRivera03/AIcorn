@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -182,6 +183,7 @@ func (s *ProjectService) UpdateProject(project *models.Project) (bool, error) {
 	if _, ok := validProjectViews[project.DefaultView]; !ok {
 		return false, ErrInvalidProjectView
 	}
+	project.RepoPath = strings.TrimSpace(project.RepoPath)
 
 	success, err := s.ProjectRepo.UpdateProject(project)
 	if err != nil {

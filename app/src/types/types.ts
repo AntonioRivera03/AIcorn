@@ -110,6 +110,7 @@ export type Project = {
   Workflow: number;
   WorkflowName: string;
   DefaultView: string;
+  RepoPath: string;
   TimeCreated: string;
   TimeModified: string;
 };

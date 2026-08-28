@@ -78,6 +78,7 @@ CREATE TABLE project (
     pinned BOOLEAN,
     workflow INTEGER,
     defaultView TEXT NOT NULL DEFAULT '',
+    repoPath TEXT NOT NULL DEFAULT '',
     timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

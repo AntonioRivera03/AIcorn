@@ -211,6 +211,7 @@ func main() {
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
 	w := worker.New(agentJobService, taskService, harness.NewReadOnlyShim())
+	w.ProjectRepo = projectRepo
 	if err := w.Start(workerCtx, 10*time.Second); err != nil {
 		log.Printf("worker start: %v", err)
 	}
