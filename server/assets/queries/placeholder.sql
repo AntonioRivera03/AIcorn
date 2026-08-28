@@ -26,8 +26,9 @@ INSERT INTO stage (id, workflow, name, description, color, icon, position, type)
 (14, 3, 'Closed',       'Completed or abandoned',               'purple', 'circle-check',  6, 'done');
 
 
-INSERT INTO persona (id, name, system_prompt, harness, model, allowed_tools) VALUES
-(1, 'Read-only Researcher', '[{"type":"p","children":[{"text":"Read the assigned task and related project context, then produce research findings without modifying Aycorn data."}]}]', 'claude-code', 'sonnet', '["read_task","search_tasks","list_projects"]');
+INSERT OR IGNORE INTO persona (id, name, system_prompt, harness, model, agent, allowed_tools) VALUES
+(1, 'Read-only Researcher', '[{"type":"p","children":[{"text":"Read the assigned task and related project context, then produce research findings without modifying Aycorn data."}]}]', 'opencode', 'opencode-go/muse-spark-1.2-contributor', 'research', '["read_task","search_tasks","list_projects"]'),
+(2, 'Coder', '[{"type":"p","children":[{"text":"You are a coding agent working inside Aycorn. Read ticket context via MCP tools and make minimal, focused changes. Never auto-merge without human review."}]}]', 'opencode', 'opencode-go/muse-spark-1.2-contributor', 'code-implementation', '["search_tasks","read_task","list_projects","list_workflow_stages","list_checklists","list_task_types","create_task","update_task","move_task_stage"]');
 
 INSERT INTO stage_persona (stage_id, persona_id) VALUES
 (11, 1);

@@ -59,13 +59,20 @@ export function isAgentWorking(
   return jobs.some((j) => WORKING_SET.has(j.status));
 }
 
-export function useAgentJobs(taskId: number) {
+export function useAgentJobs(taskId: number, enabled = true) {
   return useQuery<AgentJobsResponse>({
     queryKey: ["agent-jobs", taskId],
-    enabled: !!taskId,
+    enabled: enabled && !!taskId,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
-    refetchInterval: false,
+    refetchInterval: (q) => {
+      if (!enabled) return false;
+      const jobs = (q.state.data as AgentJobsResponse | undefined)?.jobs as
+        | AgentJob[]
+        | undefined;
+      const working = jobs ? jobs.some((j) => WORKING_SET.has(j.status)) : false;
+      return working ? 5_000 : false;
+    },
     queryFn: async () => {
       const response = await fetch(`/api/agent-jobs/${taskId}`);
       if (!response.ok) throw new Error(await response.text());

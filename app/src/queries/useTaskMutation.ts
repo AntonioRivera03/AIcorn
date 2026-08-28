@@ -38,9 +38,10 @@ const invalidateQueries = (projectId: number) => {
 };
 
 const invalidateAgentJobs = (ids: number[]) => {
-  ids.forEach((id) =>
-    queryClient.invalidateQueries({ queryKey: ["agent-jobs", id] }),
-  );
+  ids.forEach((id) => {
+    queryClient.invalidateQueries({ queryKey: ["agent-jobs", id] });
+    queryClient.invalidateQueries({ queryKey: ["agentJobs", id] });
+  });
 };
 
 const invalidateActiveAgentJobs = (projectId: number) => {
