@@ -26,6 +26,7 @@ type RunSpec struct {
 	TaskBody     string // Plate JSON (already normalized)
 	SystemPrompt string
 	AllowedTools []string // per-job, per-persona MCP tool allowlist
+	Agent        string // persona Agent, e.g. "research", "code-implementation"
 
 	// WorkDir is the absolute path to the git worktree for this job.
 	// Empty means no filesystem (Phase 3 shim / dry run).

@@ -120,7 +120,8 @@ func buildArgs(kind string, spec RunSpec, prompt string) []string {
 	if kind == "opencode" {
 		args := []string{"run", prompt, "--format", "json"}
 		if spec.MCPConfigPath != "" {
-			args = append(args, "--mcp-config", spec.MCPConfigPath)
+			// opencode has no --mcp-config flag (yargs rejects it with help exit 1);
+			// MCP config is passed via env AYCORN_MCP_CONFIG instead (see Run).
 		}
 		return args
 	}

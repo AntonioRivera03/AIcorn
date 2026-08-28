@@ -22,7 +22,15 @@ func (r *RoutingHarness) Run(ctx context.Context, spec RunSpec) (RunResult, erro
 }
 
 func (r *RoutingHarness) shouldUseReal(spec RunSpec) bool {
-	if len(spec.AllowedTools) > 3 {
+	// Precise: Agent is the source of truth. Research stays shim (fast, no spend).
+	if strings.EqualFold(spec.Agent, "research") {
+		return false
+	}
+	if strings.EqualFold(spec.Agent, "code-implementation") || strings.EqualFold(spec.Agent, "general-senior") || strings.EqualFold(spec.Agent, "code-analysis") {
+		return true
+	}
+	// Fallback for older specs without Agent: use SystemPrompt or write-tool presence
+	if strings.Contains(strings.ToLower(spec.SystemPrompt), "coding") {
 		return true
 	}
 	for _, t := range spec.AllowedTools {
@@ -30,7 +38,7 @@ func (r *RoutingHarness) shouldUseReal(spec RunSpec) bool {
 			return true
 		}
 	}
-	if strings.Contains(strings.ToLower(spec.SystemPrompt), "coding") {
+	if len(spec.AllowedTools) > 3 {
 		return true
 	}
 	return false

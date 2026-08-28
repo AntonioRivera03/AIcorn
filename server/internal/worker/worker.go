@@ -201,6 +201,7 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 	var taskName, taskBody string
 	var personaPrompt string
 	var allowedTools []string
+	var personaAgent string
 
 	task, terr := w.JobService.LoadTaskForRun(job.Task)
 	if terr != nil {
@@ -216,6 +217,7 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 	if p, perr := w.JobService.LoadPersonaForRun(job.Persona); perr == nil && p != nil {
 		personaPrompt = p.SystemPrompt
 		allowedTools = p.AllowedTools
+		personaAgent = string(p.Agent)
 	} else if perr != nil {
 		msg := perr.Error()
 		if _, ferr := w.JobService.Fail(job.ID, msg); ferr != nil {
@@ -228,6 +230,7 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 	spec.TaskBody = taskBody
 	spec.SystemPrompt = personaPrompt
 	spec.AllowedTools = allowedTools
+	spec.Agent = personaAgent
 	if spec.BudgetUSD == nil {
 		b := harness.DefaultBudgetUSD
 		spec.BudgetUSD = &b
