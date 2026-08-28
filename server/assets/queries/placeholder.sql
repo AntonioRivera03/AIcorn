@@ -26,6 +26,13 @@ INSERT INTO stage (id, workflow, name, description, color, icon, position, type)
 (14, 3, 'Closed',       'Completed or abandoned',               'purple', 'circle-check',  6, 'done');
 
 
+INSERT INTO persona (id, name, system_prompt, harness, model, allowed_tools) VALUES
+(1, 'Read-only Researcher', '[{"type":"p","children":[{"text":"Read the assigned task and related project context, then produce research findings without modifying Aycorn data."}]}]', 'claude-code', 'sonnet', '["read_task","search_tasks","list_projects"]');
+
+INSERT INTO stage_persona (stage_id, persona_id) VALUES
+(11, 1);
+
+
 INSERT INTO project (id, name, pinned, workflow, timeCreated) VALUES
 (1, 'Website Redesign', 1, 3, '2025-01-05 09:00:00'),
 (2, 'Mobile App',       0, 3, '2025-01-10 10:30:00'),

@@ -133,9 +133,32 @@ func (repo *ProjectRepo) CreateProject(workflowId int) (int64, error) {
 }
 
 func (repo *ProjectRepo) DeleteProject(projectId int) (bool, error) {
-	query := "DELETE FROM project WHERE id = ?;"
-	res, err := repo.DB.Exec(query, projectId)
+	tx, err := repo.DB.Begin()
 	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
+		"DELETE FROM task WHERE checklist IN (SELECT id FROM checklist WHERE project = ?);",
+		projectId,
+	); err != nil {
+		return false, err
+	}
+
+	if _, err := tx.Exec(
+		"DELETE FROM checklist WHERE project = ?;",
+		projectId,
+	); err != nil {
+		return false, err
+	}
+
+	res, err := tx.Exec("DELETE FROM project WHERE id = ?;", projectId)
+	if err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 

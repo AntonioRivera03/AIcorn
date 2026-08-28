@@ -37,6 +37,16 @@ const invalidateQueries = (projectId: number) => {
   queryClient.invalidateQueries({ queryKey: ["upcomingTasks"] });
 };
 
+const invalidateAgentJobs = (ids: number[]) => {
+  ids.forEach((id) =>
+    queryClient.invalidateQueries({ queryKey: ["agent-jobs", id] }),
+  );
+};
+
+const invalidateActiveAgentJobs = (projectId: number) => {
+  queryClient.invalidateQueries({ queryKey: ["active-agent-jobs", projectId] });
+};
+
 export function useTaskMutation(projectId: number) {
   const update = useMutation({
     mutationFn: getSaveTaskQuery(false),
@@ -97,11 +107,18 @@ export function useTaskMutation(projectId: number) {
       }
       toast.error("Failed to save task");
     },
-    onSettled: () => invalidateQueries(projectId),
+    onSettled: (_data, _err, task) => {
+      invalidateQueries(projectId);
+      invalidateActiveAgentJobs(projectId);
+      if (task?.ID) invalidateAgentJobs([task.ID]);
+    },
   });
   const create = useMutation({
     mutationFn: getSaveTaskQuery(true),
-    onSuccess: () => invalidateQueries(projectId),
+    onSuccess: () => {
+      invalidateQueries(projectId);
+      invalidateActiveAgentJobs(projectId);
+    },
   });
   const deleteTask = useMutation({
     mutationFn: async (taskId: number) => {
@@ -110,7 +127,10 @@ export function useTaskMutation(projectId: number) {
       });
       return await res.json();
     },
-    onSuccess: () => invalidateQueries(projectId),
+    onSuccess: () => {
+      invalidateQueries(projectId);
+      invalidateActiveAgentJobs(projectId);
+    },
   });
 
   const bulkUpdate = useMutation({
@@ -157,7 +177,14 @@ export function useTaskMutation(projectId: number) {
         queryClient.setQueryData(["projectDetails", projectId], context.previous);
       }
     },
-    onSettled: () => invalidateQueries(projectId),
+    onSettled: (_data, _err, vars) => {
+      invalidateQueries(projectId);
+      invalidateActiveAgentJobs(projectId);
+      const ids = (vars as { tasks?: { ID: number }[] } | undefined)?.tasks?.map(
+        (t) => t.ID,
+      );
+      if (ids?.length) invalidateAgentJobs(ids);
+    },
   });
 
   const updateBody = useMutation({
@@ -192,7 +219,10 @@ export function useTaskMutation(projectId: number) {
       }
       return (await res.json()) as BulkResult;
     },
-    onSuccess: () => invalidateQueries(projectId),
+    onSuccess: () => {
+      invalidateQueries(projectId);
+      invalidateActiveAgentJobs(projectId);
+    },
   });
 
   return { update, updateBody, create, deleteTask, bulkUpdate, bulkDelete };

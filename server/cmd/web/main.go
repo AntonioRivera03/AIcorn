@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
+	"github.com/waseem-polus/aycorn/server/internal/worker"
 	_ "modernc.org/sqlite"
 )
 
@@ -86,6 +88,7 @@ type app struct {
 	taskTypeRepo         *repos.TaskTypeRepo
 	taskTypeCategoryRepo *repos.TaskTypeCategoryRepo
 	taskRelationshipRepo *repos.TaskRelationshipRepo
+	personaRepo          *repos.PersonaRepo
 
 	projectService          *services.ProjectService
 	checklistService        *services.ChecklistService
@@ -95,6 +98,8 @@ type app struct {
 	taskTypeService         *services.TaskTypeService
 	taskTypeCategoryService *services.TaskTypeCategoryService
 	taskRelationshipService *services.TaskRelationshipService
+	personaService          *services.PersonaService
+	agentJobService         *services.AgentJobService
 }
 
 func main() {
@@ -145,9 +150,20 @@ func main() {
 	taskRepo := &repos.TaskRepo{DB: db}
 	workflowRepo := &repos.WorkflowRepo{DB: db}
 	stageRepo := &repos.StageRepo{DB: db}
+	stagePersonaRepo := &repos.StagePersonaRepo{DB: db}
 	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	taskTypeCategoryRepo := &repos.TaskTypeCategoryRepo{DB: db}
 	taskRelationshipRepo := &repos.TaskRelationshipRepo{DB: db}
+	personaRepo := &repos.PersonaRepo{DB: db}
+	agentJobRepo := &repos.AgentJobRepo{DB: db}
+	agentRunRepo := &repos.AgentRunRepo{DB: db}
+
+	agentJobService := &services.AgentJobService{
+		JobRepo:     agentJobRepo,
+		RunRepo:     agentRunRepo,
+		PersonaRepo: personaRepo,
+		TaskRepo:    taskRepo,
+	}
 
 	projectService := &services.ProjectService{
 		ProjectRepo:   projectRepo,
@@ -161,13 +177,21 @@ func main() {
 		ChecklistRepo: checklistRepo,
 		TaskRepo:      taskRepo,
 	}
-	taskService := &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo}
+	taskService := &services.TaskService{
+		TaskRepo:         taskRepo,
+		TaskTypeRepo:     taskTypeRepo,
+		AgentJobService:  agentJobService,
+		StagePersonaRepo: stagePersonaRepo,
+	}
 	workflowService := &services.WorkflowService{
 		WorkflowRepo: workflowRepo,
 		ProjectRepo:  projectRepo,
 		StageRepo:    stageRepo,
 	}
-	stageService := &services.StageService{StageRepo: stageRepo}
+	stageService := &services.StageService{
+		StageRepo:        stageRepo,
+		StagePersonaRepo: stagePersonaRepo,
+	}
 	taskTypeService := &services.TaskTypeService{
 		TaskTypeRepo: taskTypeRepo,
 		CategoryRepo: taskTypeCategoryRepo,
@@ -179,6 +203,18 @@ func main() {
 	taskRelationshipService := &services.TaskRelationshipService{
 		TaskRelationshipRepo: taskRelationshipRepo,
 	}
+	personaService := &services.PersonaService{PersonaRepo: personaRepo}
+
+	// Single-worker ticker: one goroutine claims pending jobs every 10s,
+	// recovers stale on startup (claimed > 5m), executes read-only shim.
+	// WAL + busy_timeout already handles concurrent DB access.
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	defer stopWorker()
+	w := worker.New(agentJobService, taskService, harness.NewReadOnlyShim())
+	if err := w.Start(workerCtx, 10*time.Second); err != nil {
+		log.Printf("worker start: %v", err)
+	}
+	defer w.Stop()
 
 	app := app{
 		projectRepo:          projectRepo,
@@ -188,6 +224,7 @@ func main() {
 		taskTypeRepo:         taskTypeRepo,
 		taskTypeCategoryRepo: taskTypeCategoryRepo,
 		taskRelationshipRepo: taskRelationshipRepo,
+		personaRepo:          personaRepo,
 
 		projectService:          projectService,
 		checklistService:        checklistService,
@@ -197,6 +234,8 @@ func main() {
 		taskTypeService:         taskTypeService,
 		taskTypeCategoryService: taskTypeCategoryService,
 		taskRelationshipService: taskRelationshipService,
+		personaService:          personaService,
+		agentJobService:         agentJobService,
 	}
 
 	host := resolveHost()
@@ -227,11 +266,9 @@ func main() {
 		log.Fatal("Forced shutdown:", err)
 	}
 
-	// Wait for the periodic backup loop to fully stop before touching db
-	// again — stopBackups() only cancels the context, which the loop notices
-	// between ticks, not mid-Snapshot. Without this wait, a backup in flight
-	// when the signal arrives could still be running when the deferred
-	// db.Close() fires below.
+	stopWorker()
+	w.Stop()
+
 	stopBackups()
 	<-backupLoopDone
 

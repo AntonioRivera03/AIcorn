@@ -10,14 +10,19 @@ type StageRepo struct {
 	DB *sql.DB
 }
 
-const stageColumns = "s.id, s.workflow, s.name, COALESCE(s.description, ''), s.color, s.icon, s.position, s.type, COUNT(t.id), s.timeCreated, s.timeModified"
+const stageColumns = "s.id, s.workflow, s.name, COALESCE(s.description, ''), s.color, s.icon, s.position, s.type, COUNT(t.id), s.timeCreated, s.timeModified, p.id, p.name, p.harness, p.model, COALESCE(p.agent, '')"
 
-const stageFromJoin = "FROM stage s LEFT JOIN task t ON t.stage = s.id"
+const stageFromJoin = "FROM stage s LEFT JOIN task t ON t.stage = s.id LEFT JOIN stage_persona sp ON sp.stage_id = s.id LEFT JOIN persona p ON p.id = sp.persona_id"
 
 func scanStage(scanner interface {
 	Scan(...any) error
 }, s *models.Stage) error {
-	return scanner.Scan(
+	var personaID sql.NullInt64
+	var personaName sql.NullString
+	var personaHarness sql.NullString
+	var personaModel sql.NullString
+	var personaAgent sql.NullString
+	if err := scanner.Scan(
 		&s.ID,
 		&s.Workflow,
 		&s.Name,
@@ -29,7 +34,24 @@ func scanStage(scanner interface {
 		&s.TaskCount,
 		&s.TimeCreated,
 		&s.TimeModified,
-	)
+		&personaID,
+		&personaName,
+		&personaHarness,
+		&personaModel,
+		&personaAgent,
+	); err != nil {
+		return err
+	}
+	if personaID.Valid {
+		s.Persona = &models.PersonaSummary{
+			ID:      int(personaID.Int64),
+			Name:    personaName.String,
+			Harness: models.PersonaHarness(personaHarness.String),
+			Model:   models.PersonaModel(personaModel.String),
+			Agent:   models.PersonaAgent(personaAgent.String),
+		}
+	}
+	return nil
 }
 
 func (repo *StageRepo) All() ([]models.Stage, error) {
@@ -91,6 +113,8 @@ func (repo *StageRepo) ByWorkflowForProject(workflowId int, projectId int) ([]mo
 	query := "SELECT " + stageColumns +
 		" FROM stage s LEFT JOIN task t ON t.stage = s.id" +
 		" AND t.checklist IN (SELECT id FROM checklist WHERE project = ?)" +
+		" LEFT JOIN stage_persona sp ON sp.stage_id = s.id" +
+		" LEFT JOIN persona p ON p.id = sp.persona_id" +
 		" WHERE s.workflow = ? GROUP BY s.id ORDER BY s.position;"
 
 	rows, err := repo.DB.Query(query, projectId, workflowId)

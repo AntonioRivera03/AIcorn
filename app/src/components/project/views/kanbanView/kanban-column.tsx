@@ -14,8 +14,9 @@ import { useContext, useMemo, type SyntheticEvent } from "react";
 import { KanbanItem } from "./kanban-item";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { PlusIcon } from "lucide-react";
+import { Bot, PlusIcon } from "lucide-react";
 import { NewTaskEditorDrawer } from "@/features/task/new-task-editor-drawer";
+import { shouldShowPersonaIndicator } from "@/components/project/views/kanbanView/kanban-column-persona";
 
 type DragListeners = Record<string, (e: SyntheticEvent) => void>;
 
@@ -53,6 +54,20 @@ export function KanbanColumn({
                     <Badge variant="outline" className="size-5">
                         {filteredTasks.length}
                     </Badge>
+                    {shouldShowPersonaIndicator(stage) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            tabIndex={0}
+                            aria-label={`Persona: ${stage.Persona.Name}`}
+                            className="inline-flex rounded-sm text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          >
+                            <Bot aria-hidden="true" className="size-3.5" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Persona: {stage.Persona.Name}</TooltipContent>
+                      </Tooltip>
+                    )}
                 </span>
 
                 <Tooltip>

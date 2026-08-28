@@ -11,16 +11,18 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { TaskProvider } from "@/contexts/task/TaskProvider";
-import { GripVertical, LandPlot, User } from "lucide-react";
+import { Bot, GripVertical, LandPlot, User } from "lucide-react";
 import { UnresolvedBlockersBadge } from "@/features/task/relationships/unresolved-blockers-badge";
 import type { ChecklistTask } from "@/types/types";
 import { useDraggableItem } from "@/hooks/useDraggableItem";
 import { selectedItemClasses } from "@/hooks/useSelection";
 import { cn } from "@/lib/utils";
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { SubtaskProgressBar } from "@/features/task/relationships/subtask-progress-bar";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
+import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
 
 type DragListeners = Record<string, (e: React.SyntheticEvent) => void>;
 
@@ -53,7 +55,16 @@ export function KanbanItem({
   });
   const itemClassName = (itemProps?.className as string | undefined) ?? "";
 
-  const { Checklists } = useContext(ProjectContext);
+  const { Checklists, Stages } = useContext(ProjectContext);
+  const { data: personas = [] } = usePersonasQuery();
+
+  const isPersonaAssignee = useMemo(() => {
+    if (!task.Assignee) return false;
+    const names = new Set<string>();
+    for (const persona of personas) if (persona.Name) names.add(persona.Name);
+    for (const stage of Stages) if (stage.Persona?.Name) names.add(stage.Persona.Name);
+    return names.has(task.Assignee);
+  }, [personas, Stages, task.Assignee]);
 
   const subtaskProgress = useSubtaskProgress(task.ID);
 
@@ -113,7 +124,11 @@ export function KanbanItem({
                     task.Assignee !== "" ? "" : "text-muted-foreground"
                   }
                 >
-                  <User className="size-2" />
+                  {isPersonaAssignee ? (
+                    <Bot className="size-2 text-primary" />
+                  ) : (
+                    <User className="size-2" />
+                  )}
                   {task.Assignee === "" ? "Not Assigned" : task.Assignee}
                 </Badge>
                 <TaskPlannedDates
@@ -125,6 +140,7 @@ export function KanbanItem({
                 />
 
                 <UnresolvedBlockersBadge taskId={task.ID} />
+                <AgentWorkingBadge taskId={task.ID} />
               </span>
             </ItemContent>
 

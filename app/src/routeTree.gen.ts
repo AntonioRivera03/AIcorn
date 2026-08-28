@@ -15,7 +15,9 @@ import { Route as UpcomingRouteImport } from './routes/upcoming'
 import { Route as TaskTypesRouteImport } from './routes/task-types'
 import { Route as TaskLinksRouteImport } from './routes/task-links'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PersonasIndexRouteImport } from './routes/personas.index'
 import { Route as WorkflowWorkflowIdRouteImport } from './routes/workflow.$workflowId'
 import { Route as TaskTaskIdRouteImport } from './routes/task.$taskId'
 import { Route as ProjectProjectIdRouteImport } from './routes/project.$projectId'
@@ -51,10 +53,20 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PersonasRoute = PersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PersonasIndexRoute = PersonasIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PersonasRoute,
 } as any)
 const WorkflowWorkflowIdRoute = WorkflowWorkflowIdRouteImport.update({
   id: '/workflow/$workflowId',
@@ -80,6 +92,7 @@ const ProjectSettingsProjectIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/personas': typeof PersonasRouteWithChildren
   '/settings': typeof SettingsRoute
   '/task-links': typeof TaskLinksRoute
   '/task-types': typeof TaskTypesRoute
@@ -89,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/project/$projectId': typeof ProjectProjectIdRoute
   '/task/$taskId': typeof TaskTaskIdRoute
   '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
+  '/personas/': typeof PersonasIndexRoute
   '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
 }
 export interface FileRoutesByTo {
@@ -102,11 +116,13 @@ export interface FileRoutesByTo {
   '/project/$projectId': typeof ProjectProjectIdRoute
   '/task/$taskId': typeof TaskTaskIdRoute
   '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
+  '/personas': typeof PersonasIndexRoute
   '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/personas': typeof PersonasRouteWithChildren
   '/settings': typeof SettingsRoute
   '/task-links': typeof TaskLinksRoute
   '/task-types': typeof TaskTypesRoute
@@ -116,12 +132,14 @@ export interface FileRoutesById {
   '/project/$projectId': typeof ProjectProjectIdRoute
   '/task/$taskId': typeof TaskTaskIdRoute
   '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
+  '/personas/': typeof PersonasIndexRoute
   '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/personas'
     | '/settings'
     | '/task-links'
     | '/task-types'
@@ -131,6 +149,7 @@ export interface FileRouteTypes {
     | '/project/$projectId'
     | '/task/$taskId'
     | '/workflow/$workflowId'
+    | '/personas/'
     | '/project/settings/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -144,10 +163,12 @@ export interface FileRouteTypes {
     | '/project/$projectId'
     | '/task/$taskId'
     | '/workflow/$workflowId'
+    | '/personas'
     | '/project/settings/$projectId'
   id:
     | '__root__'
     | '/'
+    | '/personas'
     | '/settings'
     | '/task-links'
     | '/task-types'
@@ -157,11 +178,13 @@ export interface FileRouteTypes {
     | '/project/$projectId'
     | '/task/$taskId'
     | '/workflow/$workflowId'
+    | '/personas/'
     | '/project/settings/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PersonasRoute: typeof PersonasRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   TaskLinksRoute: typeof TaskLinksRoute
   TaskTypesRoute: typeof TaskTypesRoute
@@ -218,12 +241,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/personas': {
+      id: '/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof PersonasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/personas/': {
+      id: '/personas/'
+      path: '/'
+      fullPath: '/personas/'
+      preLoaderRoute: typeof PersonasIndexRouteImport
+      parentRoute: typeof PersonasRoute
     }
     '/workflow/$workflowId': {
       id: '/workflow/$workflowId'
@@ -256,8 +293,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PersonasRouteChildren {
+  PersonasIndexRoute: typeof PersonasIndexRoute
+}
+
+const PersonasRouteChildren: PersonasRouteChildren = {
+  PersonasIndexRoute: PersonasIndexRoute,
+}
+
+const PersonasRouteWithChildren = PersonasRoute._addFileChildren(
+  PersonasRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PersonasRoute: PersonasRouteWithChildren,
   SettingsRoute: SettingsRoute,
   TaskLinksRoute: TaskLinksRoute,
   TaskTypesRoute: TaskTypesRoute,

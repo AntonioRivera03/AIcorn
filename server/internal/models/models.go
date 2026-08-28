@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Project struct {
 	ID           int
@@ -118,6 +121,7 @@ type Stage struct {
 	TaskCount    int
 	TimeCreated  *time.Time
 	TimeModified *time.Time
+	Persona      *PersonaSummary
 }
 
 type TaskRelationshipType struct {
@@ -172,4 +176,14 @@ type ChecklistFacet struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`
 	ProjectID int    `json:"projectId"`
+}
+
+const EmptyBody = `[{"type":"p","children":[{"text":""}]}]`
+
+func NormalizeBody(body string) string {
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" || trimmed == "[]" || trimmed == "null" || trimmed == `""` || !strings.HasPrefix(trimmed, "[") {
+		return EmptyBody
+	}
+	return body
 }

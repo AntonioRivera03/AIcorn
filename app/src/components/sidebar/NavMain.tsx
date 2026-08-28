@@ -34,7 +34,12 @@ export function NavMain({
             tooltip={item.title}
             asChild
           >
-            <Link to={item.url} className="flex">
+            <Link
+              to={item.url}
+              className="flex"
+              activeOptions={{ exact: item.url === "/" }}
+              activeProps={{ "data-active": true }}
+            >
               {item.icon && <item.icon />}
               <span>{item.title}</span>
             </Link>

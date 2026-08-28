@@ -31,7 +31,7 @@ type Harness interface {
 ## Build — job lifecycle
 
 1. Create a worktree on branch `aycorn/task-{id}` — shared `.git` object store, no file conflicts, the established per-job isolation pattern.
-2. Run the harness with the persona's `allowedTools` compiled into its MCP config for that specific job, so a Research persona is physically incapable of write access even via a prompt-injection path.
+2. Run the harness with the persona's `allowed_tools` compiled into its MCP config for that specific job, so a Research persona is physically incapable of write access even via a prompt-injection path.
 3. Capture the diff, write it to `agent_run`, transition the ticket to Review (Phase 0 endpoint).
 4. Leave the branch for human inspection. **Do not auto-merge** — merge is the consequential, irreversible action; that's exactly where the human gate belongs.
 
@@ -47,6 +47,6 @@ type Harness interface {
 
 - [ ] `Harness` interface defined, `ClaudeCodeHarness` implemented and tested against a real repo.
 - [ ] Worktree created/cleaned up correctly per job.
-- [ ] Coder persona's tool access verified as actually restricted (test: try to make it call a tool outside its `allowedTools`).
+- [ ] Coder persona's tool access verified as actually restricted (test: try to make it call a tool outside its `allowed_tools`).
 - [ ] Per-job budget and nested timeouts enforced.
 - [ ] Diff/output visible in the task drawer; merge remains a manual human action.

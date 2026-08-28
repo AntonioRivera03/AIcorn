@@ -15,6 +15,9 @@ export function useUpcomingTasksQuery(filters: UpcomingFilters) {
   const backendFilters = toBackendFilters(filters);
   return useQuery<TaskWithProject[]>({
     queryKey: ["upcomingTasks", backendFilters],
+    staleTime: 10_000,
+    refetchInterval: false,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const url = new URL("/api/tasks", window.location.origin);
       backendFilters.project.forEach((id) => url.searchParams.append("project", String(id)));

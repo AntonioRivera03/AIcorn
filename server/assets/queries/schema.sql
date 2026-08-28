@@ -47,6 +47,31 @@ BEGIN
       WHERE id = NEW.workflow;
 END;
 
+CREATE TABLE persona (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '[]',
+    harness       TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    agent         TEXT NOT NULL DEFAULT '',
+    allowed_tools TEXT NOT NULL DEFAULT '[]'
+                  CHECK(json_valid(allowed_tools) AND json_type(allowed_tools) = 'array'),
+    timeCreated   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    timeModified  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TRIGGER persona_timeModified
+AFTER UPDATE ON persona
+FOR EACH ROW
+BEGIN
+    UPDATE persona SET timeModified = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = OLD.id;
+END;
+
+CREATE TABLE stage_persona (
+    stage_id   INTEGER PRIMARY KEY REFERENCES stage(id) ON DELETE CASCADE,
+    persona_id INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE
+);
+
 CREATE TABLE project (
     id INTEGER PRIMARY KEY,
     name VARCHAR,
@@ -275,3 +300,30 @@ FOR EACH ROW
 BEGIN
     UPDATE task_relationship SET timeModified = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = OLD.id;
 END;
+
+CREATE TABLE agent_job (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task       INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+    persona    INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+    status     TEXT NOT NULL,
+    fromStage  INTEGER,
+    toStage    INTEGER,
+    claimedAt  TEXT,
+    startedAt  TEXT,
+    finishedAt TEXT,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    error      TEXT,
+    createdAt  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE agent_run (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    job       INTEGER NOT NULL REFERENCES agent_job(id) ON DELETE CASCADE,
+    output    TEXT,
+    summary   TEXT,
+    exitCode  INTEGER,
+    usageJson TEXT,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);

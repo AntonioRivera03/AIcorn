@@ -34,6 +34,69 @@ export type TaskTypeWithCount = TaskType & {
   TaskCount: number;
 };
 
+export const PERSONA_HARNESSES = ["opencode"] as const;
+export const PERSONA_AGENTS = [
+  "code-analysis",
+  "code-implementation",
+  "general-junior",
+  "general-senior",
+  "ox-coding-agent",
+  "research",
+  "reviewer",
+  "summarizer",
+  "synthesis",
+  "test-integration",
+  "worker",
+] as const;
+export const PERSONA_MODELS = [
+  "opencode-go/deepseek-v4-flash",
+  "opencode-go/deepseek-v4-flash-vision-exp",
+  "opencode-go/deepseek-v4-pro",
+  "opencode-go/glm-5.1",
+  "opencode-go/glm-5.2",
+  "opencode-go/glm-5.3",
+  "opencode-go/glm-5.3-flash",
+  "opencode-go/gpt-5.6-luna",
+  "opencode-go/grok-4.6",
+  "opencode-go/hy3",
+  "opencode-go/kimi-k2.6",
+  "opencode-go/kimi-k2.7-code",
+  "opencode-go/kimi-k3",
+  "opencode-go/longcat-2.0",
+  "opencode-go/mimo-v2.5",
+  "opencode-go/mimo-v2.5-pro",
+  "opencode-go/minimax-m2.7",
+  "opencode-go/minimax-m3",
+  "opencode-go/muse-spark-1.2-contributor",
+  "opencode-go/qwen3.6-plus",
+  "opencode-go/qwen3.7-max",
+  "opencode-go/qwen3.7-plus",
+  "opencode-go/qwen3.8-max",
+] as const;
+
+export const LEGACY_PERSONA_MODELS = ["sonnet", "opus", "haiku"] as const;
+
+export const ALL_PERSONA_MODELS = [...PERSONA_MODELS, ...LEGACY_PERSONA_MODELS] as const;
+
+export type PersonaHarness = (typeof PERSONA_HARNESSES)[number];
+export type PersonaModel = (typeof PERSONA_MODELS)[number];
+export type PersonaAgent = (typeof PERSONA_AGENTS)[number];
+
+export type PersonaSummary = {
+  ID: number;
+  Name: string;
+  Harness: PersonaHarness;
+  Model: PersonaModel;
+  Agent: PersonaAgent | "";
+};
+
+export type Persona = PersonaSummary & {
+  SystemPrompt: import("platejs").Value;
+  AllowedTools: string[];
+  TimeCreated: string;
+  TimeModified: string;
+};
+
 export type ProjectTaskTypeSettings = {
   AllTypes: TaskTypeWithCount[];
   EnabledTypeIDs: number[];
@@ -83,6 +146,7 @@ export type Stage = {
   TaskCount: number;
   TimeCreated: string;
   TimeModified: string;
+  Persona?: PersonaSummary | null;
 };
 
 export type Checklist = {

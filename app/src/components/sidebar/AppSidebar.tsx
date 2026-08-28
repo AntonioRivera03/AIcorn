@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   CalendarClockIcon,
+  BotIcon,
   ChartAreaIcon,
   FolderIcon,
   LinkIcon,
@@ -45,6 +46,11 @@ const data = {
       title: "Task Types",
       url: "/task-types",
       icon: TagsIcon,
+    },
+    {
+      title: "Personas",
+      url: "/personas",
+      icon: BotIcon,
     },
     {
       title: "Task Links",

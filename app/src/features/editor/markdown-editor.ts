@@ -12,6 +12,7 @@ import { BaseBasicMarksKit } from "@/features/editor/plugins/basic-marks-base-ki
 import { BaseCalloutKit } from "@/features/editor/plugins/callout-base-kit";
 import { BaseCodeBlockKit } from "@/features/editor/plugins/code-block-base-kit";
 import { BaseListKit } from "@/features/editor/plugins/list-base-kit";
+import { BaseLinkKit } from "@/features/editor/plugins/link-base-kit";
 import { BaseTocKit } from "@/features/editor/plugins/toc-base-kit";
 import { BaseToggleKit } from "@/features/editor/plugins/toggle-base-kit";
 import { MarkdownKit } from "@/features/editor/plugins/markdown-kit";
@@ -35,6 +36,7 @@ export const createMarkdownEditor = () =>
       ...BaseBasicMarksKit,
       ...BaseCalloutKit,
       ...BaseCodeBlockKit,
+      ...BaseLinkKit,
       ...BaseListKit,
       ...MarkdownKit,
       ...BaseTocKit,

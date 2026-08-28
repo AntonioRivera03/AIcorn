@@ -4,121 +4,12 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
-
-func parseRFC3339(s string) (*time.Time, error) {
-	ts, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return nil, err
-	}
-	return &ts, nil
-}
-
-// toolset holds the services each MCP tool needs and registers them on a
-// server. One method per tool, one atomic operation per tool — no combined
-// "manage_task" tool that branches on an action field, since that pattern
-// causes agents to sequence calls incorrectly.
-type toolset struct {
-	taskService      *services.TaskService
-	projectService   *services.ProjectService
-	stageService     *services.StageService
-	checklistService *services.ChecklistService
-	taskTypeService  *services.TaskTypeService
-	converter        *markdown.Converter
-}
-
-// bodiesToMarkdown rewrites each task's stored Plate.js document into markdown
-// in place, so a calling agent reads prose instead of a JSON tree. A conversion
-// failure is returned, never swallowed — handing back raw Plate JSON under the
-// guise of markdown would silently corrupt whatever the agent writes back.
-func (t *toolset) bodiesToMarkdown(ctx context.Context, tasks []models.TaskWithProject) error {
-	bodies := make([]string, len(tasks))
-	for i, task := range tasks {
-		bodies[i] = task.Body
-	}
-	markdowns, err := t.converter.ToMarkdown(ctx, bodies)
-	if err != nil {
-		return err
-	}
-	for i := range tasks {
-		tasks[i].Body = markdowns[i]
-	}
-	return nil
-}
-
-// bodyToMarkdown and bodyToBody are the single-item form of bodiesToMarkdown /
-// Converter.ToBody, for the two call sites (readTask, updateTask) that only
-// ever have one body to convert — avoids each hand-rolling its own
-// wrap-in-a-slice/unwrap-index-0 around the batch API.
-func (t *toolset) bodyToMarkdown(ctx context.Context, body string) (string, error) {
-	markdowns, err := t.converter.ToMarkdown(ctx, []string{body})
-	if err != nil {
-		return "", err
-	}
-	return markdowns[0], nil
-}
-
-func (t *toolset) bodyToBody(ctx context.Context, markdown string) (string, error) {
-	bodies, err := t.converter.ToBody(ctx, []string{markdown})
-	if err != nil {
-		return "", err
-	}
-	return bodies[0], nil
-}
-
-func (t *toolset) register(srv *mcp.Server) {
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "search_tasks",
-		Description: "Search and filter tasks across all projects. Task bodies are returned as markdown. Call list_workflow_stages first if filtering by stage.",
-	}, t.searchTasks)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "read_task",
-		Description: "Read a single task's full details by id. The body is returned as markdown.",
-	}, t.readTask)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_projects",
-		Description: "List all projects.",
-	}, t.listProjects)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_workflow_stages",
-		Description: "List all workflow stages. Use this to learn valid stage ids before calling search_tasks, create_task, or move_task_stage.",
-	}, t.listWorkflowStages)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "create_task",
-		Description: "Create a new task on a checklist. The task body is left empty — write it through update_task or the app after creation.",
-	}, t.createTask)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "update_task",
-		Description: "Update a task's name, priority, assignee, body (markdown), checklist, or type. Never changes stage — use move_task_stage for that.",
-	}, t.updateTask)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "move_task_stage",
-		Description: "Move a task to a different workflow stage. Requires the stage you currently believe the task is in (fromStage); fails safely if the task has moved since you last read it.",
-	}, t.moveTaskStage)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_checklists",
-		Description: "List all checklists, optionally filtered by project. Use this to learn valid checklist ids before calling create_task or update_task.",
-	}, t.listChecklists)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_task_types",
-		Description: "List all task types. Use this to learn valid type ids before calling create_task or update_task.",
-	}, t.listTaskTypes)
-}
 
 type SearchTasksInput struct {
 	Query      string   `json:"query,omitempty" jsonschema:"free-text search over the task name"`

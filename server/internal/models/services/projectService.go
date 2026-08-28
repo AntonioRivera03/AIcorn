@@ -241,20 +241,5 @@ func (s *ProjectService) BulkDeleteProjects(ids []int) (models.BulkResult, error
 }
 
 func (s *ProjectService) DeleteProject(projectId int) (bool, error) {
-	tasksSuccess, err := s.TaskRepo.DeleteTasksInProject(projectId)
-	if err != nil {
-		return false, err
-	}
-
-	checklistsSuccess, err := s.ChecklistRepo.DeleteChecklistsInProject(projectId)
-	if err != nil {
-		return false, err
-	}
-
-	projectSuccess, err := s.ProjectRepo.DeleteProject(projectId)
-	if err != nil {
-		return false, err
-	}
-
-	return tasksSuccess && checklistsSuccess && projectSuccess, nil
+	return s.ProjectRepo.DeleteProject(projectId)
 }

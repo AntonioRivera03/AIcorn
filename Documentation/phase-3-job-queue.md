@@ -26,7 +26,7 @@ This is the riskiest phase to get wrong (it's the first thing writing to the dat
 CREATE TABLE agent_job (
   id          INTEGER PRIMARY KEY,
   task        INTEGER NOT NULL REFERENCES task(id),
-  persona     INTEGER NOT NULL REFERENCES agent_persona(id),
+  persona     INTEGER NOT NULL REFERENCES persona(id),
   status      TEXT NOT NULL, -- plain text, not CHECK: statuses will grow
   fromStage   INTEGER, toStage INTEGER,
   claimedAt   TEXT, startedAt TEXT, finishedAt TEXT,
@@ -67,7 +67,7 @@ Zero rows affected means nothing to do. On worker startup, reset any `claimed` j
 
 **Trigger** — enqueue a job from inside `taskService`, at the one place stage transitions now flow through (the Phase 0 transition endpoint). Decide explicitly whether bulk kanban drag-drop should also enqueue (recommend: yes, via the same service call) rather than stripping `Stage` from the bulk-update whitelist and breaking multi-select drag.
 
-**First persona** — `allowedTools` containing only `read_task`, `search_tasks`, `list_projects`; harness run with no file-write tools. It reads the ticket, writes markdown into `agent_run.output`, and transitions the ticket to Review (via the Phase 0 endpoint). If that loop closes end to end, the queue, claim, invocation, output capture, and transition CAS are all validated with zero risk to your filesystem.
+**First persona** — `allowed_tools` containing only `read_task`, `search_tasks`, `list_projects`; harness run with no file-write tools. It reads the ticket, writes markdown into `agent_run.output`, and transitions the ticket to Review (via the Phase 0 endpoint). If that loop closes end to end, the queue, claim, invocation, output capture, and transition CAS are all validated with zero risk to your filesystem.
 
 ## Design notes worth keeping in mind
 

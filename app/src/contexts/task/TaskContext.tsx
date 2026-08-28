@@ -1,5 +1,6 @@
 import type { ChecklistTask } from "@/types/types";
 import { createContext } from "react";
+import { emptyDocument } from "@/lib/plate";
 
 export type TaskContextType = {
   state: ChecklistTask;
@@ -10,7 +11,7 @@ export const defaultTaskContextValue: TaskContextType = {
   state: {
     ID: 0,
     Name: "",
-    Body: [],
+    Body: emptyDocument,
     Checklist: 0,
     ChecklistName: "",
     TimeCompleted: null,
