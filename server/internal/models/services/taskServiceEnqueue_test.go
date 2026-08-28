@@ -24,7 +24,7 @@ func setupEnqueueTestDB(t *testing.T) (*sql.DB, *TaskService) {
 		`CREATE TABLE project (id INTEGER PRIMARY KEY, name TEXT, pinned BOOLEAN, workflow INTEGER REFERENCES workflow(id), defaultView TEXT, timeCreated TEXT, timeModified TEXT);`,
 		`CREATE TABLE checklist (id INTEGER PRIMARY KEY, project INTEGER REFERENCES project(id), name TEXT, description TEXT, timeCreated TEXT, timeModified TEXT, isDefault BOOLEAN);`,
 		`CREATE TABLE task_type (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', icon TEXT NOT NULL DEFAULT 'square-check', color TEXT NOT NULL DEFAULT 'gray', isDefault INTEGER NOT NULL DEFAULT 0, timeCreated TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timeModified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
-		`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER REFERENCES checklist(id), stage INTEGER NOT NULL REFERENCES stage(id) ON DELETE RESTRICT, type INTEGER NOT NULL REFERENCES task_type(id), name TEXT DEFAULT '', body TEXT DEFAULT '[]', timeCreated TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timeModified TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timePlannedStart TEXT, timePlannedEnd TEXT, hasTimePlannedStart BOOLEAN NOT NULL DEFAULT 0, hasTimePlannedEnd BOOLEAN NOT NULL DEFAULT 0, timeCompleted TEXT, assignee TEXT, priority TEXT);`,
+		`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER REFERENCES checklist(id), stage INTEGER NOT NULL REFERENCES stage(id) ON DELETE RESTRICT, type INTEGER NOT NULL REFERENCES task_type(id), name TEXT DEFAULT '', body TEXT DEFAULT '[]', timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP, timePlannedStart TIMESTAMP, timePlannedEnd TIMESTAMP, hasTimePlannedStart BOOLEAN NOT NULL DEFAULT 0, hasTimePlannedEnd BOOLEAN NOT NULL DEFAULT 0, timeCompleted TIMESTAMP, assignee TEXT, priority TEXT);`,
 		`CREATE TABLE agent_job (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE, persona INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE, status TEXT NOT NULL, fromStage INTEGER, toStage INTEGER, claimedAt TEXT, startedAt TEXT, finishedAt TEXT, attempts INTEGER NOT NULL DEFAULT 0, error TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
 		`CREATE TABLE agent_run (id INTEGER PRIMARY KEY AUTOINCREMENT, job INTEGER NOT NULL REFERENCES agent_job(id) ON DELETE CASCADE, output TEXT, summary TEXT, exitCode INTEGER, usageJson TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
 		`CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);`,
@@ -72,10 +72,13 @@ func setupEnqueueTestDB(t *testing.T) (*sql.DB, *TaskService) {
 		PersonaRepo: personaRepo,
 		TaskRepo:    nil,
 	}
+	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	svc := &TaskService{
 		TaskRepo:         taskRepo,
+		TaskTypeRepo:     taskTypeRepo,
 		StagePersonaRepo: stagePersonaRepo,
 		AgentJobService:  agentJobService,
+		PersonaRepo:      personaRepo,
 	}
 	return db, svc
 }
@@ -108,6 +111,13 @@ func TestTransitionStage_EnqueuesWhenBound(t *testing.T) {
 	}
 	if personaID != 1 || status != models.AgentJobStatusPending || fromStage != 10 || toStage != 20 {
 		t.Fatalf("job row mismatch persona=%d status=%q from=%d to=%d", personaID, status, fromStage, toStage)
+	}
+	var assignee string
+	if err := db.QueryRow(`SELECT assignee FROM task WHERE id = 1;`).Scan(&assignee); err != nil {
+		t.Fatalf("query assignee: %v", err)
+	}
+	if assignee != "coder" {
+		t.Fatalf("task assignee after bound transition = %q; want coder (auto-assigned)", assignee)
 	}
 }
 
@@ -174,6 +184,13 @@ func TestBulkUpdate_EnqueuesForBoundStage(t *testing.T) {
 		}
 		if toStage != 20 {
 			t.Fatalf("task %d toStage = %d; want 20", id, toStage)
+		}
+		var assignee string
+		if err := db.QueryRow(`SELECT assignee FROM task WHERE id = ?;`, id).Scan(&assignee); err != nil {
+			t.Fatalf("query assignee task %d: %v", id, err)
+		}
+		if assignee != "coder" {
+			t.Fatalf("task %d assignee = %q; want coder (auto-assigned)", id, assignee)
 		}
 	}
 }
@@ -380,5 +397,143 @@ func TestComplete_AtomicDuplicateRunPrevention(t *testing.T) {
 	}
 	if runs != 0 {
 		t.Fatalf("runs for pending job = %d; want 0 (atomic, no orphan)", runs)
+	}
+}
+
+func TestCreateChecklistTask_EnqueuesWhenAssigneeIsPersona(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	task := &models.ChecklistTask{
+		Task: models.Task{
+			Checklist: 1,
+			Stage:     10,
+			Name:      "new persona task",
+			Assignee:  "coder",
+		},
+	}
+	created, err := svc.CreateChecklistTask(task)
+	if err != nil {
+		t.Fatalf("CreateChecklistTask: %v", err)
+	}
+	if created == nil {
+		t.Fatal("created nil")
+	}
+	if c := countPendingForTask(t, db, created.ID); c != 1 {
+		t.Fatalf("pending after create with persona assignee = %d; want 1", c)
+	}
+	var persona int
+	if err := db.QueryRow(`SELECT persona FROM agent_job WHERE task = ?;`, created.ID).Scan(&persona); err != nil {
+		t.Fatalf("query job persona: %v", err)
+	}
+	if persona != 1 {
+		t.Fatalf("job persona = %d; want 1", persona)
+	}
+}
+
+func TestCreateChecklistTask_NoEnqueueForHumanAssignee(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	task := &models.ChecklistTask{
+		Task: models.Task{
+			Checklist: 1,
+			Stage:     10,
+			Name:      "human task",
+			Assignee:  "alice",
+		},
+	}
+	created, err := svc.CreateChecklistTask(task)
+	if err != nil {
+		t.Fatalf("CreateChecklistTask: %v", err)
+	}
+	if c := countPendingForTask(t, db, created.ID); c != 0 {
+		t.Fatalf("pending for human assignee = %d; want 0", c)
+	}
+}
+
+func TestUpdateTask_EnqueuesOnAssigneeChangeToPersona(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	var name, priority string
+	var checklist, stage, typ int
+	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,'') FROM task WHERE id = 1;`).Scan(&name, &checklist, &stage, &typ, &priority); err != nil {
+		t.Fatalf("query task: %v", err)
+	}
+	ct := &models.ChecklistTask{Task: models.Task{ID: 1, Name: name, Checklist: checklist, Stage: stage, Priority: priority, Assignee: "coder"}}
+	ct.Type.ID = typ
+	ok, err := svc.UpdateTask(ct)
+	if err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+	if !ok {
+		t.Fatal("UpdateTask not ok")
+	}
+	if c := countPendingForTask(t, db, 1); c != 1 {
+		t.Fatalf("pending after assignee update = %d; want 1", c)
+	}
+}
+
+func TestUpdateTask_IdempotentWhenAssigneeUnchanged(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	var name, priority string
+	var checklist, stage, typ int
+	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,'') FROM task WHERE id = 1;`).Scan(&name, &checklist, &stage, &typ, &priority); err != nil {
+		t.Fatalf("query task: %v", err)
+	}
+	ct := &models.ChecklistTask{Task: models.Task{ID: 1, Name: name, Checklist: checklist, Stage: stage, Priority: priority, Assignee: "coder"}}
+	ct.Type.ID = typ
+	if _, err := svc.UpdateTask(ct); err != nil {
+		t.Fatalf("first UpdateTask: %v", err)
+	}
+	if c := countPendingForTask(t, db, 1); c != 1 {
+		t.Fatalf("first pending = %d; want 1", c)
+	}
+	var name2, priority2 string
+	var checklist2, stage2, typ2 int
+	var assignee2 string
+	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,''), COALESCE(assignee,'') FROM task WHERE id = 1;`).Scan(&name2, &checklist2, &stage2, &typ2, &priority2, &assignee2); err != nil {
+		t.Fatalf("query task2: %v", err)
+	}
+	ct2 := &models.ChecklistTask{Task: models.Task{ID: 1, Name: "renamed but same assignee", Checklist: checklist2, Stage: stage2, Priority: priority2, Assignee: assignee2}}
+	ct2.Type.ID = typ2
+	ok, err := svc.UpdateTask(ct2)
+	if err != nil {
+		t.Fatalf("second UpdateTask: %v", err)
+	}
+	if !ok {
+		t.Fatal("second not ok")
+	}
+	if c := countPendingForTask(t, db, 1); c != 1 {
+		t.Fatalf("pending after second same-assignee update = %d; want still 1 idempotent", c)
+	}
+}
+
+func TestBulkUpdate_EnqueuesWhenAssigneeIsPersona(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "coder"})
+	if err != nil {
+		t.Fatalf("BulkUpdate assignee: %v", err)
+	}
+	if result.Success != 2 {
+		t.Fatalf("success = %d; want 2", result.Success)
+	}
+	for _, id := range []int{1, 2} {
+		if c := countPendingForTask(t, db, id); c != 1 {
+			t.Fatalf("task %d pending after assignee bulk = %d; want 1", id, c)
+		}
+	}
+}
+
+func TestBulkUpdate_NoEnqueueForHumanAssignee(t *testing.T) {
+	db, svc := setupEnqueueTestDB(t)
+	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "bob"})
+	if err != nil {
+		t.Fatalf("BulkUpdate human assignee: %v", err)
+	}
+	if result.Success != 2 {
+		t.Fatalf("success = %d; want 2", result.Success)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
+		t.Fatalf("count jobs: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("jobs for human assignee bulk = %d; want 0", n)
 	}
 }

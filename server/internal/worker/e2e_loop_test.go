@@ -96,6 +96,7 @@ func setupE2ETestDB(t *testing.T) (*sql.DB, *services.TaskService, *services.Age
 		TaskTypeRepo:     &repos.TaskTypeRepo{DB: db},
 		AgentJobService:  jobSvc,
 		StagePersonaRepo: stagePersonaRepo,
+		PersonaRepo:      personaRepo,
 	}
 	return db, taskSvc, jobSvc, personaSvc, stagePersonaRepo
 }

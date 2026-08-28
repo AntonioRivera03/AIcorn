@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,9 +18,9 @@ import (
 var ErrStageConflict = errors.New("task is not currently in the expected stage")
 
 var (
-	ErrNoPersonaBound   = errors.New("no persona bound to this stage — bind one in Workflow Editor or use Ready For Work/Plan Phase")
-	ErrRepoPathMissing  = errors.New("project has no repo folder linked")
-	ErrRepoInvalid      = errors.New("linked repo folder is not a valid git repository")
+	ErrNoPersonaBound    = errors.New("task is not assigned to an agent — set assignee to a persona name")
+	ErrRepoPathMissing   = errors.New("project has no repo folder linked")
+	ErrRepoInvalid       = errors.New("linked repo folder is not a valid git repository")
 	ErrJobAlreadyPending = errors.New("agent job already pending for this task")
 )
 
@@ -29,19 +30,111 @@ type TaskService struct {
 	AgentJobService  *AgentJobService
 	StagePersonaRepo *repos.StagePersonaRepo
 	ProjectRepo      *repos.ProjectRepo
+	PersonaRepo      *repos.PersonaRepo
+}
+
+func (s *TaskService) getPersonaRepo() *repos.PersonaRepo {
+	if s.PersonaRepo != nil {
+		return s.PersonaRepo
+	}
+	if s.AgentJobService != nil {
+		return s.AgentJobService.PersonaRepo
+	}
+	return nil
+}
+
+func (s *TaskService) personaIDForAssignee(assignee string) (*int, error) {
+	trimmed := strings.TrimSpace(assignee)
+	if trimmed == "" {
+		return nil, nil
+	}
+	repo := s.getPersonaRepo()
+	if repo == nil {
+		return nil, nil
+	}
+	p, err := repo.FindByName(trimmed)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &p.ID, nil
+}
+
+func (s *TaskService) personaNameForID(personaID int) (string, error) {
+	repo := s.getPersonaRepo()
+	if repo == nil {
+		return "", errors.New("persona repo not configured")
+	}
+	p, err := repo.FindOne(personaID)
+	if err != nil {
+		return "", err
+	}
+	return p.Name, nil
+}
+
+func nullableIntArg(v *int) any {
+	if v != nil {
+		return *v
+	}
+	return nil
+}
+
+func (s *TaskService) enqueueForAssignee(taskID int, assignee string, fromStage *int, toStage *int) error {
+	pid, err := s.personaIDForAssignee(assignee)
+	if err != nil {
+		return err
+	}
+	if pid == nil {
+		return nil
+	}
+	if s.AgentJobService == nil || s.AgentJobService.JobRepo == nil {
+		return nil
+	}
+	existing, err := s.AgentJobService.JobRepo.FindPendingByTask(taskID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+	_, err = s.AgentJobService.Enqueue(taskID, *pid, fromStage, toStage)
+	if err != nil {
+		if errors.Is(err, ErrJobAlreadyPending) || errors.Is(err, ErrInvalidPersona) {
+			return nil
+		}
+		// If duplicate pending due to race, ignore
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+	}
+	return err
 }
 
 func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, error) {
-	// atomic: stage update and job enqueue commit together or roll back together
+	// Stage-persona is now only for auto-assigning assignee; job enqueue is via assignee.
 	var personaID *int
-	if s.AgentJobService != nil && s.StagePersonaRepo != nil {
+	var personaName string
+	if s.StagePersonaRepo != nil {
 		sp, err := s.StagePersonaRepo.FindByStage(toStage)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return false, err
 			}
 		} else {
-			personaID = &sp.PersonaID
+			pid := sp.PersonaID
+			personaID = &pid
+			name, err := s.personaNameForID(pid)
+			if err != nil {
+				// Preserve atomic rollback semantics for invalid binding (FK 999 test).
+				// If persona not found, we cannot set assignee; return error without moving stage.
+				if errors.Is(err, sql.ErrNoRows) {
+					return false, fmt.Errorf("persona %d not found: %w", pid, err)
+				}
+				return false, err
+			}
+			personaName = name
 		}
 	}
 	if personaID == nil {
@@ -59,7 +152,7 @@ func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, err
 		return false, err
 	}
 	defer tx.Rollback()
-	res, err := tx.Exec(`UPDATE task SET stage = ? WHERE id = ? AND stage = ?;`, toStage, taskId, fromStage)
+	res, err := tx.Exec(`UPDATE task SET stage = ?, assignee = ? WHERE id = ? AND stage = ?;`, toStage, personaName, taskId, fromStage)
 	if err != nil {
 		return false, err
 	}
@@ -70,8 +163,15 @@ func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, err
 	if affected == 0 {
 		return false, ErrStageConflict
 	}
-	if _, err := tx.Exec(`INSERT INTO agent_job (task, persona, status, fromStage, toStage) VALUES (?, ?, 'pending', ?, ?);`, taskId, *personaID, fromStage, toStage); err != nil {
+	// Idempotent: only insert if no pending already exists for this task (within Tx).
+	var pendingCount int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM agent_job WHERE task = ? AND status = 'pending';`, taskId).Scan(&pendingCount); err != nil {
 		return false, err
+	}
+	if pendingCount == 0 {
+		if _, err := tx.Exec(`INSERT INTO agent_job (task, persona, status, fromStage, toStage) VALUES (?, ?, 'pending', ?, ?);`, taskId, *personaID, fromStage, toStage); err != nil {
+			return false, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return false, err
@@ -135,25 +235,94 @@ func (s *TaskService) CreateChecklistTask(task *models.ChecklistTask) (*models.C
 	if err != nil {
 		return nil, err
 	}
-
+	if newTask != nil && strings.TrimSpace(newTask.Assignee) != "" {
+		if err := s.enqueueForAssignee(newTask.ID, newTask.Assignee, nil, &newTask.Stage); err != nil {
+			log.Printf("enqueueForAssignee after CreateChecklistTask %d assignee %q: %v", newTask.ID, newTask.Assignee, err)
+		}
+	}
 	return newTask, nil
 }
 
 func (s *TaskService) UpdateTask(updatedTask *models.ChecklistTask) (bool, error) {
+	var oldAssignee string
+	var oldStage int
+	var oldFound bool
+	if updatedTask != nil && s.TaskRepo != nil && s.TaskRepo.DB != nil {
+		var assignee sql.NullString
+		var stage sql.NullInt64
+		err := s.TaskRepo.DB.QueryRow(`SELECT COALESCE(assignee,''), stage FROM task WHERE id = ?;`, updatedTask.ID).Scan(&assignee, &stage)
+		if err == nil {
+			if assignee.Valid {
+				oldAssignee = assignee.String
+			}
+			if stage.Valid {
+				oldStage = int(stage.Int64)
+			}
+			oldFound = true
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return false, err
+		}
+	}
 	success, err := s.TaskRepo.UpdateTask(updatedTask)
 	if err != nil {
 		return false, err
 	}
-
+	if success && updatedTask != nil && strings.TrimSpace(updatedTask.Assignee) != "" {
+		if !oldFound || updatedTask.Assignee != oldAssignee {
+			pid, err := s.personaIDForAssignee(updatedTask.Assignee)
+			if err != nil {
+				log.Printf("personaIDForAssignee after UpdateTask %d: %v", updatedTask.ID, err)
+			} else if pid != nil {
+				fromStage := oldStage
+				toStage := updatedTask.Stage
+				var fromPtr *int
+				var toPtr *int
+				if oldFound {
+					fromPtr = &fromStage
+				}
+				toPtr = &toStage
+				if err := s.enqueueForAssignee(updatedTask.ID, updatedTask.Assignee, fromPtr, toPtr); err != nil {
+					log.Printf("enqueueForAssignee after UpdateTask %d: %v", updatedTask.ID, err)
+				}
+			}
+		}
+	}
 	return success, nil
 }
 
 func (s *TaskService) UpdateTaskProperties(updatedTask *models.ChecklistTask) (bool, error) {
+	var oldAssignee string
+	var oldFound bool
+	if updatedTask != nil && s.TaskRepo != nil && s.TaskRepo.DB != nil {
+		var assignee sql.NullString
+		err := s.TaskRepo.DB.QueryRow(`SELECT COALESCE(assignee,'') FROM task WHERE id = ?;`, updatedTask.ID).Scan(&assignee)
+		if err == nil {
+			if assignee.Valid {
+				oldAssignee = assignee.String
+			}
+			oldFound = true
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return false, err
+		}
+	}
 	success, err := s.TaskRepo.UpdateTaskProperties(updatedTask)
 	if err != nil {
 		return false, err
 	}
-
+	if success && updatedTask != nil && strings.TrimSpace(updatedTask.Assignee) != "" {
+		if !oldFound || updatedTask.Assignee != oldAssignee {
+			pid, err := s.personaIDForAssignee(updatedTask.Assignee)
+			if err != nil {
+				log.Printf("personaIDForAssignee after UpdateTaskProperties %d: %v", updatedTask.ID, err)
+			} else if pid != nil {
+				// Stage unchanged in this path (UpdateTaskProperties excludes stage), so use current task Stage.
+				toStage := updatedTask.Stage
+				if err := s.enqueueForAssignee(updatedTask.ID, updatedTask.Assignee, nil, &toStage); err != nil {
+					log.Printf("enqueueForAssignee after UpdateTaskProperties %d: %v", updatedTask.ID, err)
+				}
+			}
+		}
+	}
 	return success, nil
 }
 
@@ -188,7 +357,6 @@ var bulkTaskUpdatableColumns = map[string]string{
 }
 
 func (s *TaskService) BulkUpdate(ids []int, changes map[string]any) (models.BulkResult, error) {
-	// atomic bulk: UPDATE tasks and INSERT jobs in one TX via INSERT...SELECT, no fan-out
 	ids = dedupeInts(ids)
 	if len(ids) == 0 {
 		return models.BulkResult{}, nil
@@ -210,18 +378,65 @@ func (s *TaskService) BulkUpdate(ids []int, changes map[string]any) (models.Bulk
 	if hasStage {
 		destStage, stageOk = parseStageID(rawStage)
 	}
-	var personaID *int
-	if stageOk && s.AgentJobService != nil && s.StagePersonaRepo != nil && s.AgentJobService.JobRepo != nil {
+	// Resolve stage persona for auto-assign
+	var stagePersonaID *int
+	var stagePersonaName string
+	if stageOk && s.StagePersonaRepo != nil {
 		sp, err := s.StagePersonaRepo.FindByStage(destStage)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return models.BulkResult{}, err
 			}
 		} else {
-			personaID = &sp.PersonaID
+			pid := sp.PersonaID
+			stagePersonaID = &pid
+			name, err := s.personaNameForID(pid)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return models.BulkResult{}, fmt.Errorf("persona %d not found: %w", pid, err)
+				}
+				return models.BulkResult{}, err
+			}
+			stagePersonaName = name
 		}
 	}
-	if personaID == nil {
+	// Resolve assignee persona if no stage persona takes precedence
+	var assigneePersonaID *int
+	var assigneeStr string
+	var hasAssignee bool
+	if rawAssignee, ok := filtered["assignee"]; ok {
+		hasAssignee = true
+		switch v := rawAssignee.(type) {
+		case string:
+			assigneeStr = v
+		default:
+			assigneeStr = fmt.Sprint(v)
+		}
+		if stagePersonaID == nil {
+			pid, err := s.personaIDForAssignee(assigneeStr)
+			if err != nil {
+				return models.BulkResult{}, err
+			}
+			assigneePersonaID = pid
+		}
+	}
+
+	var enqueuePersonaID *int
+	var enqueueToStage *int
+	if stagePersonaID != nil {
+		filtered["assignee"] = stagePersonaName
+		filtered["stage"] = destStage
+		enqueuePersonaID = stagePersonaID
+		tmp := destStage
+		enqueueToStage = &tmp
+	} else if hasAssignee && assigneePersonaID != nil {
+		enqueuePersonaID = assigneePersonaID
+		if stageOk {
+			tmp := destStage
+			enqueueToStage = &tmp
+		}
+	} else {
+		// No persona-triggered enqueue; simple update.
 		affected, err := s.TaskRepo.UpdateManyFields(ids, filtered)
 		if err != nil {
 			return models.BulkResult{}, err
@@ -232,8 +447,7 @@ func (s *TaskService) BulkUpdate(ids []int, changes map[string]any) (models.Bulk
 		}, nil
 	}
 
-	filtered["stage"] = destStage
-
+	// Build SET clause for Tx including auto-assigned assignee.
 	setParts := make([]string, 0, len(filtered))
 	setArgs := make([]any, 0, len(filtered))
 	for col, val := range filtered {
@@ -260,8 +474,17 @@ func (s *TaskService) BulkUpdate(ids []int, changes map[string]any) (models.Bulk
 	if err != nil {
 		return models.BulkResult{}, err
 	}
-	if affected > 0 {
-		if err := s.AgentJobService.JobRepo.BulkEnqueueForStageTx(tx, ids, *personaID, destStage); err != nil {
+	if affected > 0 && enqueuePersonaID != nil {
+		// Bulk enqueue with idempotency: only for tasks not already pending.
+		// Use INSERT ... SELECT with NOT IN filter.
+		ph, phArgs := intIdPlaceholders(ids)
+		// Need two copies of ids for IN and NOT IN
+		insertQuery := `INSERT INTO agent_job (task, persona, status, fromStage, toStage)
+			SELECT id, ?, 'pending', NULL, ? FROM task WHERE id IN (` + ph + `) AND id NOT IN (SELECT task FROM agent_job WHERE status = 'pending' AND task IN (` + ph + `))`
+		allArgs := []any{*enqueuePersonaID, nullableIntArg(enqueueToStage)}
+		allArgs = append(allArgs, phArgs...)
+		allArgs = append(allArgs, phArgs...)
+		if _, err := tx.Exec(insertQuery, allArgs...); err != nil {
 			return models.BulkResult{}, err
 		}
 	}
@@ -272,6 +495,15 @@ func (s *TaskService) BulkUpdate(ids []int, changes map[string]any) (models.Bulk
 		Success: int(affected),
 		Skipped: len(ids) - int(affected),
 	}, nil
+}
+
+func intIdPlaceholders(ids []int) (string, []any) {
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return placeholders, args
 }
 
 func (s *TaskService) BulkDelete(ids []int) (models.BulkResult, error) {
@@ -289,24 +521,22 @@ func (s *TaskService) BulkDelete(ids []int) (models.BulkResult, error) {
 	}, nil
 }
 
-// RequestAgent manually enqueues a job for a task's current stage without moving the stage.
-// It resolves the persona bound to the task's current stage, validates the project's
-// RepoPath (non-empty and git-valid), checks idempotency (no pending job already exists),
-// then inserts a pending agent_job row. Does NOT change task.stage.
+// RequestAgent manually enqueues a job for a task whose assignee is a persona.
+// It resolves persona via task.assignee exact match, validates RepoPath, checks idempotency,
+// then inserts pending agent_job. Does NOT change task.stage or assignee.
 func (s *TaskService) RequestAgent(taskID int) (*models.AgentJob, error) {
 	task, err := s.TaskRepo.FindOneWithProject(taskID)
 	if err != nil {
 		return nil, err
 	}
-	// Resolve persona for current stage
-	sp, err := s.StagePersonaRepo.FindByStage(task.Stage)
+	pid, err := s.personaIDForAssignee(task.Assignee)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNoPersonaBound
-		}
 		return nil, err
 	}
-	personaID := sp.PersonaID
+	if pid == nil {
+		return nil, ErrNoPersonaBound
+	}
+	personaID := *pid
 
 	// Project RepoPath guard — fail fast before enqueue
 	if s.ProjectRepo != nil {
@@ -339,9 +569,6 @@ func (s *TaskService) RequestAgent(taskID int) (*models.AgentJob, error) {
 		if existing != nil {
 			return nil, ErrJobAlreadyPending
 		}
-		// Also check claimed/running to avoid duplicate active work
-		// We treat pending as the idempotent key; claimed/running will be caught by FindPendingByTask not covering them,
-		// so explicitly check active as well via ListFiltered is heavy. Instead check any pending only per spec.
 	}
 
 	if s.AgentJobService == nil {

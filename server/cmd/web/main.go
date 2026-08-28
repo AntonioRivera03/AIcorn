@@ -183,6 +183,7 @@ func main() {
 		AgentJobService:  agentJobService,
 		StagePersonaRepo: stagePersonaRepo,
 		ProjectRepo:      projectRepo,
+		PersonaRepo:      personaRepo,
 	}
 	workflowService := &services.WorkflowService{
 		WorkflowRepo: workflowRepo,

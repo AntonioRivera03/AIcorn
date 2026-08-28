@@ -84,6 +84,14 @@ func (repo *PersonaRepo) FindOne(id int) (*models.Persona, error) {
 	return &persona, nil
 }
 
+func (repo *PersonaRepo) FindByName(name string) (*models.Persona, error) {
+	persona := models.Persona{}
+	if err := scanPersona(repo.DB.QueryRow("SELECT "+personaColumns+" FROM persona WHERE name = ?;", name), &persona); err != nil {
+		return nil, err
+	}
+	return &persona, nil
+}
+
 func (repo *PersonaRepo) Create(persona *models.Persona) (*models.Persona, error) {
 	args, err := personaWriteArgs(persona)
 	if err != nil {

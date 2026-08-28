@@ -61,7 +61,7 @@ func requestAgentTestApp(t *testing.T, repoPath string) (*app, *services.TaskSer
 			t.Fatalf("task_type: %v", err)
 		}
 	}
-	if _, err := db.Exec(`INSERT INTO task (id, checklist, stage, name, priority, type, assignee) VALUES (1,1,2,'t','Medium',1,'')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO task (id, checklist, stage, name, priority, type, assignee) VALUES (1,1,2,'t','Medium',1,'p')`); err != nil {
 		t.Fatalf("task: %v", err)
 	}
 	if _, err := db.Exec(`INSERT INTO persona (id, name, harness, model) VALUES (1,'p','opencode','opencode-go/muse-spark-1.2-contributor')`); err != nil {
@@ -84,6 +84,7 @@ func requestAgentTestApp(t *testing.T, repoPath string) (*app, *services.TaskSer
 		AgentJobService:  agentJobService,
 		StagePersonaRepo: stagePersonaRepo,
 		ProjectRepo:      projectRepo,
+		PersonaRepo:      personaRepo,
 	}
 	app := &app{
 		taskService:     taskService,
@@ -134,9 +135,8 @@ func TestRequestAgent_NoPersona409(t *testing.T) {
 		t.Fatalf("git init: %v", err)
 	}
 	app, _ := requestAgentTestApp(t, dir)
-	// remove persona binding
-	if _, err := app.taskService.StagePersonaRepo.DB.Exec(`DELETE FROM stage_persona WHERE stage_id = 2`); err != nil {
-		t.Fatalf("delete binding: %v", err)
+	if _, err := app.taskService.TaskRepo.DB.Exec(`UPDATE task SET assignee = '' WHERE id = 1`); err != nil {
+		t.Fatalf("clear assignee: %v", err)
 	}
 	handler := app.routes()
 	req := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
@@ -145,7 +145,7 @@ func TestRequestAgent_NoPersona409(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status = %d want 409 body=%s", rec.Code, rec.Body.String())
 	}
-	if want := "no persona bound to this stage"; !contains(rec.Body.String(), want) {
+	if want := "task is not assigned to an agent"; !contains(rec.Body.String(), want) {
 		t.Fatalf("body %q should contain %q", rec.Body.String(), want)
 	}
 }
