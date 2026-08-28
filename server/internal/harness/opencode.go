@@ -256,12 +256,35 @@ func (h *OpencodeHarness) Run(ctx context.Context, spec RunSpec) (RunResult, err
 
 	var parsed harnessJSON
 	parseErr := json.Unmarshal([]byte(raw), &parsed)
-	if parseErr != nil && combined != raw && combined != "" {
-		// Retry parsing combined (covers case where JSON was split across streams).
-		if json.Unmarshal([]byte(combined), &parsed) == nil {
-			parseErr = nil
-			raw = combined
-			usageJSON = combined
+	// Opencode emits NDJSON (one JSON per line) with --format json, not a single object.
+	// If single-object parse fails, try JSONL assembly (opencode) before erroring.
+	if parseErr != nil {
+		if kind == "opencode" {
+			if opResult, opUsage, ok := parseOpencodeJSONL(raw); ok {
+				parsed.Result = opResult
+				parsed.Usage = json.RawMessage(opUsage)
+				parsed.IsError = false
+				parseErr = nil
+				// Keep raw usage for storage
+				usageJSON = raw
+				raw = opResult
+			} else if combined != raw && combined != "" {
+				if opResult2, opUsage2, ok2 := parseOpencodeJSONL(combined); ok2 {
+					parsed.Result = opResult2
+					parsed.Usage = json.RawMessage(opUsage2)
+					parsed.IsError = false
+					parseErr = nil
+					raw = opResult2
+					usageJSON = combined
+				}
+			}
+		}
+		if parseErr != nil && combined != raw && combined != "" {
+			if json.Unmarshal([]byte(combined), &parsed) == nil {
+				parseErr = nil
+				raw = combined
+				usageJSON = combined
+			}
 		}
 	}
 
@@ -369,4 +392,61 @@ func isCLINotFoundErr(err error) bool {
 	return strings.Contains(msg, "executable file not found") ||
 		strings.Contains(msg, "no such file or directory") ||
 		strings.Contains(msg, "harness CLI not found")
+}
+
+func parseOpencodeJSONL(raw string) (string, string, bool) {
+	lines := strings.Split(raw, "\n")
+	var out strings.Builder
+	var usage string
+	found := false
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var evt map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			continue
+		}
+		if tRaw, ok := evt["type"]; ok {
+			var typ string
+			if err := json.Unmarshal(tRaw, &typ); err != nil {
+				continue
+			}
+			if typ == "text" {
+				var part struct {
+					Text string `json:"text"`
+				}
+				if pRaw, ok := evt["part"]; ok {
+					_ = json.Unmarshal(pRaw, &part)
+					if part.Text != "" {
+						if out.Len() > 0 {
+							out.WriteString("\n")
+						}
+						out.WriteString(part.Text)
+						found = true
+					}
+				} else {
+					var txt string
+					if err := json.Unmarshal(tRaw, &txt); err == nil && txt != "" {
+						if out.Len() > 0 {
+							out.WriteString("\n")
+						}
+						out.WriteString(txt)
+						found = true
+					}
+				}
+			}
+			if typ == "step_finish" {
+				usage = line
+			}
+		}
+	}
+	if !found {
+		return "", "", false
+	}
+	if usage == "" {
+		usage = raw
+	}
+	return out.String(), usage, true
 }
