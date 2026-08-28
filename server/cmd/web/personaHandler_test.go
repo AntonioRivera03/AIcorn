@@ -59,7 +59,7 @@ func testPersona(name string) models.Persona {
 	return models.Persona{
 		Name:         name,
 		SystemPrompt: "Research carefully.",
-		Harness:      models.PersonaHarnessClaudeCode,
+		Harness:      models.PersonaHarnessOpencode,
 		Model:        models.PersonaModelSonnet,
 		AllowedTools: []string{"read_task", "search_tasks"},
 	}

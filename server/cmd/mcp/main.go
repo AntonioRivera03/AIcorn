@@ -48,11 +48,21 @@ func main() {
 	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	projectRepo := &repos.ProjectRepo{DB: db}
 	stageRepo := &repos.StageRepo{DB: db}
+	stagePersonaRepo := &repos.StagePersonaRepo{DB: db}
 	checklistRepo := &repos.ChecklistRepo{DB: db}
 	categoryRepo := &repos.TaskTypeCategoryRepo{DB: db}
+	personaRepo := &repos.PersonaRepo{DB: db}
+	agentJobRepo := &repos.AgentJobRepo{DB: db}
+	agentRunRepo := &repos.AgentRunRepo{DB: db}
+	agentJobService := &services.AgentJobService{
+		JobRepo:     agentJobRepo,
+		RunRepo:     agentRunRepo,
+		PersonaRepo: personaRepo,
+		TaskRepo:    taskRepo,
+	}
 
 	toolset := &toolset{
-		taskService:      &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo},
+		taskService:      &services.TaskService{TaskRepo: taskRepo, TaskTypeRepo: taskTypeRepo, AgentJobService: agentJobService, StagePersonaRepo: stagePersonaRepo},
 		projectService:   &services.ProjectService{ProjectRepo: projectRepo, TaskRepo: taskRepo},
 		stageService:     &services.StageService{StageRepo: stageRepo},
 		checklistService: &services.ChecklistService{ChecklistRepo: checklistRepo, TaskRepo: taskRepo},

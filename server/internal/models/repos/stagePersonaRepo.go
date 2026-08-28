@@ -2,6 +2,8 @@ package repos
 
 import (
 	"database/sql"
+
+	"github.com/waseem-polus/aycorn/server/internal/models"
 )
 
 type StagePersonaRepo struct {
@@ -32,4 +34,13 @@ func (repo *StagePersonaRepo) Unbind(stageID int) (bool, error) {
 		return false, err
 	}
 	return affected > 0, nil
+}
+
+func (repo *StagePersonaRepo) FindByStage(stageID int) (*models.StagePersona, error) {
+	row := repo.DB.QueryRow("SELECT stage_id, persona_id FROM stage_persona WHERE stage_id = ?;", stageID)
+	var sp models.StagePersona
+	if err := row.Scan(&sp.StageID, &sp.PersonaID); err != nil {
+		return nil, err
+	}
+	return &sp, nil
 }

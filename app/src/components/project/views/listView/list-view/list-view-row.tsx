@@ -24,6 +24,7 @@ import { useSubtaskProgress } from "@/features/task/relationships/queries/useSub
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { useContext, useMemo } from "react";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
+import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
 
 export function ListViewRow({
   task,
@@ -105,6 +106,7 @@ export function ListViewRow({
                   )}
 
                   <UnresolvedBlockersBadge taskId={task.ID} />
+                  <AgentWorkingBadge taskId={task.ID} compact />
                 </span>
               </ItemDescription>
             </ItemContent>

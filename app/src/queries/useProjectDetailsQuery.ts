@@ -9,8 +9,11 @@ export function useProjectDetailsQuery(
   const { isPending, error, data, isFetching, refetch } = useQuery<
     ProjectDetails
   >({
-    queryKey: ["projectDetails", projectId],
+    queryKey: ["projectDetails", projectId, JSON.stringify(filter)],
     enabled: enabled,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const url = new URL(`/api/project/${projectId}`, window.location.origin);
       url.searchParams.set("search", filter?.Name ?? "");

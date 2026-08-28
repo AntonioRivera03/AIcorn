@@ -9,6 +9,7 @@ import (
 
 var ErrInvalidPersonaHarness = errors.New("persona harness is not supported")
 var ErrInvalidPersonaModel = errors.New("persona model is not supported")
+var ErrInvalidPersonaAgent = errors.New("persona agent is not supported")
 
 type PersonaService struct {
 	PersonaRepo *repos.PersonaRepo
@@ -16,16 +17,22 @@ type PersonaService struct {
 
 func validatePersona(persona *models.Persona) error {
 	if persona.Harness == "" {
-		persona.Harness = models.PersonaHarnessClaudeCode
+		persona.Harness = models.PersonaHarnessOpencode
+	}
+	if persona.Harness == "claude-code" {
+		persona.Harness = models.PersonaHarnessOpencode
 	}
 	if persona.Model == "" {
-		persona.Model = models.PersonaModelSonnet
+		persona.Model = models.PersonaModelMuseSpark12Contributor
 	}
 	if !models.IsValidPersonaHarness(persona.Harness) {
 		return ErrInvalidPersonaHarness
 	}
 	if !models.IsValidPersonaModel(persona.Model) {
 		return ErrInvalidPersonaModel
+	}
+	if !models.IsValidPersonaAgent(persona.Agent) {
+		return ErrInvalidPersonaAgent
 	}
 	if persona.AllowedTools == nil {
 		persona.AllowedTools = []string{}

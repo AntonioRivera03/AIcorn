@@ -27,8 +27,9 @@ describe("WorkflowStageChip persona marker", () => {
           Persona: {
             ID: 4,
             Name: "Read-only Researcher",
-            Harness: "claude-code",
-            Model: "sonnet",
+            Harness: "opencode",
+            Model: "opencode-go/muse-spark-1.2-contributor",
+            Agent: "",
           },
         }}
       />,

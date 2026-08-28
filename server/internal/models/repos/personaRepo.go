@@ -12,7 +12,7 @@ type PersonaRepo struct {
 	DB *sql.DB
 }
 
-const personaColumns = "id, name, system_prompt, harness, model, allowed_tools, timeCreated, timeModified"
+const personaColumns = "id, name, system_prompt, harness, model, agent, allowed_tools, timeCreated, timeModified"
 
 func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Persona) error {
 	var allowedTools string
@@ -24,6 +24,7 @@ func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Person
 		&persona.SystemPrompt,
 		&persona.Harness,
 		&persona.Model,
+		&persona.Agent,
 		&allowedTools,
 		&timeCreated,
 		&timeModified,
@@ -54,7 +55,7 @@ func personaWriteArgs(persona *models.Persona) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []any{persona.Name, persona.SystemPrompt, persona.Harness, persona.Model, allowedTools}, nil
+	return []any{persona.Name, persona.SystemPrompt, persona.Harness, persona.Model, persona.Agent, allowedTools}, nil
 }
 
 func (repo *PersonaRepo) All() ([]models.Persona, error) {
@@ -89,8 +90,8 @@ func (repo *PersonaRepo) Create(persona *models.Persona) (*models.Persona, error
 		return nil, err
 	}
 	query := `
-		INSERT INTO persona (name, system_prompt, harness, model, allowed_tools)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO persona (name, system_prompt, harness, model, agent, allowed_tools)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING ` + personaColumns + `;
 	`
 	created := models.Persona{}
@@ -108,7 +109,7 @@ func (repo *PersonaRepo) Update(persona *models.Persona) (bool, error) {
 	args = append(args, persona.ID)
 	result, err := repo.DB.Exec(`
 		UPDATE persona
-		SET name = ?, system_prompt = ?, harness = ?, model = ?, allowed_tools = ?
+		SET name = ?, system_prompt = ?, harness = ?, model = ?, agent = ?, allowed_tools = ?
 		WHERE id = ?;
 	`, args...)
 	if err != nil {
@@ -137,8 +138,8 @@ func (repo *PersonaRepo) CreateMany(personas []models.Persona) (int, error) {
 	}
 	defer tx.Rollback()
 	statement, err := tx.Prepare(`
-		INSERT INTO persona (name, system_prompt, harness, model, allowed_tools)
-		VALUES (?, ?, ?, ?, ?);
+		INSERT INTO persona (name, system_prompt, harness, model, agent, allowed_tools)
+		VALUES (?, ?, ?, ?, ?, ?);
 	`)
 	if err != nil {
 		return 0, err
@@ -171,7 +172,7 @@ func (repo *PersonaRepo) UpdateMany(personas []models.Persona) (int, error) {
 	defer tx.Rollback()
 	statement, err := tx.Prepare(`
 		UPDATE persona
-		SET name = ?, system_prompt = ?, harness = ?, model = ?, allowed_tools = ?
+		SET name = ?, system_prompt = ?, harness = ?, model = ?, agent = ?, allowed_tools = ?
 		WHERE id = ?;
 	`)
 	if err != nil {

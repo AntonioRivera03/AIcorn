@@ -10,7 +10,7 @@ type StageRepo struct {
 	DB *sql.DB
 }
 
-const stageColumns = "s.id, s.workflow, s.name, COALESCE(s.description, ''), s.color, s.icon, s.position, s.type, COUNT(t.id), s.timeCreated, s.timeModified, p.id, p.name, p.harness, p.model"
+const stageColumns = "s.id, s.workflow, s.name, COALESCE(s.description, ''), s.color, s.icon, s.position, s.type, COUNT(t.id), s.timeCreated, s.timeModified, p.id, p.name, p.harness, p.model, COALESCE(p.agent, '')"
 
 const stageFromJoin = "FROM stage s LEFT JOIN task t ON t.stage = s.id LEFT JOIN stage_persona sp ON sp.stage_id = s.id LEFT JOIN persona p ON p.id = sp.persona_id"
 
@@ -21,6 +21,7 @@ func scanStage(scanner interface {
 	var personaName sql.NullString
 	var personaHarness sql.NullString
 	var personaModel sql.NullString
+	var personaAgent sql.NullString
 	if err := scanner.Scan(
 		&s.ID,
 		&s.Workflow,
@@ -37,6 +38,7 @@ func scanStage(scanner interface {
 		&personaName,
 		&personaHarness,
 		&personaModel,
+		&personaAgent,
 	); err != nil {
 		return err
 	}
@@ -46,6 +48,7 @@ func scanStage(scanner interface {
 			Name:    personaName.String,
 			Harness: models.PersonaHarness(personaHarness.String),
 			Model:   models.PersonaModel(personaModel.String),
+			Agent:   models.PersonaAgent(personaAgent.String),
 		}
 	}
 	return nil

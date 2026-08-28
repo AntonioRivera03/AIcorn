@@ -103,6 +103,9 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/persona/{personaId}", app.deletePersona)
 	mux.HandleFunc("GET /api/mcp/tools", app.getMCPTools)
 
+	mux.HandleFunc("GET /api/agent-jobs", app.getAgentJobs)
+	mux.HandleFunc("GET /api/agent-jobs/{taskId}", app.getAgentJobsForTask)
+
 	if spa := spaHandler(); spa != nil {
 		mux.Handle("GET /", spa)
 	}

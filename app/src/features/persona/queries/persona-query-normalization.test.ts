@@ -17,8 +17,9 @@ const structuredPrompt: Value = [
 const createResponse = (systemPrompt: unknown): PersonaResponse => ({
   ID: 7,
   Name: "Researcher",
-  Harness: "claude-code",
-  Model: "sonnet",
+  Harness: "opencode",
+  Model: "opencode-go/muse-spark-1.2-contributor",
+  Agent: "",
   SystemPrompt: systemPrompt,
   AllowedTools: ["read_task"],
   TimeCreated: "2026-08-23T00:00:00Z",

@@ -37,6 +37,12 @@ const invalidateQueries = (projectId: number) => {
   queryClient.invalidateQueries({ queryKey: ["upcomingTasks"] });
 };
 
+const invalidateAgentJobs = (ids: number[]) => {
+  ids.forEach((id) =>
+    queryClient.invalidateQueries({ queryKey: ["agent-jobs", id] }),
+  );
+};
+
 export function useTaskMutation(projectId: number) {
   const update = useMutation({
     mutationFn: getSaveTaskQuery(false),
@@ -97,7 +103,10 @@ export function useTaskMutation(projectId: number) {
       }
       toast.error("Failed to save task");
     },
-    onSettled: () => invalidateQueries(projectId),
+    onSettled: (_data, _err, task) => {
+      invalidateQueries(projectId);
+      if (task?.ID) invalidateAgentJobs([task.ID]);
+    },
   });
   const create = useMutation({
     mutationFn: getSaveTaskQuery(true),
@@ -157,7 +166,13 @@ export function useTaskMutation(projectId: number) {
         queryClient.setQueryData(["projectDetails", projectId], context.previous);
       }
     },
-    onSettled: () => invalidateQueries(projectId),
+    onSettled: (_data, _err, vars) => {
+      invalidateQueries(projectId);
+      const ids = (vars as { tasks?: { ID: number }[] } | undefined)?.tasks?.map(
+        (t) => t.ID,
+      );
+      if (ids?.length) invalidateAgentJobs(ids);
+    },
   });
 
   const updateBody = useMutation({

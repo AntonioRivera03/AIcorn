@@ -36,17 +36,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Write(res)
 }
 
-// httpStatusForError maps a known service/sentinel error to the correct HTTP
-// status. Anything unrecognized is a genuinely unexpected failure -> 500.
-// This is the single source of truth for error->status mapping, replacing the
-// per-handler errors.Is ladders.
 func httpStatusForError(err error) int {
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, sql.ErrNoRows),
+		errors.Is(err, services.ErrInvalidTask),
+		errors.Is(err, services.ErrInvalidPersona),
+		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
+		errors.Is(err, services.ErrInvalidPersonaAgent),
 		errors.Is(err, services.ErrInvalidStageColor),
 		errors.Is(err, services.ErrCannotDeleteOpenStage),
 		errors.Is(err, services.ErrInvalidMoveDestination),
@@ -61,7 +61,9 @@ func httpStatusForError(err error) int {
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, services.ErrWorkflowInUse),
 		errors.Is(err, services.ErrDuplicateRelationship),
-		errors.Is(err, services.ErrStageConflict):
+		errors.Is(err, services.ErrStageConflict),
+		errors.Is(err, services.ErrInvalidJobStatus),
+		errors.Is(err, services.ErrJobStatusConflict):
 		return http.StatusConflict
 	case errors.Is(err, services.ErrDefaultTaskType):
 		return http.StatusForbidden
@@ -70,10 +72,14 @@ func httpStatusForError(err error) int {
 	}
 }
 
-// respondErr logs err and writes it with the status derived from
-// httpStatusForError. Use this for every service-call failure so status
-// mapping stays consistent and 500 is reserved for the unexpected.
 func respondErr(w http.ResponseWriter, err error) {
 	log.Println(err.Error())
-	http.Error(w, err.Error(), httpStatusForError(err))
+	msg := err.Error()
+	if httpStatusForError(err) == http.StatusInternalServerError && msg == "sql: no rows in result set" {
+		msg = "not found"
+	}
+	if httpStatusForError(err) == http.StatusNotFound && msg == "sql: no rows in result set" {
+		msg = "not found"
+	}
+	http.Error(w, msg, httpStatusForError(err))
 }

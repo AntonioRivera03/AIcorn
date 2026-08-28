@@ -27,9 +27,12 @@ import { useMcpToolsQuery } from "@/features/persona/queries/use-mcp-tools-query
 import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonaQuery } from "@/features/persona/queries/use-persona-query";
 import {
+  LEGACY_PERSONA_MODELS,
+  PERSONA_AGENTS,
   PERSONA_HARNESSES,
   PERSONA_MODELS,
   type Persona,
+  type PersonaAgent,
   type PersonaHarness,
   type PersonaModel,
 } from "@/types/types";
@@ -133,6 +136,10 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
     if (!draft) return;
     save({ ...draft, Model });
   };
+  const saveAgent = (Agent: PersonaAgent | "") => {
+    if (!draft) return;
+    save({ ...draft, Agent });
+  };
   const saveTools = (AllowedTools: string[]) => {
     if (!draft) return;
     save({ ...draft, AllowedTools });
@@ -207,7 +214,7 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
                 className="min-w-0 flex-1"
               />
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="persona-drawer-harness">Harness</Label>
                   <Select value={draft.Harness} onValueChange={saveHarness} disabled={updatePersona.isPending}>
@@ -233,6 +240,39 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
                       {PERSONA_MODELS.map((model) => (
                         <SelectItem key={model} value={model} className="capitalize">
                           {model}
+                        </SelectItem>
+                      ))}
+                      {draft.Model &&
+                        (LEGACY_PERSONA_MODELS as readonly string[]).includes(draft.Model) &&
+                        !(PERSONA_MODELS as readonly string[]).includes(draft.Model) && (
+                          <SelectItem key={draft.Model} value={draft.Model} className="capitalize">
+                            {draft.Model} (legacy)
+                          </SelectItem>
+                        )}
+                      {draft.Model &&
+                        !(PERSONA_MODELS as readonly string[]).includes(draft.Model) &&
+                        !(LEGACY_PERSONA_MODELS as readonly string[]).includes(draft.Model) && (
+                          <SelectItem key={draft.Model} value={draft.Model}>
+                            {draft.Model} (legacy)
+                          </SelectItem>
+                        )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="persona-drawer-agent">Agent</Label>
+                  <Select
+                    value={draft.Agent ?? ""}
+                    onValueChange={(v) => saveAgent(v as PersonaAgent | "")}
+                    disabled={updatePersona.isPending}
+                  >
+                    <SelectTrigger id="persona-drawer-agent" className="w-full">
+                      <SelectValue placeholder="Select agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PERSONA_AGENTS.map((agent) => (
+                        <SelectItem key={agent} value={agent}>
+                          {agent}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -21,6 +21,7 @@ import UpcomingRowProjectChecklist from "./upcoming-task-row/upcoming-row-projec
 import { useSharedSelection, selectedItemClasses } from "@/hooks/useSelection";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { useMemo } from "react";
+import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
 
 type Props = {
   task: TaskWithProject;
@@ -98,6 +99,7 @@ function UpcomingTaskRowInner({ task, stageById, project }: Props) {
                 {task.Name && <TooltipContent>{task.Name}</TooltipContent>}
               </Tooltip>
               <UpcomingRowProjectChecklist />
+              <AgentWorkingBadge taskId={task.ID} compact className="mt-0.5" />
             </span>
 
             {/* Stage chip */}

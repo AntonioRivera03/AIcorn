@@ -22,6 +22,7 @@ import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { SubtaskProgressBar } from "@/features/task/relationships/subtask-progress-bar";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
 
 type DragListeners = Record<string, (e: React.SyntheticEvent) => void>;
 
@@ -139,6 +140,7 @@ export function KanbanItem({
                 />
 
                 <UnresolvedBlockersBadge taskId={task.ID} />
+                <AgentWorkingBadge taskId={task.ID} />
               </span>
             </ItemContent>
 
