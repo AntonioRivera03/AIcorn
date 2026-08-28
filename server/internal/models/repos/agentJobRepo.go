@@ -357,6 +357,148 @@ func (repo *AgentJobRepo) CreateJobsTx(tx *sql.Tx, jobs []models.AgentJob) error
 	return err
 }
 
+func (repo *AgentJobRepo) ListActiveByProject(projectID int) ([]models.AgentJob, error) {
+	return repo.ListFiltered(&projectID, []string{
+		models.AgentJobStatusPending,
+		models.AgentJobStatusClaimed,
+		models.AgentJobStatusRunning,
+	})
+}
+
+func (repo *AgentJobRepo) ListActiveByProjectIDs(projectIDs []int) ([]models.AgentJob, error) {
+	if len(projectIDs) == 0 {
+		return []models.AgentJob{}, nil
+	}
+	placeholders, args := intIdPlaceholders(projectIDs)
+	query := `
+		SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+		FROM agent_job aj
+		JOIN task t ON t.id = aj.task
+		JOIN checklist c ON c.id = t.checklist
+		WHERE c.project IN (` + placeholders + `)
+		  AND aj.status IN ('pending','claimed','running')
+		ORDER BY aj.createdAt ASC;`
+	rows, err := repo.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	jobs := []models.AgentJob{}
+	for rows.Next() {
+		var j models.AgentJob
+		if err := scanAgentJob(rows, &j); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs, rows.Err()
+}
+
+func (repo *AgentJobRepo) ListFiltered(projectID *int, statuses []string) ([]models.AgentJob, error) {
+	expanded := []string{}
+	for _, s := range statuses {
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "active" {
+			expanded = append(expanded, models.AgentJobStatusPending, models.AgentJobStatusClaimed, models.AgentJobStatusRunning)
+		} else {
+			expanded = append(expanded, trimmed)
+		}
+	}
+	seen := map[string]bool{}
+	deduped := []string{}
+	for _, s := range expanded {
+		if !seen[s] {
+			seen[s] = true
+			deduped = append(deduped, s)
+		}
+	}
+	expanded = deduped
+
+	hasProject := projectID != nil
+	hasStatuses := len(expanded) > 0
+
+	if !hasProject && !hasStatuses {
+		return repo.ListAll()
+	}
+	if hasProject && hasStatuses {
+		placeholders, args := stringPlaceholders(expanded)
+		query := `
+			SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+			FROM agent_job aj
+			JOIN task t ON t.id = aj.task
+			JOIN checklist c ON c.id = t.checklist
+			WHERE c.project = ?
+			  AND aj.status IN (` + placeholders + `)
+			ORDER BY aj.createdAt ASC;`
+		allArgs := append([]any{*projectID}, args...)
+		rows, err := repo.DB.Query(query, allArgs...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		jobs := []models.AgentJob{}
+		for rows.Next() {
+			var j models.AgentJob
+			if err := scanAgentJob(rows, &j); err != nil {
+				return nil, err
+			}
+			jobs = append(jobs, j)
+		}
+		return jobs, rows.Err()
+	}
+	if hasProject {
+		query := `
+			SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+			FROM agent_job aj
+			JOIN task t ON t.id = aj.task
+			JOIN checklist c ON c.id = t.checklist
+			WHERE c.project = ?
+			ORDER BY aj.createdAt ASC;`
+		rows, err := repo.DB.Query(query, *projectID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		jobs := []models.AgentJob{}
+		for rows.Next() {
+			var j models.AgentJob
+			if err := scanAgentJob(rows, &j); err != nil {
+				return nil, err
+			}
+			jobs = append(jobs, j)
+		}
+		return jobs, rows.Err()
+	}
+	placeholders, args := stringPlaceholders(expanded)
+	query := `SELECT ` + agentJobColumns + ` FROM agent_job WHERE status IN (` + placeholders + `) ORDER BY createdAt ASC;`
+	rows, err := repo.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	jobs := []models.AgentJob{}
+	for rows.Next() {
+		var j models.AgentJob
+		if err := scanAgentJob(rows, &j); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs, rows.Err()
+}
+
+func stringPlaceholders(vals []string) (string, []any) {
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(vals)), ",")
+	args := make([]any, len(vals))
+	for i, v := range vals {
+		args[i] = v
+	}
+	return placeholders, args
+}
+
 func (repo *AgentJobRepo) CreateRunAndCompleteTx(run *models.AgentRun, finalStatus string) error {
 	tx, err := repo.DB.Begin()
 	if err != nil {

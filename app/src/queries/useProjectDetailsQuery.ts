@@ -12,7 +12,7 @@ export function useProjectDetailsQuery(
     queryKey: ["projectDetails", projectId, JSON.stringify(filter)],
     enabled: enabled,
     staleTime: 10_000,
-    refetchInterval: 30_000,
+    refetchInterval: false,
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const url = new URL(`/api/project/${projectId}`, window.location.origin);

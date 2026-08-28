@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Bot } from "lucide-react";
-import { isAgentWorking, useAgentJobs } from "@/features/agentJob/queries/useAgentJobs";
+import { useContext, useMemo } from "react";
+import { ProjectContext } from "@/contexts/project/ProjectContext";
+import { useActiveAgentJobs } from "@/features/agentJob/queries/useActiveAgentJobs";
 
 type Props = {
   taskId: number;
@@ -9,8 +11,10 @@ type Props = {
 };
 
 export function AgentWorkingBadge({ taskId, className, compact = false }: Props) {
-  const { data } = useAgentJobs(taskId);
-  const working = isAgentWorking(data?.jobs);
+  const { Project } = useContext(ProjectContext);
+  const projectId = Project?.ID ?? 0;
+  const { activeTaskIds } = useActiveAgentJobs(projectId);
+  const working = useMemo(() => activeTaskIds.has(taskId), [activeTaskIds, taskId]);
   if (!working) return null;
 
   if (compact) {

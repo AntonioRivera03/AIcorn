@@ -185,6 +185,30 @@ func (s *AgentJobService) UpdateStatus(jobID int, status string) (bool, error) {
 	return s.JobRepo.UpdateStatus(jobID, status)
 }
 
+func (s *AgentJobService) ListActiveByProject(projectID int) ([]models.AgentJob, error) {
+	return s.JobRepo.ListActiveByProject(projectID)
+}
+
+func (s *AgentJobService) ListActiveByProjectIDs(projectIDs []int) ([]models.AgentJob, error) {
+	return s.JobRepo.ListActiveByProjectIDs(projectIDs)
+}
+
+func (s *AgentJobService) ListFiltered(projectID *int, statuses []string) ([]models.AgentJob, error) {
+	return s.JobRepo.ListFiltered(projectID, statuses)
+}
+
+func (s *AgentJobService) ListActiveMapByProject(projectID int) (map[int]bool, error) {
+	jobs, err := s.JobRepo.ListActiveByProject(projectID)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[int]bool, len(jobs))
+	for _, j := range jobs {
+		m[j.Task] = true
+	}
+	return m, nil
+}
+
 func (s *AgentJobService) LoadTaskForRun(taskID int) (*models.ChecklistTask, error) {
 	if s.TaskRepo != nil {
 		task, err := s.TaskRepo.FindOne(int64(taskID))

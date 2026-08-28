@@ -258,3 +258,216 @@ func TestAgentJobRepo_UpdateStatus(t *testing.T) {
 		t.Fatal("UpdateStatus on missing ID returned true")
 	}
 }
+
+func setupAgentJobProjectTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", ":memory:?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE project (id INTEGER PRIMARY KEY);`); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE checklist (id INTEGER PRIMARY KEY, project INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE);`); err != nil {
+		t.Fatalf("create checklist: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE persona (id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
+		t.Fatalf("create persona: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER NOT NULL REFERENCES checklist(id) ON DELETE CASCADE);`); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE agent_job (
+		    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		    task       INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+		    persona    INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+		    status     TEXT NOT NULL,
+		    fromStage  INTEGER,
+		    toStage    INTEGER,
+		    claimedAt  TEXT,
+		    startedAt  TEXT,
+		    finishedAt TEXT,
+		    attempts   INTEGER NOT NULL DEFAULT 0,
+		    error      TEXT,
+		    createdAt  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+		);
+	`); err != nil {
+		t.Fatalf("create agent_job: %v", err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE agent_run (
+		    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+		    job       INTEGER NOT NULL REFERENCES agent_job(id) ON DELETE CASCADE,
+		    output    TEXT,
+		    summary   TEXT,
+		    exitCode  INTEGER,
+		    usageJson TEXT,
+		    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+		);
+	`); err != nil {
+		t.Fatalf("create agent_run: %v", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);`); err != nil {
+		t.Fatalf("create index: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO persona (id) VALUES (1);`); err != nil {
+		t.Fatalf("seed persona: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO project (id) VALUES (1), (2);`); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO checklist (id, project) VALUES (10, 1), (11, 1), (20, 2);`); err != nil {
+		t.Fatalf("seed checklist: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO task (id, checklist) VALUES (1, 10), (2, 10), (3, 11), (4, 20);`); err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestAgentJobRepo_ListActiveByProject_ReturnsActiveOnly(t *testing.T) {
+	db := setupAgentJobProjectTestDB(t)
+	repo := &AgentJobRepo{DB: db}
+	insert := func(taskID int, status string, createdAt string) {
+		t.Helper()
+		if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (?, 1, ?, 0, ?);`, taskID, status, createdAt); err != nil {
+			t.Fatalf("insert job task %d status %s: %v", taskID, status, err)
+		}
+	}
+	insert(1, models.AgentJobStatusPending, "2026-01-01T00:00:01Z")
+	insert(2, models.AgentJobStatusClaimed, "2026-01-01T00:00:02Z")
+	insert(3, models.AgentJobStatusRunning, "2026-01-01T00:00:03Z")
+	insert(1, models.AgentJobStatusCompleted, "2026-01-01T00:00:04Z")
+	insert(2, models.AgentJobStatusFailed, "2026-01-01T00:00:05Z")
+	insert(4, models.AgentJobStatusPending, "2026-01-01T00:00:06Z")
+	jobs, err := repo.ListActiveByProject(1)
+	if err != nil {
+		t.Fatalf("ListActiveByProject: %v", err)
+	}
+	if len(jobs) != 3 {
+		t.Fatalf("got %d jobs; want 3 active for project 1, got %+v", len(jobs), jobs)
+	}
+	for _, j := range jobs {
+		if j.Status == models.AgentJobStatusCompleted || j.Status == models.AgentJobStatusFailed {
+			t.Fatalf("returned non-active status %q", j.Status)
+		}
+	}
+	if jobs[0].Status != models.AgentJobStatusPending || jobs[1].Status != models.AgentJobStatusClaimed || jobs[2].Status != models.AgentJobStatusRunning {
+		t.Fatalf("ordering mismatch: %+v", jobs)
+	}
+	if jobs[0].Task != 1 || jobs[1].Task != 2 || jobs[2].Task != 3 {
+		t.Fatalf("task mapping mismatch: %+v", jobs)
+	}
+}
+
+func TestAgentJobRepo_ListActiveByProject_EmptyWhenNone(t *testing.T) {
+	db := setupAgentJobProjectTestDB(t)
+	repo := &AgentJobRepo{DB: db}
+	jobs, err := repo.ListActiveByProject(1)
+	if err != nil {
+		t.Fatalf("ListActiveByProject empty: %v", err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("got %d jobs; want 0 when none", len(jobs))
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (1, 1, 'completed', 0, '2026-01-01T00:00:01Z');`); err != nil {
+		t.Fatalf("insert completed: %v", err)
+	}
+	jobs, err = repo.ListActiveByProject(1)
+	if err != nil {
+		t.Fatalf("ListActiveByProject after completed: %v", err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("got %d jobs; want 0 when only completed", len(jobs))
+	}
+}
+
+func TestAgentJobRepo_ListActiveByProject_CompletedNotReturned(t *testing.T) {
+	db := setupAgentJobProjectTestDB(t)
+	repo := &AgentJobRepo{DB: db}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (1, 1, 'completed', 0, '2026-01-01T00:00:01Z');`); err != nil {
+		t.Fatalf("insert completed: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (2, 1, 'failed', 0, '2026-01-01T00:00:02Z');`); err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (3, 1, 'pending', 0, '2026-01-01T00:00:03Z');`); err != nil {
+		t.Fatalf("insert pending: %v", err)
+	}
+	jobs, err := repo.ListActiveByProject(1)
+	if err != nil {
+		t.Fatalf("ListActiveByProject: %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("got %d jobs; want 1 pending only, got %+v", len(jobs), jobs)
+	}
+	if jobs[0].Status != models.AgentJobStatusPending {
+		t.Fatalf("status = %q; want pending", jobs[0].Status)
+	}
+}
+
+func TestAgentJobRepo_ListFiltered_ProjectAndStatus(t *testing.T) {
+	db := setupAgentJobProjectTestDB(t)
+	repo := &AgentJobRepo{DB: db}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (1, 1, 'pending', 0, '2026-01-01T00:00:01Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (2, 1, 'claimed', 0, '2026-01-01T00:00:02Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (4, 1, 'pending', 0, '2026-01-01T00:00:03Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	pid := 1
+	jobs, err := repo.ListFiltered(&pid, []string{"pending"})
+	if err != nil {
+		t.Fatalf("ListFiltered project+pending: %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].Task != 1 {
+		t.Fatalf("got %+v; want 1 job task 1", jobs)
+	}
+	jobs, err = repo.ListFiltered(&pid, []string{"active"})
+	if err != nil {
+		t.Fatalf("ListFiltered active: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("active got %d; want 2", len(jobs))
+	}
+	jobs, err = repo.ListFiltered(nil, []string{"pending"})
+	if err != nil {
+		t.Fatalf("ListFiltered nil project pending: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("pending all projects got %d; want 2 (tasks 1 and 4)", len(jobs))
+	}
+}
+
+func TestAgentJobRepo_ListActiveByProjectIDs(t *testing.T) {
+	db := setupAgentJobProjectTestDB(t)
+	repo := &AgentJobRepo{DB: db}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (1, 1, 'pending', 0, '2026-01-01T00:00:01Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (4, 1, 'running', 0, '2026-01-01T00:00:02Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO agent_job (task, persona, status, attempts, createdAt) VALUES (2, 1, 'completed', 0, '2026-01-01T00:00:03Z');`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	jobs, err := repo.ListActiveByProjectIDs([]int{1, 2})
+	if err != nil {
+		t.Fatalf("ListActiveByProjectIDs: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("got %d; want 2 active across both projects, got %+v", len(jobs), jobs)
+	}
+	jobs, err = repo.ListActiveByProjectIDs([]int{2})
+	if err != nil {
+		t.Fatalf("ListActiveByProjectIDs single: %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].Task != 4 {
+		t.Fatalf("project 2 got %+v; want task 4", jobs)
+	}
+}

@@ -65,7 +65,7 @@ export function useAgentJobs(taskId: number) {
     enabled: !!taskId,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
-    refetchInterval: 10_000,
+    refetchInterval: false,
     queryFn: async () => {
       const response = await fetch(`/api/agent-jobs/${taskId}`);
       if (!response.ok) throw new Error(await response.text());
