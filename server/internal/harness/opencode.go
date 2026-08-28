@@ -265,8 +265,7 @@ func (h *OpencodeHarness) Run(ctx context.Context, spec RunSpec) (RunResult, err
 				parsed.Usage = json.RawMessage(opUsage)
 				parsed.IsError = false
 				parseErr = nil
-				// Keep raw usage for storage
-				usageJSON = raw
+				usageJSON = opUsage
 				raw = opResult
 			} else if combined != raw && combined != "" {
 				if opResult2, opUsage2, ok2 := parseOpencodeJSONL(combined); ok2 {
@@ -275,7 +274,7 @@ func (h *OpencodeHarness) Run(ctx context.Context, spec RunSpec) (RunResult, err
 					parsed.IsError = false
 					parseErr = nil
 					raw = opResult2
-					usageJSON = combined
+					usageJSON = opUsage2
 				}
 			}
 		}
@@ -446,7 +445,7 @@ func parseOpencodeJSONL(raw string) (string, string, bool) {
 		return "", "", false
 	}
 	if usage == "" {
-		usage = raw
+		usage = "{}"
 	}
 	return out.String(), usage, true
 }

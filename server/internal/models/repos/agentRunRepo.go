@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
@@ -40,11 +41,28 @@ func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun)
 	} else {
 		run.ExitCode = nil
 	}
-	// usageJson is stored as TEXT JSON; keep raw string but validate if non-empty
+	// usageJson is stored as TEXT JSON; keep raw string. Be tolerant of opencode NDJSON
+	// (multiple top-level objects separated by newlines) which is not valid single JSON
+	// but is still useful for display; don't fail the whole query because of it.
 	if usageJson != "" && usageJson != "null" {
 		var js json.RawMessage
 		if err := json.Unmarshal([]byte(usageJson), &js); err != nil {
-			return fmt.Errorf("parse agent_run %d usageJson: %w", run.ID, err)
+			// Try NDJSON: each non-empty line should be valid JSON
+			lines := strings.Split(usageJson, "\n")
+			validNDJSON := true
+			for _, l := range lines {
+				l = strings.TrimSpace(l)
+				if l == "" {
+					continue
+				}
+				if err2 := json.Unmarshal([]byte(l), &js); err2 != nil {
+					validNDJSON = false
+					break
+				}
+			}
+			if !validNDJSON {
+				// Still store raw, don't error — frontend can render as text
+			}
 		}
 		run.UsageJson = usageJson
 	} else {
