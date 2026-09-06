@@ -116,9 +116,17 @@ export function KanbanItem({
             </ItemHeader>
             <ItemContent className="flex flex-col gap-4">
               <ItemTitle
-                className={task.Name === "" ? "text-muted-foreground" : ""}
+                className={cn(
+                  "items-start flex-wrap",
+                  task.Name === "" ? "text-muted-foreground" : "",
+                )}
               >
-                {task.Name !== "" ? task.Name : "Untitled Task"}
+                <span className="font-mono text-xs text-muted-foreground shrink-0 mt-0.5">
+                  #{task.ID}
+                </span>
+                <span className="min-w-0 flex-1 break-words whitespace-normal">
+                  {task.Name !== "" ? task.Name : "Untitled Task"}
+                </span>
               </ItemTitle>
 
               <span className="w-full flex flex-col gap-1">

@@ -1,0 +1,5 @@
+[mcp_servers.aycorn]
+command = "/home/hal/Projects/AIcorn/server/bin/aycorn-mcp"
+
+[mcp_servers.aycorn.env]
+AYCORN_DB = "/home/hal/.config/aycorn/app.db"
