@@ -12,6 +12,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 )
@@ -44,6 +45,10 @@ func (s *AIService) Health(ctx context.Context, executable string) harness.Engin
 	if info, err := os.Stat(s.MCPExecutable); err != nil || info.IsDir() {
 		health.Ready = false
 		health.Error = "Aycorn's MCP executable is missing. Run make build-mcp or install aycorn-mcp beside aycorn."
+	}
+	if _, err := exec.LookPath("node"); err != nil {
+		health.Ready = false
+		health.Error = "Node.js is required to convert task descriptions for AI. Install Node.js and restart Aycorn."
 	}
 	return health
 }

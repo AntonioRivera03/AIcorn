@@ -4,6 +4,18 @@ A personal, self-hosted task manager that blends Jira-style project tracking wit
 
 ---
 
+## Task AI
+
+Open a task and choose **Ask AI** to ask a question, plan work, implement a change, or review the linked repository. AI runs are explicit: changing an owner or stage does not start one. The same panel shows progress, Stop, Markdown answers, and preserved file changes. Use **AI** in the sidebar to select a model and edit optional instruction presets.
+
+AI requires OpenCode, access to the configured model, Node.js for task-description conversion, and the `aycorn-mcp` companion executable. `make dev`, `make build`, and `make install` build the companion. For a release download, also download the matching `aycorn-mcp-<platform>` asset, rename it to `aycorn-mcp` (`aycorn-mcp.exe` on Windows), and place it beside the Aycorn executable. On macOS/Linux, make it executable; on macOS, remove its quarantine flag as with the main binary. OpenCode authentication remains managed by OpenCode.
+
+Ask and Plan work with just the task. To include code, link a Git repository in project settings. Implement edits an isolated worktree; this version does not give the model shell access or run tests for it. Results preserve the actual branch, workspace, and patch for review. Merging and workspace cleanup remain manual. Existing persona-stage bindings are inactive, and prior AI history is retained.
+
+The [AI redesign review](Documentation/ai-integration-redesign-review.md) explains the replacement architecture. The [implementation and verification notes](Documentation/ai-redesign-implementation.md) record the shipped behavior and remaining validation.
+
+---
+
 ## Versioning
 
 `app/package.json`'s `version` field uses a six-digit scheme: `X.X.X.Y.Y.Y`.

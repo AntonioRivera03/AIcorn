@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -128,6 +129,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The engine runs from a different working directory; MCP must receive
+	// the same absolute database path, including when dev-test sets ./app.db.
+	dbPath, err = filepath.Abs(dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(dbPath); resolveErr == nil {
+		dbPath = resolved
+	}
 	log.Printf("Using database at %s", dbPath)
 
 	db, err := appdb.Open(dbPath)
@@ -221,13 +231,21 @@ func main() {
 	// WAL + busy_timeout already handles concurrent DB access.
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
+	mcpName := "aycorn-mcp"
+	if runtime.GOOS == "windows" {
+		mcpName += ".exe"
+	}
 	mcpPath := os.Getenv("AYCORN_MCP_EXECUTABLE")
 	if mcpPath == "" {
 		executable, _ := os.Executable()
-		mcpPath = filepath.Join(filepath.Dir(executable), "aycorn-mcp")
+		mcpPath = filepath.Join(filepath.Dir(executable), mcpName)
 		if _, err := os.Stat(mcpPath); err != nil {
-			mcpPath, _ = filepath.Abs("bin/aycorn-mcp")
+			mcpPath, _ = filepath.Abs(filepath.Join("bin", mcpName))
 		}
+	}
+	mcpPath, err = filepath.Abs(mcpPath)
+	if err != nil {
+		log.Fatal(err)
 	}
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
 	engine := &harness.OpenCode{MCPExecutable: mcpPath, DBPath: dbPath}

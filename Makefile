@@ -25,7 +25,7 @@ dev-test: build-app-dev build-mcp
     wait
 
 # Full release build: React → embed → single Go binary
-build: build-app build-server
+build: build-app build-mcp build-server
 
 build-app:
 	cd $(APP_DIR) && npm run build
@@ -61,7 +61,7 @@ test-server: build-md-convert
 test-app:
 	cd $(APP_DIR) && npm test
 
-build-server:
+build-server: build-md-convert
 	cd $(SRV_DIR) && CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(VERSION)" -o ../$(BINARY) ./cmd/web
 	@echo "Binary ready: ./$(BINARY) ($(VERSION))"
 

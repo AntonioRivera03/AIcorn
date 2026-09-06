@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { MoreHorizontal, Trash2 } from "lucide-react";
-import { Drawer, DrawerContent } from "@/components/ui/drawer";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerDescription,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -127,7 +132,10 @@ function PersonaEditorSession({
     >
       <DrawerContent className="md:min-w-3xl p-0 overflow-x-visible box-border rounded-lg data-[vaul-drawer-direction=bottom]:h-[calc(100dvh-var(--header-height))] data-[vaul-drawer-direction=bottom]:max-h-dvh flex flex-col">
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <span className="text-sm font-medium">Instruction preset</span>
+          <DrawerTitle>Instruction preset</DrawerTitle>
+          <DrawerDescription className="sr-only">
+            Edit reusable instructions for task AI runs.
+          </DrawerDescription>
           <div className="flex items-center gap-1">
             {draft && (
               <DropdownMenu>

@@ -85,6 +85,26 @@ func makeFakeScript(t *testing.T, body string) string {
 	return path
 }
 
+func TestOpenCodePinsDirectoryDespiteInheritedPWD(t *testing.T) {
+	t.Setenv("PWD", "/wrong/parent-directory")
+	script := makeFakeScript(t, `while [ "$#" -gt 0 ]; do
+ if [ "$1" = "--dir" ]; then shift; target="$1"; fi
+ shift
+done
+[ "$target" = "$PWD" ] || exit 12
+[ "$target" = "$(pwd -P)" ] || exit 13
+echo '{"type":"text","part":{"text":"correct directory"}}'
+echo '{"type":"step_finish","part":{"reason":"stop"}}'`)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = (&OpenCode{}).Run(context.Background(), RunSpec{WorkDir: dir, Request: &models.AIRunRequest{Executable: script, Intent: "ask", TimeoutSeconds: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestUsageAccumulatesAcrossSteps(t *testing.T) {
 	p := eventParser{}
 	p.consume([]byte(`{"type":"step_finish","part":{"reason":"tool-calls","cost":0.1,"tokens":{"input":5,"cache":{"read":4}}}}`))

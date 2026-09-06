@@ -23,7 +23,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey)) return;
       if (e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCommandsOpen((value) => !value);

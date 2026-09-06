@@ -112,6 +112,7 @@ export function AIPanel({
   };
   return (
     <Drawer
+      autoFocus
       open
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -119,7 +120,13 @@ export function AIPanel({
       direction="right"
       handleOnly
     >
-      <DrawerContent className="data-[vaul-drawer-direction=right]:w-[min(44rem,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-none">
+      <DrawerContent
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          textarea.current?.focus();
+        }}
+        className="data-[vaul-drawer-direction=right]:w-[min(44rem,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-none"
+      >
         <DrawerHeader className="border-b border-border p-5">
           <div className="flex items-center justify-between">
             <DrawerTitle className="flex items-center gap-2">

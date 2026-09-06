@@ -110,6 +110,7 @@ func engineConfig(spec RunSpec, h *OpenCode) (string, error) {
 	cfg := map[string]any{
 		"$schema": "https://opencode.ai/config.json", "model": r.Model, "default_agent": "aycorn-run",
 		"autoupdate": false, "share": "disabled", "permission": permissions,
+		"lsp": false, "formatter": false,
 		"agent": map[string]any{"aycorn-run": agent},
 		"mcp":   map[string]any{"aycorn": map[string]any{"type": "local", "command": []string{h.MCPExecutable}, "enabled": true, "environment": map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_RUN_TASK": fmt.Sprint(spec.TaskID)}}},
 	}
@@ -138,13 +139,13 @@ func (h *OpenCode) Run(parent context.Context, spec RunSpec) (RunResult, error) 
 	env := []string{}
 	for _, v := range os.Environ() {
 		k, _, _ := strings.Cut(v, "=")
-		if (!strings.HasPrefix(k, "OPENCODE_") || k == "OPENCODE_AUTH_CONTENT") && k != "XDG_CONFIG_HOME" {
+		if (!strings.HasPrefix(k, "OPENCODE_") || k == "OPENCODE_AUTH_CONTENT") && k != "XDG_CONFIG_HOME" && k != "PWD" && k != "OLDPWD" {
 			env = append(env, v)
 		}
 	}
-	env = append(env, "XDG_CONFIG_HOME="+configDir, "OPENCODE_CONFIG_DIR="+configDir, "OPENCODE_CONFIG_CONTENT="+cfg, "OPENCODE_DISABLE_PROJECT_CONFIG=true", "OPENCODE_DISABLE_EXTERNAL_SKILLS=true", "OPENCODE_DISABLE_CLAUDE_CODE=true")
+	env = append(env, "PWD="+spec.WorkDir, "XDG_CONFIG_HOME="+configDir, "OPENCODE_CONFIG_DIR="+configDir, "OPENCODE_CONFIG_CONTENT="+cfg, "OPENCODE_DISABLE_PROJECT_CONFIG=true", "OPENCODE_DISABLE_EXTERNAL_SKILLS=true", "OPENCODE_DISABLE_CLAUDE_CODE=true")
 	prompt := fmt.Sprintf("Intent: %s\nTask ID: %d\nTask: %s\n\nTask description:\n%s\n\nRequest:\n%s", r.Intent, spec.TaskID, r.TaskName, r.TaskBody, r.Instruction)
-	cmd := exec.CommandContext(ctx, r.Executable, "run", "--pure", "--format", "json", "--model", r.Model, "--agent", "aycorn-run", prompt)
+	cmd := exec.CommandContext(ctx, r.Executable, "run", "--pure", "--format", "json", "--dir", spec.WorkDir, "--model", r.Model, "--agent", "aycorn-run", prompt)
 	cmd.Dir = spec.WorkDir
 	cmd.Env = env
 	configureProcess(cmd)
