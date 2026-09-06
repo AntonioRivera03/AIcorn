@@ -84,6 +84,9 @@ type ReadTaskInput struct {
 }
 
 func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in ReadTaskInput) (*mcp.CallToolResult, *models.TaskWithProject, error) {
+	if t.runTaskID > 0 && in.TaskID != t.runTaskID {
+		return nil, nil, errors.New("this run may only read its own task")
+	}
 	task, err := t.taskService.GetTask(in.TaskID)
 	if err != nil {
 		return nil, nil, err

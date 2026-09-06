@@ -1,6 +1,9 @@
 package harness
 
-import "context"
+import (
+	"context"
+	"github.com/waseem-polus/aycorn/server/internal/models"
+)
 
 // RunSpec seeds a harness execution from the current ticket state.
 //
@@ -18,15 +21,17 @@ import "context"
 // All Phase 4 additions (WorkDir, BranchName, BudgetUSD) are optional and
 // zero-safe so the Phase 3 ReadOnlyShim remains valid without them.
 type RunSpec struct {
-	JobID     int
-	TaskID    int
-	PersonaID int
+	Request    *models.AIRunRequest
+	OnProgress func(string, string) error
+	JobID      int
+	TaskID     int
+	PersonaID  int
 
 	TaskName     string
 	TaskBody     string // Plate JSON (already normalized)
 	SystemPrompt string
 	AllowedTools []string // per-job, per-persona MCP tool allowlist
-	Agent        string // persona Agent, e.g. "research", "code-implementation"
+	Agent        string   // persona Agent, e.g. "research", "code-implementation"
 
 	// WorkDir is the absolute path to the git worktree for this job.
 	// Empty means no filesystem (Phase 3 shim / dry run).

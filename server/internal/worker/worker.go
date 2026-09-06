@@ -38,10 +38,11 @@ import (
 //  7. CAS transition task to Review if job.ToStage/FromStage provided (defensive, ignores ErrStageConflict).
 //  8. Leave branch/worktree for human (do NOT call worktree.Remove on success), just log branch name.
 type Worker struct {
-	JobService  *services.AgentJobService
-	TaskService *services.TaskService
-	ProjectRepo *repos.ProjectRepo
-	Harness     harness.Harness
+	ExplicitOnly bool
+	JobService   *services.AgentJobService
+	TaskService  *services.TaskService
+	ProjectRepo  *repos.ProjectRepo
+	Harness      harness.Harness
 
 	mu       sync.Mutex
 	cancel   context.CancelFunc
@@ -73,7 +74,11 @@ func (w *Worker) Start(ctx context.Context, interval time.Duration) error {
 		return nil
 	}
 
-	if w.JobService != nil {
+	if w.JobService != nil && w.ExplicitOnly {
+		if err := w.JobService.JobRepo.InterruptInFlight(); err != nil {
+			return err
+		}
+	} else if w.JobService != nil {
 		if n, err := w.JobService.ResetStale(StaleTimeout); err != nil {
 			log.Printf("worker: ResetStale failed: %v", err)
 		} else if n > 0 {
@@ -127,7 +132,11 @@ func (w *Worker) loop(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runCtx, runCancel := context.WithTimeout(ctx, harness.DefaultJobLeaseTimeout)
+			runCtx, runCancel := context.WithCancel(ctx)
+			if !w.ExplicitOnly {
+				runCancel()
+				runCtx, runCancel = context.WithTimeout(ctx, harness.DefaultJobLeaseTimeout)
+			}
 			_, err := w.RunOnce(runCtx)
 			runCancel()
 			if err != nil {
@@ -181,6 +190,9 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
+	if w.ExplicitOnly || job.Request != nil {
+		return w.runExplicit(ctx, job)
+	}
 	ok, err := w.JobService.MarkRunning(job.ID)
 	if err != nil {
 		if _, ferr := w.JobService.Fail(job.ID, err.Error()); ferr != nil {

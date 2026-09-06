@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -81,6 +83,7 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	aiService            *services.AIService
 	projectRepo          *repos.ProjectRepo
 	checklistRepo        *repos.ChecklistRepo
 	workflowRepo         *repos.WorkflowRepo
@@ -212,10 +215,18 @@ func main() {
 	// WAL + busy_timeout already handles concurrent DB access.
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
-	shim := harness.NewReadOnlyShim()
-	real := harness.NewOpencodeHarness()
-	router := harness.NewRoutingHarness(shim, real)
-	w := worker.New(agentJobService, taskService, router)
+	mcpPath := os.Getenv("AYCORN_MCP_EXECUTABLE")
+	if mcpPath == "" {
+		executable, _ := os.Executable()
+		mcpPath = filepath.Join(filepath.Dir(executable), "aycorn-mcp")
+		if _, err := os.Stat(mcpPath); err != nil {
+			mcpPath, _ = filepath.Abs("bin/aycorn-mcp")
+		}
+	}
+	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
+	engine := &harness.OpenCode{MCPExecutable: mcpPath, DBPath: dbPath}
+	w := worker.New(agentJobService, taskService, engine)
+	w.ExplicitOnly = true
 	w.ProjectRepo = projectRepo
 	if err := w.Start(workerCtx, 10*time.Second); err != nil {
 		log.Printf("worker start: %v", err)
@@ -223,6 +234,7 @@ func main() {
 	defer w.Stop()
 
 	app := app{
+		aiService:            aiService,
 		projectRepo:          projectRepo,
 		checklistRepo:        checklistRepo,
 		workflowRepo:         workflowRepo,

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
@@ -14,12 +13,13 @@ type AgentRunRepo struct {
 	DB *sql.DB
 }
 
-const agentRunColumns = "id, job, COALESCE(output, ''), COALESCE(summary, ''), exitCode, COALESCE(usageJson, ''), createdAt"
+const agentRunColumns = "id, job, COALESCE(output, ''), COALESCE(summary, ''), exitCode, COALESCE(usageJson, ''), createdAt, artifactJson"
 
 func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun) error {
 	var exitCode sql.NullInt64
 	var usageJson string
 	var createdAt string
+	var artifacts string
 	var output string
 	var summary string
 	if err := scanner.Scan(
@@ -29,8 +29,11 @@ func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun)
 		&summary,
 		&exitCode,
 		&usageJson,
-		&createdAt,
+		&createdAt, &artifacts,
 	); err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(artifacts), &run.Artifacts); err != nil {
 		return err
 	}
 	run.Output = output
@@ -41,33 +44,7 @@ func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun)
 	} else {
 		run.ExitCode = nil
 	}
-	// usageJson is stored as TEXT JSON; keep raw string. Be tolerant of opencode NDJSON
-	// (multiple top-level objects separated by newlines) which is not valid single JSON
-	// but is still useful for display; don't fail the whole query because of it.
-	if usageJson != "" && usageJson != "null" {
-		var js json.RawMessage
-		if err := json.Unmarshal([]byte(usageJson), &js); err != nil {
-			// Try NDJSON: each non-empty line should be valid JSON
-			lines := strings.Split(usageJson, "\n")
-			validNDJSON := true
-			for _, l := range lines {
-				l = strings.TrimSpace(l)
-				if l == "" {
-					continue
-				}
-				if err2 := json.Unmarshal([]byte(l), &js); err2 != nil {
-					validNDJSON = false
-					break
-				}
-			}
-			if !validNDJSON {
-				// Still store raw, don't error — frontend can render as text
-			}
-		}
-		run.UsageJson = usageJson
-	} else {
-		run.UsageJson = ""
-	}
+	run.UsageJson = usageJson // Legacy provider output remains readable.
 	parsed, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return fmt.Errorf("parse agent_run %d createdAt: %w", run.ID, err)

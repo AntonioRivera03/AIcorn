@@ -20,6 +20,7 @@ func parseRFC3339(value string) (*time.Time, error) {
 }
 
 type toolset struct {
+	runTaskID        int
 	taskService      *services.TaskService
 	projectService   *services.ProjectService
 	stageService     *services.StageService
@@ -60,6 +61,10 @@ func (toolset *toolset) bodyToBody(ctx context.Context, markdownBody string) (st
 }
 
 func (toolset *toolset) register(server *mcp.Server) {
+	if toolset.runTaskID > 0 {
+		mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)
+		return
+	}
 	mcp.AddTool(server, mcptools.Tool(mcptools.SearchTasks), toolset.searchTasks)
 	mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)
 	mcp.AddTool(server, mcptools.Tool(mcptools.ListProjects), toolset.listProjects)

@@ -123,8 +123,8 @@ func TestRouting_MCPConfigPassedToReal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if !strings.Contains(res.Output, "--mcp-config") {
-		t.Fatalf("expected --mcp-config in args, got %q", res.Output)
+	if strings.Contains(res.Output, "--mcp-config") {
+		t.Fatalf("OpenCode has no --mcp-config flag: %q", res.Output)
 	}
 	if !strings.Contains(res.Output, mcpPath) {
 		t.Fatalf("expected mcp path %q in output %q", mcpPath, res.Output)

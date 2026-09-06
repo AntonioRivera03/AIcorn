@@ -12,14 +12,14 @@ VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev
 # Development: build frontend with dev icon, then start Go server against your
 # personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
 # back to <UserConfigDir>/aycorn/app.db, same DB the installed binary uses).
-dev: build-app-dev
+dev: build-app-dev build-mcp
 	@trap 'kill 0' INT; \
     cd $(SRV_DIR) && go run ./cmd/web; \
     wait
 
 # Development against a disposable test DB: pins AYCORN_DB to server/app.db so
 # it never touches your personal data. Safe to `rm -f server/app.db` anytime.
-dev-test: build-app-dev
+dev-test: build-app-dev build-mcp
 	@trap 'kill 0' INT; \
     cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web; \
     wait
@@ -68,8 +68,9 @@ build-server:
 # Install the binary system-wide so `aycorn` works from anywhere.
 # macOS/Linux: copies to /usr/local/bin (may require sudo).
 # To uninstall: sudo rm /usr/local/bin/aycorn
-install: build
+install: build build-mcp
 	sudo cp $(BINARY) /usr/local/bin/$(BINARY)
+	sudo cp $(SRV_DIR)/bin/aycorn-mcp /usr/local/bin/aycorn-mcp
 	@echo "Installed: $$(which aycorn)"
 
 # Gracefully stop the running aycorn process (no-op if it isn't running).

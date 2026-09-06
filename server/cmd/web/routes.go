@@ -105,6 +105,10 @@ func (app *app) routes() http.Handler {
 	// Legacy binding data remains editable for compatibility; it never triggers execution.
 	mux.HandleFunc("PUT /api/stage/{stageId}/persona", app.putStagePersona)
 	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
+	mux.HandleFunc("GET /api/ai/settings", app.getAISettings)
+	mux.HandleFunc("PUT /api/ai/settings", app.putAISettings)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/runs", app.startAIRun)
+	mux.HandleFunc("POST /api/ai/runs/{jobId}/cancel", app.cancelAIRun)
 	mux.HandleFunc("GET /api/agent-jobs", app.getAgentJobs)
 	mux.HandleFunc("GET /api/agent-jobs/{taskId}", app.getAgentJobsForTask)
 

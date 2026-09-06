@@ -8,6 +8,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
@@ -70,6 +71,13 @@ func main() {
 		converter:        &markdown.Converter{},
 	}
 
+	if raw, scoped := os.LookupEnv("AYCORN_RUN_TASK"); scoped {
+		taskID, err := strconv.Atoi(raw)
+		if err != nil || taskID <= 0 {
+			log.Fatal("invalid run task scope")
+		}
+		toolset.runTaskID = taskID
+	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)
 	toolset.register(srv)
 

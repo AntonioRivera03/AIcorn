@@ -48,7 +48,7 @@ func setupAgentJobServiceTestDB(t *testing.T) *sql.DB {
 		    attempts   INTEGER NOT NULL DEFAULT 0,
 		    error      TEXT,
 		    createdAt  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-		);
+		, requestJson TEXT NOT NULL DEFAULT '{}', progress TEXT NOT NULL DEFAULT '');
 	`); err != nil {
 		t.Fatalf("create agent_job: %v", err)
 	}
@@ -61,7 +61,7 @@ func setupAgentJobServiceTestDB(t *testing.T) *sql.DB {
 		    exitCode  INTEGER,
 		    usageJson TEXT,
 		    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-		);
+		, artifactJson TEXT NOT NULL DEFAULT '{}' );
 	`); err != nil {
 		t.Fatalf("create agent_run: %v", err)
 	}

@@ -2,6 +2,7 @@ package repos
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,7 +19,7 @@ type AgentJobRepo struct {
 	DB *sql.DB
 }
 
-const agentJobColumns = "id, task, persona, status, fromStage, toStage, claimedAt, startedAt, finishedAt, attempts, COALESCE(error, ''), createdAt"
+const agentJobColumns = "id, task, COALESCE(persona,0), status, fromStage, toStage, claimedAt, startedAt, finishedAt, attempts, COALESCE(error, ''), createdAt, requestJson, progress"
 
 func scanAgentJob(scanner interface{ Scan(...any) error }, job *models.AgentJob) error {
 	var fromStage sql.NullInt64
@@ -27,6 +28,7 @@ func scanAgentJob(scanner interface{ Scan(...any) error }, job *models.AgentJob)
 	var startedAt sql.NullString
 	var finishedAt sql.NullString
 	var createdAt string
+	var request string
 	if err := scanner.Scan(
 		&job.ID,
 		&job.Task,
@@ -40,8 +42,14 @@ func scanAgentJob(scanner interface{ Scan(...any) error }, job *models.AgentJob)
 		&job.Attempts,
 		&job.Error,
 		&createdAt,
+		&request, &job.Progress,
 	); err != nil {
 		return err
+	}
+	if request != "" && request != "{}" {
+		if err := json.Unmarshal([]byte(request), &job.Request); err != nil {
+			return err
+		}
 	}
 	if fromStage.Valid {
 		v := int(fromStage.Int64)
@@ -379,12 +387,12 @@ func (repo *AgentJobRepo) ListActiveByProjectIDs(projectIDs []int) ([]models.Age
 	}
 	placeholders, args := intIdPlaceholders(projectIDs)
 	query := `
-		SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+		SELECT aj.id, aj.task, COALESCE(aj.persona,0), aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt, aj.requestJson, aj.progress
 		FROM agent_job aj
 		JOIN task t ON t.id = aj.task
 		JOIN checklist c ON c.id = t.checklist
 		WHERE c.project IN (` + placeholders + `)
-		  AND aj.status IN ('pending','claimed','running')
+		  AND aj.status IN ('pending','claimed','running','canceling')
 		ORDER BY aj.createdAt ASC;`
 	rows, err := repo.DB.Query(query, args...)
 	if err != nil {
@@ -434,7 +442,7 @@ func (repo *AgentJobRepo) ListFiltered(projectID *int, statuses []string) ([]mod
 	if hasProject && hasStatuses {
 		placeholders, args := stringPlaceholders(expanded)
 		query := `
-			SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+			SELECT aj.id, aj.task, COALESCE(aj.persona,0), aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt, aj.requestJson, aj.progress
 			FROM agent_job aj
 			JOIN task t ON t.id = aj.task
 			JOIN checklist c ON c.id = t.checklist
@@ -459,7 +467,7 @@ func (repo *AgentJobRepo) ListFiltered(projectID *int, statuses []string) ([]mod
 	}
 	if hasProject {
 		query := `
-			SELECT aj.id, aj.task, aj.persona, aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt
+			SELECT aj.id, aj.task, COALESCE(aj.persona,0), aj.status, aj.fromStage, aj.toStage, aj.claimedAt, aj.startedAt, aj.finishedAt, aj.attempts, COALESCE(aj.error, ''), aj.createdAt, aj.requestJson, aj.progress
 			FROM agent_job aj
 			JOIN task t ON t.id = aj.task
 			JOIN checklist c ON c.id = t.checklist

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
 
@@ -43,7 +44,8 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidPersona),
 		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, services.ErrInvalidStageType),
+	case errors.Is(err, services.ErrInvalidAIRun),
+		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
 		errors.Is(err, services.ErrInvalidPersonaAgent),
@@ -61,7 +63,9 @@ func httpStatusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, services.ErrWorkflowInUse),
+	case errors.Is(err, repos.ErrActiveAIRun),
+		errors.Is(err, services.ErrAISetup),
+		errors.Is(err, services.ErrWorkflowInUse),
 		errors.Is(err, services.ErrDuplicateRelationship),
 		errors.Is(err, services.ErrStageConflict),
 		errors.Is(err, services.ErrInvalidJobStatus),
