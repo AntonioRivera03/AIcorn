@@ -55,3 +55,37 @@ func TestToolsetRegister_matchesSharedCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestRunScopeExposesOnlyReadTaskAndRejectsOtherTasks(t *testing.T) {
+	ctx := context.Background()
+	st, ct := mcp.NewInMemoryTransports()
+	server := mcp.NewServer(&mcp.Implementation{Name: "scoped-test", Version: "test"}, nil)
+	(&toolset{runTaskID: 42}).register(server)
+	ss, err := server.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, nil)
+	cs, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	listed, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Tools) != 1 || listed.Tools[0].Name != "read_task" {
+		t.Fatalf("unscoped tools: %+v", listed.Tools)
+	}
+	for _, input := range []mcp.CallToolParams{
+		{Name: "read_task", Arguments: map[string]any{"taskId": 99}},
+		{Name: "update_task", Arguments: map[string]any{"taskId": 42, "name": "forbidden"}},
+	} {
+		result, err := cs.CallTool(ctx, &input)
+		if err == nil && (result == nil || !result.IsError) {
+			t.Fatalf("out-of-scope call accepted: %+v", input)
+		}
+	}
+}

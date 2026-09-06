@@ -125,3 +125,11 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 	req.Key = hex.EncodeToString(key)
 	return s.Jobs.EnqueueAI(taskID, in.PresetID, req)
 }
+
+func (s *AIService) Settings() (models.AISettings, error) { return s.Jobs.AISettings() }
+func (s *AIService) Cancel(id int) (bool, error) {
+	if _, err := s.Jobs.FindOne(id); err != nil {
+		return false, err
+	}
+	return s.Jobs.CancelAI(id)
+}

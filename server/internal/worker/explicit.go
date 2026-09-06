@@ -78,7 +78,7 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 		}
 	}()
 	defer func() { close(stopWatch); <-watchDone }()
-	spec := harness.RunSpec{JobID: job.ID, TaskID: job.Task, PersonaID: job.Persona, Request: job.Request}
+	spec := harness.RunSpec{JobID: job.ID, TaskID: job.Task, Request: job.Request}
 	var wt *worktree.Worktree
 	if job.Request.RepoPath != "" {
 		wt, artifacts.BaseCommit, err = worktree.CreateRun(ctx, job.Request.RepoPath, job.Request.Key)
@@ -108,6 +108,9 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 		return repo.SetProgress(job.ID, progress)
 	}
 	result, err = w.Harness.Run(ctx, spec)
+	if err == nil && result.ExitCode != 0 {
+		err = fmt.Errorf("engine exited with code %d", result.ExitCode)
+	}
 	// Use a separate bounded context after cancellation so partial edits survive.
 	if wt != nil {
 		captureCtx, stop := context.WithTimeout(context.Background(), 20*time.Second)

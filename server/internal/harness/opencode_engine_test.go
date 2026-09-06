@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/waseem-polus/aycorn/server/internal/models"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -71,5 +73,30 @@ func TestOpenCodeCancelKillsDescendants(t *testing.T) {
 	}
 	if !strings.Contains(result.Output, "partial") {
 		t.Fatal("lost cancellation output")
+	}
+}
+
+func makeFakeScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fake.sh")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestUsageAccumulatesAcrossSteps(t *testing.T) {
+	p := eventParser{}
+	p.consume([]byte(`{"type":"step_finish","part":{"reason":"tool-calls","cost":0.1,"tokens":{"input":5,"cache":{"read":4}}}}`))
+	p.consume([]byte(`{"type":"step_finish","part":{"reason":"stop","cost":0.2,"tokens":{"input":3,"cache":{"read":2}}}}`))
+	if !strings.Contains(p.usage, `"input":8`) || !strings.Contains(p.usage, `"read":6`) {
+		t.Fatal(p.usage)
+	}
+	if p.totalCost < 0.299 || p.totalCost > 0.301 {
+		t.Fatal(p.usage)
+	}
+	p.consume([]byte(`{"type":"step_start"}`))
+	if p.finished {
+		t.Fatal("new unfinished step treated as completed")
 	}
 }

@@ -359,7 +359,7 @@ func (repo *TaskRepo) FindOne(taskId int64) (*models.ChecklistTask, error) {
 			t.hasTimePlannedStart,
 			t.hasTimePlannedEnd,
 			t.timeCompleted,
-			t.assignee,
+			COALESCE(t.assignee, ''),
 			t.priority,
 			t.stage,
 			t.checklist,

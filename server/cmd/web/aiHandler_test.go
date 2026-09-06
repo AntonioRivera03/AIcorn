@@ -118,8 +118,7 @@ func TestAIFailurePreservesWorkspaceAndNewFilePatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := worker.New(app.agentJobService, app.taskService, failingEditHarness{})
-	w.ExplicitOnly = true
+	w := worker.New(app.agentJobService, failingEditHarness{})
 	if _, err := w.RunOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -153,8 +152,7 @@ func TestAIRunningCancelRetainsAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := waitingHarness{make(chan struct{})}
-	w := worker.New(app.agentJobService, app.taskService, h)
-	w.ExplicitOnly = true
+	w := worker.New(app.agentJobService, h)
 	done := make(chan error, 1)
 	go func() { _, err := w.RunOnce(context.Background()); done <- err }()
 	select {
@@ -179,5 +177,20 @@ func TestAIRunningCancelRetainsAttempt(t *testing.T) {
 	}
 	if data.Jobs[0].Status != "canceled" || data.Runs[0].Output != "Kept on stop" {
 		t.Fatalf("%+v", data)
+	}
+}
+
+func TestAIHistoryAcceptsUnassignedTask(t *testing.T) {
+	app := aiTestApp(t, "")
+	if _, err := app.aiService.Jobs.DB.Exec("UPDATE task SET assignee=NULL WHERE id=1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.aiService.Start(context.Background(), 1, services.AIRunInput{Intent: "ask"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	app.routes().ServeHTTP(rec, httptest.NewRequest("GET", "/api/agent-jobs/1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("history: %d %s", rec.Code, rec.Body.String())
 	}
 }

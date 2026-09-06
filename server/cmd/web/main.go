@@ -136,6 +136,12 @@ func main() {
 	}
 	defer db.Close()
 
+	releaseWorkerLock, err := worker.AcquireDatabaseLock(dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer releaseWorkerLock()
+
 	if err := appdb.Migrate(db, dbPath); err != nil {
 		log.Fatal(err)
 	}
@@ -225,11 +231,9 @@ func main() {
 	}
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
 	engine := &harness.OpenCode{MCPExecutable: mcpPath, DBPath: dbPath}
-	w := worker.New(agentJobService, taskService, engine)
-	w.ExplicitOnly = true
-	w.ProjectRepo = projectRepo
+	w := worker.New(agentJobService, engine)
 	if err := w.Start(workerCtx, 10*time.Second); err != nil {
-		log.Printf("worker start: %v", err)
+		log.Fatalf("worker start: %v", err)
 	}
 	defer w.Stop()
 

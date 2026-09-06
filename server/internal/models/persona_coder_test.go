@@ -3,11 +3,9 @@ package models_test
 import (
 	"database/sql"
 	"encoding/json"
-	"os"
-	"strings"
+	"slices"
 	"testing"
 
-	"github.com/waseem-polus/aycorn/server/internal/mcptools"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
@@ -79,128 +77,9 @@ func TestCoderPersonaValidation_acceptsWriteTools(t *testing.T) {
 		}
 		// Must include writes
 		for _, tool := range []string{"create_task", "update_task", "move_task_stage"} {
-			if !mcptools.IsAllowed(tool, created.AllowedTools) {
+			if !slices.Contains(created.AllowedTools, tool) {
 				t.Fatalf("Coder allowed_tools missing write tool %q: %v", tool, created.AllowedTools)
 			}
-		}
-	})
-}
-
-func TestCoderVsResearchToolRestriction(t *testing.T) {
-	t.Run("Research cannot call update_task even if model hallucinates", func(t *testing.T) {
-		// FilterTools with research list must exclude update_task
-		filtered := mcptools.FilterTools(researchAllowedTools)
-		names := make([]string, len(filtered))
-		for i, d := range filtered {
-			names[i] = d.Name
-		}
-		if mcptools.IsAllowed("update_task", names) {
-			t.Fatal("research FilterTools result must NOT contain update_task")
-		}
-		if mcptools.IsAllowed("create_task", names) {
-			t.Fatal("research FilterTools result must NOT contain create_task")
-		}
-		if mcptools.IsAllowed("move_task_stage", names) {
-			t.Fatal("research FilterTools result must NOT contain move_task_stage")
-		}
-		// IsAllowed directly on raw allowed list
-		if mcptools.IsAllowed("update_task", researchAllowedTools) {
-			t.Fatal("IsAllowed(update_task) should be false for research persona")
-		}
-	})
-
-	t.Run("Coder can call update_task and create_task", func(t *testing.T) {
-		filtered := mcptools.FilterTools(coderAllowedTools)
-		names := make([]string, len(filtered))
-		for i, d := range filtered {
-			names[i] = d.Name
-		}
-		if !mcptools.IsAllowed("update_task", names) {
-			t.Fatal("Coder FilterTools must contain update_task")
-		}
-		if !mcptools.IsAllowed("create_task", names) {
-			t.Fatal("Coder FilterTools must contain create_task")
-		}
-		if !mcptools.IsAllowed("move_task_stage", names) {
-			t.Fatal("Coder FilterTools must contain move_task_stage")
-		}
-		// Also IsAllowed on raw
-		if !mcptools.IsAllowed("update_task", coderAllowedTools) {
-			t.Fatal("IsAllowed(update_task) should be true for Coder")
-		}
-	})
-
-	t.Run("GenerateMCPConfig for Research lacks update_task", func(t *testing.T) {
-		dir := t.TempDir()
-		path, cleanup, err := mcptools.GenerateMCPConfig(researchAllowedTools, dir)
-		if err != nil {
-			t.Fatalf("GenerateMCPConfig research: %v", err)
-		}
-		defer cleanup()
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read config: %v", err)
-		}
-		raw := string(data)
-		if strings.Contains(raw, "update_task") {
-			t.Fatal("research GenerateMCPConfig must NOT contain update_task")
-		}
-		if strings.Contains(raw, "create_task") {
-			t.Fatal("research GenerateMCPConfig must NOT contain create_task")
-		}
-		var cfg struct {
-			Tools      []string `json:"tools"`
-			MCPServers map[string]struct {
-				AllowedTools []string `json:"allowedTools"`
-			} `json:"mcpServers"`
-		}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
-		if len(cfg.Tools) != 3 {
-			t.Fatalf("research tools len = %d; want 3", len(cfg.Tools))
-		}
-		if mcptools.IsAllowed("update_task", cfg.Tools) {
-			t.Fatal("research cfg.Tools must not allow update_task")
-		}
-	})
-
-	t.Run("GenerateMCPConfig for Coder includes update_task", func(t *testing.T) {
-		dir := t.TempDir()
-		path, cleanup, err := mcptools.GenerateMCPConfig(coderAllowedTools, dir)
-		if err != nil {
-			t.Fatalf("GenerateMCPConfig coder: %v", err)
-		}
-		defer cleanup()
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read config: %v", err)
-		}
-		raw := string(data)
-		if !strings.Contains(raw, "update_task") {
-			t.Fatal("coder GenerateMCPConfig must contain update_task")
-		}
-		if !strings.Contains(raw, "create_task") {
-			t.Fatal("coder GenerateMCPConfig must contain create_task")
-		}
-		if !strings.Contains(raw, "move_task_stage") {
-			t.Fatal("coder GenerateMCPConfig must contain move_task_stage")
-		}
-		var cfg struct {
-			Tools      []string `json:"tools"`
-			MCPServers map[string]struct {
-				AllowedTools []string `json:"allowedTools"`
-			} `json:"mcpServers"`
-		}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
-		if len(cfg.Tools) != len(coderAllowedTools) {
-			t.Fatalf("coder tools len = %d; want %d", len(cfg.Tools), len(coderAllowedTools))
-		}
-		srv := cfg.MCPServers["aycorn"]
-		if !mcptools.IsAllowed("update_task", srv.AllowedTools) {
-			t.Fatal("coder srv.AllowedTools must contain update_task")
 		}
 	})
 }

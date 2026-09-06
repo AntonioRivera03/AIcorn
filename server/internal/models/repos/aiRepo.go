@@ -39,8 +39,8 @@ func (r *AgentJobRepo) SetProgress(id int, text string) error {
 	return err
 }
 func (r *AgentJobRepo) CancelAI(id int) (bool, error) {
-	res, err := r.DB.Exec(`UPDATE agent_job SET status=CASE WHEN status='pending' THEN 'canceled' ELSE 'canceling' END,
- finishedAt=CASE WHEN status='pending' THEN strftime('%Y-%m-%dT%H:%M:%SZ','now') ELSE finishedAt END
+	res, err := r.DB.Exec(`UPDATE agent_job SET status=CASE WHEN status IN ('pending','claimed') THEN 'canceled' ELSE 'canceling' END,
+ finishedAt=CASE WHEN status IN ('pending','claimed') THEN strftime('%Y-%m-%dT%H:%M:%SZ','now') ELSE finishedAt END
  WHERE id=? AND status IN ('pending','claimed','running')`, id)
 	if err != nil {
 		return false, err
@@ -96,4 +96,22 @@ func (r *AgentJobRepo) FinishAI(id int, status, message, output, usage string, e
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *AgentJobRepo) LatestByProject(projectID int) ([]models.AgentJob, error) {
+	rows, err := r.DB.Query(`SELECT id,task,COALESCE(persona,0),status,fromStage,toStage,claimedAt,startedAt,finishedAt,attempts,COALESCE(error,''),createdAt,'{}',progress
+ FROM agent_job WHERE id IN (SELECT MAX(j.id) FROM agent_job j JOIN task t ON t.id=j.task JOIN checklist c ON c.id=t.checklist WHERE c.project=? GROUP BY j.task)`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	jobs := []models.AgentJob{}
+	for rows.Next() {
+		var job models.AgentJob
+		if err := scanAgentJob(rows, &job); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, rows.Err()
 }

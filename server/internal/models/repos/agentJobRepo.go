@@ -418,7 +418,7 @@ func (repo *AgentJobRepo) ListFiltered(projectID *int, statuses []string) ([]mod
 			continue
 		}
 		if trimmed == "active" {
-			expanded = append(expanded, models.AgentJobStatusPending, models.AgentJobStatusClaimed, models.AgentJobStatusRunning)
+			expanded = append(expanded, models.AgentJobStatusPending, models.AgentJobStatusClaimed, models.AgentJobStatusRunning, "canceling")
 		} else {
 			expanded = append(expanded, trimmed)
 		}

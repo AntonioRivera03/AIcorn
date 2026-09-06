@@ -1,14 +1,7 @@
 package services
 
 import (
-	"context"
-	"database/sql"
 	"errors"
-	"fmt"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -30,35 +23,6 @@ type TaskService struct {
 	StagePersonaRepo *repos.StagePersonaRepo
 	ProjectRepo      *repos.ProjectRepo
 	PersonaRepo      *repos.PersonaRepo
-}
-
-func (s *TaskService) getPersonaRepo() *repos.PersonaRepo {
-	if s.PersonaRepo != nil {
-		return s.PersonaRepo
-	}
-	if s.AgentJobService != nil {
-		return s.AgentJobService.PersonaRepo
-	}
-	return nil
-}
-
-func (s *TaskService) personaIDForAssignee(assignee string) (*int, error) {
-	trimmed := strings.TrimSpace(assignee)
-	if trimmed == "" {
-		return nil, nil
-	}
-	repo := s.getPersonaRepo()
-	if repo == nil {
-		return nil, nil
-	}
-	p, err := repo.FindByName(trimmed)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &p.ID, nil
 }
 
 func (s *TaskService) TransitionStage(taskId, fromStage, toStage int) (bool, error) {
@@ -184,61 +148,4 @@ func (s *TaskService) BulkDelete(ids []int) (models.BulkResult, error) {
 		Success: affected,
 		Skipped: len(ids) - affected,
 	}, nil
-}
-
-// RequestAgent manually enqueues a job for a task whose assignee is a persona.
-// It resolves persona via task.assignee exact match, validates RepoPath, checks idempotency,
-// then inserts pending agent_job. Does NOT change task.stage or assignee.
-func (s *TaskService) RequestAgent(taskID int) (*models.AgentJob, error) {
-	task, err := s.TaskRepo.FindOneWithProject(taskID)
-	if err != nil {
-		return nil, err
-	}
-	pid, err := s.personaIDForAssignee(task.Assignee)
-	if err != nil {
-		return nil, err
-	}
-	if pid == nil {
-		return nil, ErrNoPersonaBound
-	}
-	personaID := *pid
-
-	// Project RepoPath guard — fail fast before enqueue
-	if s.ProjectRepo != nil {
-		proj, err := s.ProjectRepo.FindOne(task.ProjectID)
-		if err != nil {
-			return nil, err
-		}
-		repoPath := strings.TrimSpace(proj.RepoPath)
-		if repoPath == "" {
-			return nil, ErrRepoPathMissing
-		}
-		info, statErr := os.Stat(repoPath)
-		if statErr != nil || !info.IsDir() {
-			return nil, fmt.Errorf("%w: %s", ErrRepoInvalid, repoPath)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--show-toplevel")
-		if err := cmd.Run(); err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrRepoInvalid, repoPath)
-		}
-	}
-
-	// Idempotent: if a pending job already exists for this task, reject
-	if s.AgentJobService != nil && s.AgentJobService.JobRepo != nil {
-		existing, err := s.AgentJobService.JobRepo.FindPendingByTask(taskID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-		if existing != nil {
-			return nil, ErrJobAlreadyPending
-		}
-	}
-
-	if s.AgentJobService == nil {
-		return nil, errors.New("agent job service not configured")
-	}
-	toStage := task.Stage
-	return s.AgentJobService.Enqueue(taskID, personaID, nil, &toStage)
 }

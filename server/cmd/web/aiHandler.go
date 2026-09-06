@@ -9,7 +9,7 @@ import (
 )
 
 func (app *app) getAISettings(w http.ResponseWriter, r *http.Request) {
-	settings, err := app.aiService.Jobs.AISettings()
+	settings, err := app.aiService.Settings()
 	if err != nil {
 		respondErr(w, err)
 		return
@@ -24,6 +24,11 @@ func (app *app) putAISettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := app.aiService.UpdateSettings(settings); err != nil {
+		respondErr(w, err)
+		return
+	}
+	settings, err := app.aiService.Settings()
+	if err != nil {
 		respondErr(w, err)
 		return
 	}
@@ -54,11 +59,7 @@ func (app *app) cancelAIRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid run", 400)
 		return
 	}
-	if _, err := app.aiService.Jobs.FindOne(id); err != nil {
-		respondErr(w, err)
-		return
-	}
-	ok, err := app.aiService.Jobs.CancelAI(id)
+	ok, err := app.aiService.Cancel(id)
 	if err != nil {
 		respondErr(w, err)
 		return

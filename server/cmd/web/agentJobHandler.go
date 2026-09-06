@@ -37,7 +37,9 @@ func (app *app) getAgentJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		statusParam := q.Get("status")
 		var jobs []models.AgentJob
-		if statusParam == "" {
+		if q.Get("latest") == "1" {
+			jobs, err = app.agentJobService.LatestByProject(projectID)
+		} else if statusParam == "" {
 			jobs, err = app.agentJobService.ListActiveByProject(projectID)
 		} else {
 			parts := strings.Split(statusParam, ",")

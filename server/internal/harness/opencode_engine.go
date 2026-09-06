@@ -27,7 +27,7 @@ type EngineHealth struct {
 // ResolveExecutable bypasses mise shims without executing their install/update wrapper.
 func ResolveExecutable(configured string) (string, error) {
 	if configured != "" {
-		return exec.LookPath(configured)
+		return resolvedExecutable(configured)
 	}
 	if mise, err := exec.LookPath("mise"); err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -36,12 +36,23 @@ func ResolveExecutable(configured string) (string, error) {
 			path := strings.TrimSpace(string(raw))
 			if filepath.IsAbs(path) {
 				if info, err := os.Stat(path); err == nil && !info.IsDir() {
-					return path, nil
+					return resolvedExecutable(path)
 				}
 			}
 		}
 	}
-	return exec.LookPath("opencode")
+	return resolvedExecutable("opencode")
+}
+func resolvedExecutable(path string) (string, error) {
+	path, err := exec.LookPath(path)
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(path)
 }
 func CheckEngine(ctx context.Context, configured string) EngineHealth {
 	h := EngineHealth{}
@@ -182,6 +193,8 @@ func (h *OpenCode) Run(parent context.Context, spec RunSpec) (RunResult, error) 
 		err = fmt.Errorf("OpenCode exited: %w: %s", waitErr, stderr.String())
 	case !parser.finished:
 		err = errors.New("OpenCode exited without a completed response")
+	case parser.output.truncated:
+		err = errors.New("Response exceeded the 2 MiB storage limit; partial output was retained")
 	case strings.TrimSpace(result.Output) == "":
 		err = errors.New("OpenCode completed without an answer")
 	}
@@ -196,6 +209,8 @@ type eventParser struct {
 	output                   limitedBuffer
 	usage, progress, failure string
 	finished                 bool
+	totalCost                float64
+	totalTokens              map[string]any
 }
 
 func (p *eventParser) consume(raw []byte) {
@@ -222,6 +237,7 @@ func (p *eventParser) consume(raw []byte) {
 		p.progress = "Using " + evt.Part.Tool
 	case "step_start":
 		p.progress = "Thinking"
+		p.finished = false
 	case "step_finish":
 		if evt.Part.Reason == "stop" || evt.Part.Reason == "end_turn" {
 			p.finished = true
@@ -229,7 +245,19 @@ func (p *eventParser) consume(raw []byte) {
 		if evt.Part.Reason == "length" {
 			p.failure = "The model reached its output limit"
 		}
-		usage, _ := json.Marshal(map[string]any{"cost": evt.Part.Cost, "tokens": evt.Part.Tokens})
+		p.totalCost += evt.Part.Cost
+		var tokens map[string]any
+		if len(evt.Part.Tokens) > 0 && string(evt.Part.Tokens) != "null" {
+			if err := json.Unmarshal(evt.Part.Tokens, &tokens); err != nil {
+				p.failure = "OpenCode returned invalid usage"
+				return
+			}
+		}
+		if p.totalTokens == nil {
+			p.totalTokens = map[string]any{}
+		}
+		addUsage(p.totalTokens, tokens)
+		usage, _ := json.Marshal(map[string]any{"cost": p.totalCost, "tokens": p.totalTokens})
 		p.usage = string(usage)
 	case "error":
 		p.failure = "OpenCode error: " + string(evt.Error)
@@ -238,11 +266,17 @@ func (p *eventParser) consume(raw []byte) {
 
 const outputLimit = 2 * 1024 * 1024
 
-type limitedBuffer struct{ bytes.Buffer }
+type limitedBuffer struct {
+	bytes.Buffer
+	truncated bool
+}
 
 func (b *limitedBuffer) Write(p []byte) (int, error) {
 	n := len(p)
 	remaining := outputLimit - b.Len()
+	if n > remaining {
+		b.truncated = true
+	}
 	if remaining > 0 {
 		if len(p) > remaining {
 			p = p[:remaining]
@@ -250,4 +284,22 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 		_, _ = b.Buffer.Write(p)
 	}
 	return n, nil
+}
+
+// Each step reports its own usage; nested cache counters also accumulate.
+func addUsage(total, step map[string]any) {
+	for key, value := range step {
+		switch value := value.(type) {
+		case float64:
+			previous, _ := total[key].(float64)
+			total[key] = previous + value
+		case map[string]any:
+			nested, _ := total[key].(map[string]any)
+			if nested == nil {
+				nested = map[string]any{}
+			}
+			addUsage(nested, value)
+			total[key] = nested
+		}
+	}
 }

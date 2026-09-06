@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -9,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
-	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
@@ -94,148 +92,15 @@ func requestAgentTestApp(t *testing.T, repoPath string) (*app, *services.TaskSer
 	return app, taskService
 }
 
-func TestRequestAgent_Success(t *testing.T) {
-	dir := t.TempDir()
-	if err := exec.Command("git", "init", dir).Run(); err != nil {
-		t.Fatalf("git init: %v", err)
-	}
-	app, _ := requestAgentTestApp(t, dir)
-	handler := app.routes()
-	req := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200 body=%s", rec.Code, rec.Body.String())
-	}
-	var resp map[string]models.AgentJob
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode: %v body=%s", err, rec.Body.String())
-	}
-	job, ok := resp["job"]
-	if !ok {
-		t.Fatalf("response missing job key: %s", rec.Body.String())
-	}
-	if job.Task != 1 || job.Persona != 1 || job.Status != models.AgentJobStatusPending {
-		t.Fatalf("job mismatch: %+v", job)
-	}
-	if job.ToStage == nil || *job.ToStage != 2 {
-		t.Fatalf("toStage = %v want 2", job.ToStage)
-	}
-	// Ensure task stage not changed
-	var stage int
-	app.taskService.TaskRepo.DB.QueryRow(`SELECT stage FROM task WHERE id = 1`).Scan(&stage)
-	if stage != 2 {
-		t.Fatalf("task stage after request-agent = %d want 2 unchanged", stage)
-	}
-}
-
-func TestRequestAgent_NoPersona409(t *testing.T) {
-	dir := t.TempDir()
-	if err := exec.Command("git", "init", dir).Run(); err != nil {
-		t.Fatalf("git init: %v", err)
-	}
-	app, _ := requestAgentTestApp(t, dir)
-	if _, err := app.taskService.TaskRepo.DB.Exec(`UPDATE task SET assignee = '' WHERE id = 1`); err != nil {
-		t.Fatalf("clear assignee: %v", err)
-	}
-	handler := app.routes()
-	req := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d want 409 body=%s", rec.Code, rec.Body.String())
-	}
-	if want := "task is not assigned to an agent"; !contains(rec.Body.String(), want) {
-		t.Fatalf("body %q should contain %q", rec.Body.String(), want)
-	}
-}
-
-func TestRequestAgent_EmptyRepoPath400(t *testing.T) {
+func TestLegacyRequestAgentDoesNotExecute(t *testing.T) {
 	app, _ := requestAgentTestApp(t, "")
-	handler := app.routes()
-	req := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d want 400 body=%s", rec.Code, rec.Body.String())
+	app.routes().ServeHTTP(rec, httptest.NewRequest("POST", "/api/task/1/request-agent", nil))
+	if rec.Code != http.StatusGone {
+		t.Fatalf("legacy endpoint status: %d", rec.Code)
 	}
-	if want := "project has no repo folder linked"; !contains(rec.Body.String(), want) {
-		t.Fatalf("body %q should contain %q", rec.Body.String(), want)
+	jobs, err := app.agentJobService.FindByTask(1)
+	if err != nil || len(jobs) != 0 {
+		t.Fatalf("legacy request queued work: %v %v", jobs, err)
 	}
-}
-
-func TestRequestAgent_InvalidGitRepo400(t *testing.T) {
-	dir := t.TempDir() // not a git repo
-	app, _ := requestAgentTestApp(t, dir)
-	handler := app.routes()
-	req := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d want 400 body=%s", rec.Code, rec.Body.String())
-	}
-	if want := "linked repo folder is not a valid git repository"; !contains(rec.Body.String(), want) {
-		t.Fatalf("body %q should contain %q", rec.Body.String(), want)
-	}
-}
-
-func TestRequestAgent_IdempotentSecondCall(t *testing.T) {
-	dir := t.TempDir()
-	if err := exec.Command("git", "init", dir).Run(); err != nil {
-		t.Fatalf("git init: %v", err)
-	}
-	app, _ := requestAgentTestApp(t, dir)
-	handler := app.routes()
-	req1 := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
-	rec1 := httptest.NewRecorder()
-	handler.ServeHTTP(rec1, req1)
-	if rec1.Code != http.StatusOK {
-		t.Fatalf("first call status=%d body=%s", rec1.Code, rec1.Body.String())
-	}
-	var first map[string]models.AgentJob
-	if err := json.Unmarshal(rec1.Body.Bytes(), &first); err != nil {
-		t.Fatalf("decode first: %v", err)
-	}
-	req2 := httptest.NewRequest("POST", "/api/task/1/request-agent", nil)
-	rec2 := httptest.NewRecorder()
-	handler.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusConflict {
-		t.Fatalf("second call status=%d want 409 body=%s", rec2.Code, rec2.Body.String())
-	}
-	if want := "already pending"; !contains(rec2.Body.String(), want) {
-		t.Fatalf("second body %q should contain %q", rec2.Body.String(), want)
-	}
-	// ensure only one pending job exists
-	var cnt int
-	app.taskService.TaskRepo.DB.QueryRow(`SELECT COUNT(*) FROM agent_job WHERE task=1 AND status='pending'`).Scan(&cnt)
-	if cnt != 1 {
-		t.Fatalf("pending count=%d want 1", cnt)
-	}
-	_ = first
-}
-
-func TestRequestAgent_NotFound404(t *testing.T) {
-	dir := t.TempDir()
-	if err := exec.Command("git", "init", dir).Run(); err != nil {
-		t.Fatalf("git init: %v", err)
-	}
-	app, _ := requestAgentTestApp(t, dir)
-	handler := app.routes()
-	req := httptest.NewRequest("POST", "/api/task/999/request-agent", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status=%d want 404 body=%s", rec.Code, rec.Body.String())
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (func() bool {
-		for i := 0; i <= len(s)-len(substr); i++ {
-			if s[i:i+len(substr)] == substr {
-				return true
-			}
-		}
-		return false
-	})()
 }
