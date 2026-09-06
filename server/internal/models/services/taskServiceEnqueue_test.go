@@ -92,256 +92,53 @@ func countPendingForTask(t *testing.T, db *sql.DB, taskID int) int {
 	return n
 }
 
-func TestTransitionStage_EnqueuesWhenBound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	ok, err := svc.TransitionStage(1, 10, 20)
-	if err != nil {
-		t.Fatalf("TransitionStage: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok true")
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending jobs for task 1 = %d; want 1", c)
-	}
-	var personaID, fromStage, toStage int
-	var status string
-	if err := db.QueryRow(`SELECT persona, status, fromStage, toStage FROM agent_job WHERE task = 1;`).Scan(&personaID, &status, &fromStage, &toStage); err != nil {
-		t.Fatalf("query job: %v", err)
-	}
-	if personaID != 1 || status != models.AgentJobStatusPending || fromStage != 10 || toStage != 20 {
-		t.Fatalf("job row mismatch persona=%d status=%q from=%d to=%d", personaID, status, fromStage, toStage)
-	}
-	var assignee string
-	if err := db.QueryRow(`SELECT assignee FROM task WHERE id = 1;`).Scan(&assignee); err != nil {
-		t.Fatalf("query assignee: %v", err)
-	}
-	if assignee != "coder" {
-		t.Fatalf("task assignee after bound transition = %q; want coder (auto-assigned)", assignee)
-	}
-}
-
-func TestTransitionStage_NoJobWhenUnbound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	ok, err := svc.TransitionStage(1, 10, 30)
-	if err != nil {
-		t.Fatalf("TransitionStage: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok true")
-	}
-	if c := countPendingForTask(t, db, 1); c != 0 {
-		t.Fatalf("pending jobs for unbound dest = %d; want 0", c)
-	}
-	// Task should still have moved
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query task stage: %v", err)
-	}
-	if stage != 30 {
-		t.Fatalf("task stage = %d; want 30", stage)
-	}
-}
-
-func TestTransitionStage_NoJobOnConflict(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	// Task 1 is in stage 10, so fromStage 30 is wrong -> conflict
-	ok, err := svc.TransitionStage(1, 30, 20)
-	if err == nil {
-		t.Fatal("expected ErrStageConflict")
-	}
-	if ok {
-		t.Fatal("ok should be false on conflict")
-	}
-	if c := countPendingForTask(t, db, 1); c != 0 {
-		t.Fatalf("pending jobs after conflict = %d; want 0", c)
-	}
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query stage: %v", err)
-	}
-	if stage != 10 {
-		t.Fatalf("task stage after conflict = %d; want remains 10", stage)
-	}
-}
-
-func TestBulkUpdate_EnqueuesForBoundStage(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2, 3}, map[string]any{"Stage": 20})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 3 {
-		t.Fatalf("BulkUpdate success = %d; want 3", result.Success)
-	}
-	for _, id := range []int{1, 2, 3} {
-		if c := countPendingForTask(t, db, id); c != 1 {
-			t.Fatalf("task %d pending = %d; want 1", id, c)
-		}
-		var toStage int
-		if err := db.QueryRow(`SELECT toStage FROM agent_job WHERE task = ?;`, id).Scan(&toStage); err != nil {
-			t.Fatalf("query toStage task %d: %v", id, err)
-		}
-		if toStage != 20 {
-			t.Fatalf("task %d toStage = %d; want 20", id, toStage)
-		}
-		var assignee string
-		if err := db.QueryRow(`SELECT assignee FROM task WHERE id = ?;`, id).Scan(&assignee); err != nil {
-			t.Fatalf("query assignee task %d: %v", id, err)
-		}
-		if assignee != "coder" {
-			t.Fatalf("task %d assignee = %q; want coder (auto-assigned)", id, assignee)
-		}
-	}
-}
-
-func TestBulkUpdate_NoJobWhenUnbound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Stage": 30})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after unbound bulk = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_NoJobForNonStageEdit(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Priority": "High"})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after priority-only bulk = %d; want 0", n)
-	}
-	// Verify priority actually changed (not silently skipped)
-	var p string
-	if err := db.QueryRow(`SELECT priority FROM task WHERE id = 1;`).Scan(&p); err != nil {
-		t.Fatalf("query priority: %v", err)
-	}
-	if p != "High" {
-		t.Fatalf("priority = %q; want High", p)
-	}
-}
-
-func TestBulkUpdate_StageFloat64FromJSON(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	// JSON numbers decode as float64; ensure BulkUpdate handles it
-	result, err := svc.BulkUpdate([]int{1}, map[string]any{"Stage": float64(20)})
-	if err != nil {
-		t.Fatalf("BulkUpdate float64: %v", err)
-	}
-	if result.Success != 1 {
-		t.Fatalf("success = %d; want 1", result.Success)
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending after float64 stage = %d; want 1", c)
-	}
-}
-
-func TestTransitionStage_AtomicRollbackOnEnqueueFailure(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	if _, err := db.Exec(`PRAGMA foreign_keys=OFF;`); err != nil {
-		t.Fatalf("pragma off: %v", err)
-	}
-	if _, err := db.Exec(`DELETE FROM stage_persona WHERE stage_id = 20;`); err != nil {
-		t.Fatalf("delete binding: %v", err)
-	}
-	if _, err := db.Exec(`INSERT INTO stage_persona (stage_id, persona_id) VALUES (20, 999);`); err != nil {
-		t.Fatalf("insert invalid binding: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA foreign_keys=ON;`); err != nil {
-		t.Fatalf("pragma on: %v", err)
-	}
-	_, err := svc.TransitionStage(1, 10, 20)
-	if err == nil {
-		t.Fatal("TransitionStage should fail when enqueue fails atomically")
-	}
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query stage: %v", err)
-	}
-	if stage != 10 {
-		t.Fatalf("stage = %d; want 10 (rolled back) after atomic failure", stage)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after atomic failure = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_AtomicRollbackOnEnqueueFailure(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	if _, err := db.Exec(`PRAGMA foreign_keys=OFF;`); err != nil {
-		t.Fatalf("pragma off: %v", err)
-	}
-	if _, err := db.Exec(`DELETE FROM stage_persona WHERE stage_id = 20;`); err != nil {
-		t.Fatalf("delete binding: %v", err)
-	}
-	if _, err := db.Exec(`INSERT INTO stage_persona (stage_id, persona_id) VALUES (20, 999);`); err != nil {
-		t.Fatalf("insert invalid binding: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA foreign_keys=ON;`); err != nil {
-		t.Fatalf("pragma on: %v", err)
-	}
-	_, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Stage": 20})
-	if err == nil {
-		t.Fatal("BulkUpdate should fail atomically when bulk enqueue fails")
-	}
-	for _, id := range []int{1, 2} {
-		var stage int
-		if err := db.QueryRow(`SELECT stage FROM task WHERE id = ?;`, id).Scan(&stage); err != nil {
-			t.Fatalf("query stage %d: %v", id, err)
-		}
-		if stage != 10 {
-			t.Fatalf("task %d stage = %d; want 10 rolled back", id, stage)
-		}
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after bulk atomic failure = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_BulkResult_SkippedNonExistent(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 999, 2, 999}, map[string]any{"Priority": "Low"})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	if result.Skipped != 1 {
-		t.Fatalf("skipped = %d; want 1 (deduped 999 non-existent)", result.Skipped)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after non-stage bulk = %d; want 0", n)
+// Historical bindings must never influence task ownership or start work.
+func TestTaskEditsNeverEnqueue(t *testing.T) {
+	for _, owner := range []string{"alice", "coder", ""} {
+		t.Run(owner, func(t *testing.T) {
+			db, svc := setupEnqueueTestDB(t)
+			if _, err := db.Exec("UPDATE task SET assignee = ?", owner); err != nil {
+				t.Fatal(err)
+			}
+			if ok, err := svc.TransitionStage(1, 10, 20); err != nil || !ok {
+				t.Fatalf("transition: %v %v", ok, err)
+			}
+			var got string
+			if err := db.QueryRow("SELECT assignee FROM task WHERE id=1").Scan(&got); err != nil || got != owner {
+				t.Fatalf("owner changed: %q %v", got, err)
+			}
+			if _, err := svc.TransitionStage(1, 10, 30); err != ErrStageConflict {
+				t.Fatalf("stale transition: %v", err)
+			}
+			r, err := svc.BulkUpdate([]int{1, 2, 999, 999}, map[string]any{"Stage": float64(20)})
+			if err != nil || r.Success != 2 || r.Skipped != 1 {
+				t.Fatalf("bulk: %+v %v", r, err)
+			}
+			if err := db.QueryRow("SELECT assignee FROM task WHERE id=2").Scan(&got); err != nil || got != owner {
+				t.Fatalf("bulk changed owner: %q %v", got, err)
+			}
+			r, err = svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "coder"})
+			if err != nil || r.Success != 2 {
+				t.Fatalf("assignment: %+v %v", r, err)
+			}
+			task := &models.ChecklistTask{Task: models.Task{Checklist: 1, Stage: 10, Name: "Explicit ownership", Assignee: "coder"}}
+			created, err := svc.CreateChecklistTask(task)
+			if err != nil {
+				t.Fatal(err)
+			}
+			created.Assignee = "alice"
+			if _, err := svc.UpdateTask(created); err != nil {
+				t.Fatal(err)
+			}
+			created.Assignee = "coder"
+			if _, err := svc.UpdateTaskProperties(created); err != nil {
+				t.Fatal(err)
+			}
+			var jobs int
+			if err := db.QueryRow("SELECT COUNT(*) FROM agent_job").Scan(&jobs); err != nil || jobs != 0 {
+				t.Fatalf("unexpected execution: %d %v", jobs, err)
+			}
+		})
 	}
 }
 
@@ -397,143 +194,5 @@ func TestComplete_AtomicDuplicateRunPrevention(t *testing.T) {
 	}
 	if runs != 0 {
 		t.Fatalf("runs for pending job = %d; want 0 (atomic, no orphan)", runs)
-	}
-}
-
-func TestCreateChecklistTask_EnqueuesWhenAssigneeIsPersona(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	task := &models.ChecklistTask{
-		Task: models.Task{
-			Checklist: 1,
-			Stage:     10,
-			Name:      "new persona task",
-			Assignee:  "coder",
-		},
-	}
-	created, err := svc.CreateChecklistTask(task)
-	if err != nil {
-		t.Fatalf("CreateChecklistTask: %v", err)
-	}
-	if created == nil {
-		t.Fatal("created nil")
-	}
-	if c := countPendingForTask(t, db, created.ID); c != 1 {
-		t.Fatalf("pending after create with persona assignee = %d; want 1", c)
-	}
-	var persona int
-	if err := db.QueryRow(`SELECT persona FROM agent_job WHERE task = ?;`, created.ID).Scan(&persona); err != nil {
-		t.Fatalf("query job persona: %v", err)
-	}
-	if persona != 1 {
-		t.Fatalf("job persona = %d; want 1", persona)
-	}
-}
-
-func TestCreateChecklistTask_NoEnqueueForHumanAssignee(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	task := &models.ChecklistTask{
-		Task: models.Task{
-			Checklist: 1,
-			Stage:     10,
-			Name:      "human task",
-			Assignee:  "alice",
-		},
-	}
-	created, err := svc.CreateChecklistTask(task)
-	if err != nil {
-		t.Fatalf("CreateChecklistTask: %v", err)
-	}
-	if c := countPendingForTask(t, db, created.ID); c != 0 {
-		t.Fatalf("pending for human assignee = %d; want 0", c)
-	}
-}
-
-func TestUpdateTask_EnqueuesOnAssigneeChangeToPersona(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	var name, priority string
-	var checklist, stage, typ int
-	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,'') FROM task WHERE id = 1;`).Scan(&name, &checklist, &stage, &typ, &priority); err != nil {
-		t.Fatalf("query task: %v", err)
-	}
-	ct := &models.ChecklistTask{Task: models.Task{ID: 1, Name: name, Checklist: checklist, Stage: stage, Priority: priority, Assignee: "coder"}}
-	ct.Type.ID = typ
-	ok, err := svc.UpdateTask(ct)
-	if err != nil {
-		t.Fatalf("UpdateTask: %v", err)
-	}
-	if !ok {
-		t.Fatal("UpdateTask not ok")
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending after assignee update = %d; want 1", c)
-	}
-}
-
-func TestUpdateTask_IdempotentWhenAssigneeUnchanged(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	var name, priority string
-	var checklist, stage, typ int
-	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,'') FROM task WHERE id = 1;`).Scan(&name, &checklist, &stage, &typ, &priority); err != nil {
-		t.Fatalf("query task: %v", err)
-	}
-	ct := &models.ChecklistTask{Task: models.Task{ID: 1, Name: name, Checklist: checklist, Stage: stage, Priority: priority, Assignee: "coder"}}
-	ct.Type.ID = typ
-	if _, err := svc.UpdateTask(ct); err != nil {
-		t.Fatalf("first UpdateTask: %v", err)
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("first pending = %d; want 1", c)
-	}
-	var name2, priority2 string
-	var checklist2, stage2, typ2 int
-	var assignee2 string
-	if err := db.QueryRow(`SELECT name, checklist, stage, type, COALESCE(priority,''), COALESCE(assignee,'') FROM task WHERE id = 1;`).Scan(&name2, &checklist2, &stage2, &typ2, &priority2, &assignee2); err != nil {
-		t.Fatalf("query task2: %v", err)
-	}
-	ct2 := &models.ChecklistTask{Task: models.Task{ID: 1, Name: "renamed but same assignee", Checklist: checklist2, Stage: stage2, Priority: priority2, Assignee: assignee2}}
-	ct2.Type.ID = typ2
-	ok, err := svc.UpdateTask(ct2)
-	if err != nil {
-		t.Fatalf("second UpdateTask: %v", err)
-	}
-	if !ok {
-		t.Fatal("second not ok")
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending after second same-assignee update = %d; want still 1 idempotent", c)
-	}
-}
-
-func TestBulkUpdate_EnqueuesWhenAssigneeIsPersona(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "coder"})
-	if err != nil {
-		t.Fatalf("BulkUpdate assignee: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	for _, id := range []int{1, 2} {
-		if c := countPendingForTask(t, db, id); c != 1 {
-			t.Fatalf("task %d pending after assignee bulk = %d; want 1", id, c)
-		}
-	}
-}
-
-func TestBulkUpdate_NoEnqueueForHumanAssignee(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "bob"})
-	if err != nil {
-		t.Fatalf("BulkUpdate human assignee: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs for human assignee bulk = %d; want 0", n)
 	}
 }

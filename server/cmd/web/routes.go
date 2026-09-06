@@ -89,8 +89,6 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("PUT /api/stage/bulk/color", app.bulkSetStageColor)
 	mux.HandleFunc("PUT /api/stage/bulk/icon", app.bulkSetStageIcon)
 	mux.HandleFunc("POST /api/stage/bulk/delete", app.bulkDeleteStages)
-	mux.HandleFunc("PUT /api/stage/{stageId}/persona", app.putStagePersona)
-	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
 	mux.HandleFunc("PUT /api/stage/{stageId}", app.putStage)
 	mux.HandleFunc("DELETE /api/stage/{stageId}", app.deleteStage)
 
@@ -104,6 +102,9 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/persona/{personaId}", app.deletePersona)
 	mux.HandleFunc("GET /api/mcp/tools", app.getMCPTools)
 
+	// Legacy binding data remains editable for compatibility; it never triggers execution.
+	mux.HandleFunc("PUT /api/stage/{stageId}/persona", app.putStagePersona)
+	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
 	mux.HandleFunc("GET /api/agent-jobs", app.getAgentJobs)
 	mux.HandleFunc("GET /api/agent-jobs/{taskId}", app.getAgentJobsForTask)
 

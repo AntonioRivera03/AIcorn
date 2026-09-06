@@ -162,13 +162,16 @@ func TestE2E_TransitionEnqueueClaimRunPersistsMarkdown(t *testing.T) {
 		t.Fatalf("task body after create = %q; want %q", storedBody, models.EmptyBody)
 	}
 
-	// 4. Transition backlog -> research. This must enqueue a pending job.
+	// 4. Move the task, then explicitly enqueue the requested work.
 	ok, err := taskSvc.TransitionStage(taskID, 10, 20)
 	if err != nil {
 		t.Fatalf("TransitionStage: %v", err)
 	}
 	if !ok {
 		t.Fatal("TransitionStage returned false; want true")
+	}
+	if _, err := jobSvc.Enqueue(taskID, persona.ID, nil, nil); err != nil {
+		t.Fatal(err)
 	}
 	// Task must have moved to stage 20 and must stay there (human gate — no auto-advance).
 	var stageAfter int
@@ -275,6 +278,9 @@ func TestE2E_TransitionEnqueueClaimRunPersistsMarkdown(t *testing.T) {
 	if _, err := taskSvc.TransitionStage(secondID, 10, 20); err != nil {
 		t.Fatalf("TransitionStage second: %v", err)
 	}
+	if _, err := jobSvc.Enqueue(secondID, persona.ID, nil, nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := w.RunOnce(context.Background()); err != nil {
 		t.Fatalf("RunOnce second: %v", err)
 	}
@@ -318,6 +324,9 @@ func TestE2E_StaleRecovery_ResetStale(t *testing.T) {
 	taskID := int(id64)
 	if _, err := taskSvc.TransitionStage(taskID, 10, 20); err != nil {
 		t.Fatalf("Transition: %v", err)
+	}
+	if _, err := jobSvc.Enqueue(taskID, 1, nil, nil); err != nil {
+		t.Fatal(err)
 	}
 	jobs, _ := jobSvc.FindByTask(taskID)
 	if len(jobs) != 1 {

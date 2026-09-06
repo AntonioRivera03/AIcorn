@@ -141,11 +141,11 @@ func TestTaskService_TransitionStage_ConcurrentExactlyOnce_TwoTransitions(t *tes
 	if err := db.QueryRow(`SELECT COALESCE(assignee,'') FROM task WHERE id = 1;`).Scan(&assignee); err != nil {
 		t.Fatalf("query assignee: %v", err)
 	}
-	if assignee != "coder" {
-		t.Fatalf("assignee = %q; want coder", assignee)
+	if assignee != "" {
+		t.Fatalf("assignee = %q; want unchanged owner", assignee)
 	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending jobs = %d; want 1 (exactly one enqueue)", c)
+	if c := countPendingForTask(t, db, 1); c != 0 {
+		t.Fatalf("pending jobs = %d; want 0 (no implicit enqueue)", c)
 	}
 }
 
