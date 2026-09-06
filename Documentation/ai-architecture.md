@@ -1,3 +1,5 @@
+> Superseded for new AI work by [the explicit-run redesign](ai-integration-redesign-review.md). Retained as historical phase notes; stage bindings and assignee-triggered execution are being retired.
+
 # Aycorn — AI Integration Architecture
 
 An overarching reference for the AI-integration build described in `Documentation/phase-0-foundations.md` through `phase-5-scale.md`. Read this once before starting Phase 0, and re-check it before starting each subsequent phase — it's the thing that keeps Phase 4 from contradicting a decision Phase 1 already made. The phase documents are the authoritative step-by-step; this document is the connective tissue between them: the rules that hold across all of them.
