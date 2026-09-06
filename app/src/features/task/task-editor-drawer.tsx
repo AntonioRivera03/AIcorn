@@ -42,7 +42,6 @@ import { TaskRelationshipsCard } from "@/features/task/relationships/task-relati
 import { TaskRelationshipBadges } from "@/features/task/relationships/task-relationship-badges";
 import { Separator } from "@/components/ui/separator";
 import RelativePlannedDateBadge from "./properties/relative-planned-date-badge";
-import { TaskAgentRuns } from "@/features/task/task-agent-runs";
 
 export default function TaskEditorDrawer({
   children,
@@ -232,12 +231,6 @@ export default function TaskEditorDrawer({
 
                 <TaskRelationshipsCard />
 
-                {task.ID !== 0 && (
-                  <>
-                    <Separator orientation="horizontal" className="my-2" />
-                    <TaskAgentRuns taskId={task.ID} enabled={open} />
-                  </>
-                )}
               </section>
             </CollapsibleContent>
           </Collapsible>

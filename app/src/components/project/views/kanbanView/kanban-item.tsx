@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
+import { useAI } from "@/features/ai/ai-context";
 
 type DragListeners = Record<string, (e: React.SyntheticEvent) => void>;
 
@@ -75,7 +75,7 @@ export function KanbanItem({
   }, [personas, Stages, task.Assignee]);
 
   const subtaskProgress = useSubtaskProgress(task.ID);
-  const requestAgent = useRequestAgent();
+  const { openAI } = useAI();
 
   return (
     <TaskProvider defaultState={task} key={task.ID}>
@@ -183,11 +183,11 @@ export function KanbanItem({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-40">
             <DropdownMenuItem
-              onClick={() => requestAgent.mutate(task.ID)}
-              disabled={requestAgent.isPending || task.ID === 0}
+              onClick={() => openAI({ id: task.ID, name: task.Name })}
+              disabled={task.ID === 0}
             >
               <Bot className="size-4" />
-              Request Agent
+              Ask AI
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

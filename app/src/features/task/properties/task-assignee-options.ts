@@ -1,4 +1,4 @@
-import { SELF_ASSIGNEE } from "@/features/task/stage-move-assignee";
+import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
 
 type TaskWithAssignee = {
   readonly Assignee: string;

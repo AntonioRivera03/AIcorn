@@ -1,56 +1,58 @@
-import { Badge } from "@/components/ui/badge";
-import { Bot } from "lucide-react";
-import { useContext, useMemo } from "react";
+import { useContext } from "react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { useActiveAgentJobs } from "@/features/agentJob/queries/useActiveAgentJobs";
+import { useAI } from "@/features/ai/ai-context";
+import { cn } from "@/lib/utils";
 
-type Props = {
-  taskId: number;
-  className?: string;
-  compact?: boolean;
-};
+type Props = { taskId: number; className?: string; compact?: boolean };
 
-export function AgentWorkingBadge({ taskId, className, compact = false }: Props) {
-  const { Project } = useContext(ProjectContext);
-  const projectId = Project?.ID ?? 0;
-  const { activeTaskIds } = useActiveAgentJobs(projectId);
-  const working = useMemo(() => activeTaskIds.has(taskId), [activeTaskIds, taskId]);
-  if (!working) return null;
-
-  if (compact) {
-    return (
-      <span
-        aria-label="Agent working"
-        className={
-          "inline-flex items-center gap-1 shrink-0 max-w-full " +
-          (className ?? "")
-        }
-      >
-        <span className="relative flex size-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping [animation-duration:2s] motion-reduce:animate-none" />
-          <span className="relative inline-flex rounded-full size-2 bg-primary animate-pulse [animation-duration:2s] motion-reduce:animate-none" />
-        </span>
-        <Bot className="size-3 animate-spin [animation-duration:1s] text-primary shrink-0 motion-reduce:animate-none" aria-hidden="true" />
-        <span className="text-xs font-medium text-primary truncate">Working</span>
-      </span>
-    );
-  }
-
+export function AgentWorkingBadge({
+  taskId,
+  className,
+  compact = false,
+}: Props) {
+  const { Project, Tasks } = useContext(ProjectContext);
+  const { data: jobs } = useActiveAgentJobs(Project?.ID ?? 0);
+  const { openAI } = useAI();
+  const job = jobs?.find((job) => job.task === taskId);
+  if (!job) return null;
+  const labels: Record<string, string> = {
+    pending: "Queued",
+    claimed: "Starting",
+    running: "Running",
+    canceling: "Stopping",
+    completed: "Result ready",
+    failed: "AI failed",
+    canceled: "Stopped",
+    interrupted: "Interrupted",
+  };
+  const running = ["claimed", "running", "canceling"].includes(job.status);
   return (
-    <Badge
-      variant="default"
-      aria-label="Agent working"
-      className={
-        "bg-primary text-primary-foreground border-border gap-1 max-w-full " +
-        (className ?? "")
-      }
+    <button
+      type="button"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        !compact && "border border-border",
+        job.status === "failed" && "text-destructive",
+        className,
+      )}
+      aria-label={`AI: ${labels[job.status] || job.status}. Open results`}
+      onClick={(e) => {
+        e.stopPropagation();
+        openAI({
+          id: taskId,
+          name:
+            Tasks.find((task) => task.ID === taskId)?.Name || `Task ${taskId}`,
+        });
+      }}
     >
-      <span className="relative flex size-2 shrink-0" aria-hidden="true">
-        <span className="absolute inline-flex h-full w-full rounded-full bg-primary-foreground opacity-60 animate-ping [animation-duration:2s] motion-reduce:animate-none" />
-        <span className="relative inline-flex rounded-full size-2 bg-primary-foreground animate-pulse [animation-duration:2s] motion-reduce:animate-none" />
-      </span>
-      <Bot className="size-3 animate-spin [animation-duration:1s] shrink-0 motion-reduce:animate-none" aria-hidden="true" />
-      <span className="truncate">Working</span>
-    </Badge>
+      {running ? (
+        <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />
+      ) : (
+        <Sparkles className="size-3" />
+      )}
+      {labels[job.status] || job.status}
+    </button>
   );
 }

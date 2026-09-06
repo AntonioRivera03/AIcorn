@@ -1,7 +1,16 @@
+import { AIProvider } from "@/features/ai/ai-provider";
 import * as React from "react";
-import { Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
+import {
+  Outlet,
+  createRootRoute,
+  useRouterState,
+} from "@tanstack/react-router";
 import { AppSidebar } from "@/components/sidebar/AppSidebar";
-import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -47,11 +56,13 @@ function RootComponent() {
         } as React.CSSProperties
       }
     >
-      <MobileSidebarClose />
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
+      <AIProvider>
+        <MobileSidebarClose />
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <Outlet />
+        </SidebarInset>
+      </AIProvider>
     </SidebarProvider>
   );
 }

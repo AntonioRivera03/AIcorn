@@ -1,3 +1,4 @@
+import { AskAIButton } from "@/features/ai/ask-ai-button";
 import { RelativeTimeWithTooltip } from "@/components/relative-time-with-tooltip";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,7 @@ import TaskPriorityIcon from "../properties/icons/TaskPriorityIcon";
 import { cn } from "@/lib/utils";
 import TaskTypeBadge from "../properties/task-type-badge";
 import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
-import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
+import { useAI } from "@/features/ai/ai-context";
 
 export function TaskEditorHeader({
   setOpen = () => {},
@@ -61,7 +62,7 @@ export function TaskEditorHeader({
 
   const isMobile = useIsMobile();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const requestAgent = useRequestAgent();
+  const { openAI } = useAI();
 
   return (
     <DrawerHeader className="p-2 sm:border-b">
@@ -115,7 +116,8 @@ export function TaskEditorHeader({
           {taskStage && (
             <WorkflowStageChip className="rounded-full" stage={taskStage} />
           )}
-          <DropdownMenu>
+          <AskAIButton taskId={task.ID} taskName={task.Name} />
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -156,11 +158,11 @@ export function TaskEditorHeader({
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem
-                  onClick={() => requestAgent.mutate(task.ID)}
-                  disabled={requestAgent.isPending || task.ID === 0}
+                  onClick={() => openAI({ id: task.ID, name: task.Name })}
+                  disabled={task.ID === 0}
                 >
                   <Bot className="size-4" />
-                  Request Agent
+                  Ask AI
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

@@ -1,3 +1,4 @@
+import { AskAIButton } from "@/features/ai/ask-ai-button";
 import { useContext, useEffect, useRef, useState } from "react";
 import {
   Collapsible,
@@ -58,7 +59,7 @@ import { Separator } from "@/components/ui/separator";
 import { TaskRelationshipsCard } from "@/features/task/relationships/task-relationships-card";
 import { TaskRelationshipBadges } from "@/features/task/relationships/task-relationship-badges";
 import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
-import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
+import { useAI } from "@/features/ai/ai-context";
 
 export function TaskPage({ projectId }: { projectId: number }) {
   const { state: task, setState: setTask } = useContext(TaskContext);
@@ -71,7 +72,7 @@ export function TaskPage({ projectId }: { projectId: number }) {
     Stages,
   } = useContext(ProjectContext);
   const { update, updateBody } = useTaskMutation(projectId);
-  const requestAgent = useRequestAgent();
+  const { openAI } = useAI();
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const editorRef = useRef<PlateEditor | null>(null);
@@ -154,7 +155,8 @@ export function TaskPage({ projectId }: { projectId: number }) {
               />
             </Button>
           </CollapsibleTrigger>
-          <DropdownMenu>
+          <AskAIButton taskId={task.ID} taskName={task.Name} />
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 size="icon"
@@ -195,11 +197,11 @@ export function TaskPage({ projectId }: { projectId: number }) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem
-                  onClick={() => requestAgent.mutate(task.ID)}
-                  disabled={requestAgent.isPending || task.ID === 0}
+                  onClick={() => openAI({ id: task.ID, name: task.Name })}
+                  disabled={task.ID === 0}
                 >
                   <Bot className="size-4" />
-                  Request Agent
+                  Ask AI
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

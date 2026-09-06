@@ -12,34 +12,19 @@ import { PersonasBulkActionsToolbar } from "@/features/persona/personas-bulk-act
 import { PersonaEditorDrawer } from "@/features/persona/persona-editor-drawer";
 import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
-import { useAllWorkflowsQuery } from "@/features/workflows/shared/queries/useAllWorkflowsQuery";
 
 export function PersonasPage() {
   const [search, setSearch] = useState("");
   const [drawerPersonaId, setDrawerPersonaId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { data: personas = [], isFetching } = usePersonasQuery();
-  const { data: workflows = [] } = useAllWorkflowsQuery();
   const { createPersona } = usePersonaMutations();
-
-  const stageCounts = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const workflow of workflows) {
-      for (const stage of workflow.Stages) {
-        if (!stage.Persona) continue;
-        counts.set(stage.Persona.ID, (counts.get(stage.Persona.ID) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [workflows]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (query === "") return personas;
     return personas.filter((persona) =>
-      [persona.Name, persona.Harness, persona.Model].some((value) =>
-        value.toLowerCase().includes(query),
-      ),
+      [persona.Name].some((value) => value.toLowerCase().includes(query)),
     );
   }, [personas, search]);
 
@@ -65,35 +50,45 @@ export function PersonasPage() {
       <div className="flex flex-col items-center gap-2 md:flex-row">
         <InputGroup>
           <InputGroupInput
-            aria-label="Search personas"
-            placeholder="Search personas..."
+            aria-label="Search presets"
+            placeholder="Search presets..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <InputGroupAddon><Search /></InputGroupAddon>
+          <InputGroupAddon>
+            <Search />
+          </InputGroupAddon>
           <InputGroupAddon align="inline-end">
-            {filtered.length} {filtered.length === 1 ? "persona" : "personas"}
+            {filtered.length} {filtered.length === 1 ? "preset" : "presets"}
           </InputGroupAddon>
         </InputGroup>
-        <Button className="w-full md:w-auto" onClick={handleCreate} disabled={createPersona.isPending}>
+        <Button
+          className="w-full md:w-auto"
+          onClick={handleCreate}
+          disabled={createPersona.isPending}
+        >
           <Plus />
-          New Persona
+          New preset
         </Button>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-sm text-muted-foreground">
-          Loading personas...
+          Loading presets...
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {search ? "No personas match your search." : "No personas yet."}
+            {search ? "No presets match your search." : "No presets yet."}
           </p>
           {!search && (
-            <Button variant="outline" onClick={handleCreate} disabled={createPersona.isPending}>
+            <Button
+              variant="outline"
+              onClick={handleCreate}
+              disabled={createPersona.isPending}
+            >
               <Plus />
-              Create your first persona
+              Create your first preset
             </Button>
           )}
         </div>
@@ -103,14 +98,13 @@ export function PersonasPage() {
             <PersonaCard
               key={persona.ID}
               persona={persona}
-              boundStageCount={stageCounts.get(persona.ID) ?? 0}
               onOpen={handleOpenPersona}
             />
           ))}
         </div>
       )}
 
-      <PersonasBulkActionsToolbar personas={personas} stageCounts={stageCounts} />
+      <PersonasBulkActionsToolbar personas={personas} />
 
       <PersonaEditorDrawer
         personaId={drawerPersonaId}

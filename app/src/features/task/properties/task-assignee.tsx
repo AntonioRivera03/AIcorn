@@ -18,7 +18,7 @@ import type { Task } from "@/types/types";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown, User, Users, X } from "lucide-react";
 import { useContext, useMemo, useState } from "react";
-import { SELF_ASSIGNEE } from "@/features/task/stage-move-assignee";
+import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
 import {
   createAssigneeOptions,
   getAssigneeOptionState,

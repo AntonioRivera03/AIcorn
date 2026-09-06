@@ -43,7 +43,7 @@ export function DeletePersonaDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {persona.Name || "Untitled Persona"}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Every stage using this persona will be unbound. Existing tasks remain unchanged.
+            The saved instructions will be deleted. Previous AI runs will remain available.
             This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -54,7 +54,7 @@ export function DeletePersonaDialog({
             disabled={deletePersona.isPending}
             onClick={handleDelete}
           >
-            Delete persona
+            Delete preset
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

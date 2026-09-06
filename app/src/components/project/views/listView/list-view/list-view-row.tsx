@@ -32,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRequestAgent } from "@/features/agentJob/queries/useRequestAgent";
+import { useAI } from "@/features/ai/ai-context";
 
 export function ListViewRow({
   task,
@@ -47,7 +47,7 @@ export function ListViewRow({
 }) {
   const itemClassName = (itemProps.className as string | undefined) ?? "";
   const subtaskProgress = useSubtaskProgress(task.ID);
-  const requestAgent = useRequestAgent();
+  const { openAI } = useAI();
   const { Stages } = useContext(ProjectContext);
   const { data: personas = [] } = usePersonasQuery();
   const isPersonaAssignee = useMemo(() => {
@@ -167,11 +167,11 @@ export function ListViewRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-40">
             <DropdownMenuItem
-              onClick={() => requestAgent.mutate(task.ID)}
-              disabled={requestAgent.isPending || task.ID === 0}
+              onClick={() => openAI({ id: task.ID, name: task.Name })}
+              disabled={task.ID === 0}
             >
               <Bot className="size-4" />
-              Request Agent
+              Ask AI
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

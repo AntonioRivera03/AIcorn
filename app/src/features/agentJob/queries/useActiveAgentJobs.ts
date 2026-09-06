@@ -29,7 +29,7 @@ export function useActiveAgentJobs(projectId: number) {
     },
     queryFn: async () => {
       const response = await fetch(
-        `/api/agent-jobs?projectId=${projectId}&status=active`,
+        `/api/agent-jobs?projectId=${projectId}&latest=1`,
       );
       if (!response.ok) throw new Error(await response.text());
       const data = await response.json();
