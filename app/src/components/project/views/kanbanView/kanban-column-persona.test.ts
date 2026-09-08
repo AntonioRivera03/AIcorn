@@ -10,7 +10,7 @@ describe("shouldShowPersonaIndicator", () => {
       Persona: {
         ID: 3,
         Name: "Researcher",
-        Harness: "opencode",
+        Harness: "codex",
         Model: "opencode-go/muse-spark-1.2-contributor",
         Agent: "",
       },

@@ -44,7 +44,8 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidPersona),
 		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, services.ErrInvalidAIRun),
+	case errors.Is(err, repos.ErrConductorConfig),
+		errors.Is(err, services.ErrInvalidAIRun),
 		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
@@ -64,6 +65,8 @@ func httpStatusForError(err error) int {
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, repos.ErrActiveAIRun),
+		errors.Is(err, repos.ErrConductorConflict),
+		errors.Is(err, repos.ErrConductorPaused),
 		errors.Is(err, services.ErrAISetup),
 		errors.Is(err, services.ErrWorkflowInUse),
 		errors.Is(err, services.ErrDuplicateRelationship),

@@ -49,6 +49,9 @@ type OkOutput struct {
 }
 
 func (t *toolset) searchTasks(ctx context.Context, req *mcp.CallToolRequest, in SearchTasksInput) (*mcp.CallToolResult, TasksOutput, error) {
+	if t.runProjectID > 0 {
+		in.ProjectIDs = []int{t.runProjectID}
+	}
 	filters := &repos.TaskFilters{
 		SearchQuery:    in.Query,
 		ProjectIDQuery: in.ProjectIDs,
@@ -84,12 +87,15 @@ type ReadTaskInput struct {
 }
 
 func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in ReadTaskInput) (*mcp.CallToolResult, *models.TaskWithProject, error) {
-	if t.runTaskID > 0 && in.TaskID != t.runTaskID {
+	if t.runProjectID == 0 && t.runTaskID > 0 && in.TaskID != t.runTaskID {
 		return nil, nil, errors.New("this run may only read its own task")
 	}
 	task, err := t.taskService.GetTask(in.TaskID)
 	if err != nil {
 		return nil, nil, err
+	}
+	if t.runProjectID > 0 && task.ProjectID != t.runProjectID {
+		return nil, nil, errors.New("Conductor may only read tasks in its project")
 	}
 
 	body, err := t.bodyToMarkdown(ctx, task.Body)

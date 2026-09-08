@@ -19,6 +19,7 @@ import { TaskAssignee } from "@/features/task/properties/task-assignee";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { AddRelationshipButton } from "@/features/task/relationships/bulk-add-relationship-button";
 import { pluralize } from "@/utils/pluralize";
+import { ConductorBulkActions } from "@/features/conductor/conductor-task";
 
 type Props = {
   selectedTasks: Task[];
@@ -137,6 +138,7 @@ export function BulkActionsToolbar({ selectedTasks, onClear }: Props) {
       </div>
 
       <AddRelationshipButton taskIds={selectedTasks.map((t) => t.ID)} />
+      <ConductorBulkActions ids={selectedTasks.map((t) => t.ID)} onClear={onClear} />
 
       <Popover>
         <PopoverTrigger asChild>

@@ -1,5 +1,6 @@
 **Task AI redesign — implementation and verification**
 
+> Historical phase-004 implementation notes. The Conductor branch replaces the OpenCode adapter with Codex, adds custom agent models and sandboxed commands/tests, and preserves the task branch/merge work described here. See [Conductor mode](conductor-mode.md) for current behavior and validation.
 The replacement described in [the review](ai-integration-redesign-review.md) is implemented on `phase-004`. The original review is a dated baseline; its defect descriptions and initial test failures describe the previous implementation.
 
 **What changed**

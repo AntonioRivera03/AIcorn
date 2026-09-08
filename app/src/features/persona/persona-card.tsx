@@ -36,7 +36,7 @@ export function PersonaCard({ persona, onOpen }: PersonaCardProps) {
       data-task-card=""
       role="button"
       tabIndex={0}
-      aria-label={`Open ${persona.Name || "Untitled preset"}`}
+      aria-label={`Open ${persona.Name || "Untitled agent"}`}
       className={cn(
         "cursor-pointer gap-4 rounded-lg py-4 shadow-none transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selectedItemClasses(),
@@ -53,13 +53,13 @@ export function PersonaCard({ persona, onOpen }: PersonaCardProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <span className={cn("block truncate", persona.Name === "" && "text-muted-foreground")}>
-                {persona.Name || "Untitled preset"}
+                {persona.Name || "Untitled agent"}
               </span>
             </TooltipTrigger>
-            <TooltipContent>{persona.Name || "Untitled preset"}</TooltipContent>
+            <TooltipContent>{persona.Name || "Untitled agent"}</TooltipContent>
           </Tooltip>
         </CardTitle>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="size-3.5" /> Reusable instructions</p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="size-3.5" /> Codex · {persona.Model}</p>
       </CardHeader>
 
     </Card>

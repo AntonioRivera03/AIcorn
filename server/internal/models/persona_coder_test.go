@@ -52,15 +52,15 @@ func TestCoderPersonaValidation_acceptsWriteTools(t *testing.T) {
 		created, err := svc.Create(&models.Persona{
 			Name:         "Coder",
 			SystemPrompt: `[{"type":"p","children":[{"text":"You are a coding agent working inside Aycorn. Read ticket context via MCP tools and make minimal, focused changes. Never auto-merge without human review."}]}]`,
-			Harness:      models.PersonaHarnessOpencode,
-			Model:        models.PersonaModelMuseSpark12Contributor,
+			Harness:      models.PersonaHarnessCodex,
+			Model:        models.PersonaModelDefault,
 			Agent:        models.PersonaAgentCodeImplementation,
 			AllowedTools: coderAllowedTools,
 		})
 		if err != nil {
 			t.Fatalf("Create Coder: %v", err)
 		}
-		if created.Harness != models.PersonaHarnessOpencode {
+		if created.Harness != models.PersonaHarnessCodex {
 			t.Fatalf("harness = %q; want opencode", created.Harness)
 		}
 		if created.Agent != models.PersonaAgentCodeImplementation {
@@ -142,7 +142,7 @@ func TestCoderAllowedToolsJSONRoundTrip(t *testing.T) {
 
 func TestCoderModelAndAgentConstants(t *testing.T) {
 	t.Run("Coder uses opencode harness and valid agent", func(t *testing.T) {
-		if !models.IsValidPersonaHarness(models.PersonaHarnessOpencode) {
+		if !models.IsValidPersonaHarness(models.PersonaHarnessCodex) {
 			t.Fatal("opencode harness must be valid")
 		}
 		if !models.IsValidPersonaAgent(models.PersonaAgentCodeImplementation) {
@@ -152,7 +152,7 @@ func TestCoderModelAndAgentConstants(t *testing.T) {
 		if !models.IsValidPersonaAgent(models.PersonaAgentGeneralSenior) {
 			t.Fatal("general-senior agent must be valid")
 		}
-		if !models.IsValidPersonaModel(models.PersonaModelMuseSpark12Contributor) {
+		if !models.IsValidPersonaModel(models.PersonaModelDefault) {
 			t.Fatal("muse-spark-1.2-contributor model must be valid")
 		}
 	})

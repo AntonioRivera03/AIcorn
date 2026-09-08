@@ -6,11 +6,13 @@ A personal, self-hosted task manager that blends Jira-style project tracking wit
 
 ## Task AI
 
-Open a task and choose **Ask AI** to ask a question, plan work, implement a change, or review the linked repository. AI runs are explicit: changing an owner or stage does not start one. The same panel shows progress, Stop, Markdown answers, and preserved file changes. Use **AI** in the sidebar to select a model and edit optional instruction presets.
+Open a task and choose **Ask AI** to ask a question, plan work, implement a change, or review the linked repository. Manual AI runs are explicit: changing an owner or stage does not start one. Conductor can automatically manage tasks you delegate to it. The same panel shows progress, Stop, Markdown answers, and preserved file changes. Use **AI** in the sidebar to create custom agents with their own OpenAI models and instructions. Select a Conductor agent and task agent in Project Settings → Conductor.
 
-AI requires OpenCode, access to the configured model, Node.js for task-description conversion, and the `aycorn-mcp` companion executable. `make dev`, `make build`, and `make install` build the companion. For a release download, also download the matching `aycorn-mcp-<platform>` asset, rename it to `aycorn-mcp` (`aycorn-mcp.exe` on Windows), and place it beside the Aycorn executable. On macOS/Linux, make it executable; on macOS, remove its quarantine flag as with the main binary. OpenCode authentication remains managed by OpenCode.
+AI requires a current Codex CLI, access to the configured OpenAI model, Node.js for task-description conversion, and the `aycorn-mcp` companion executable. `make dev`, `make build`, and `make install` build the companion. For a release download, also download the matching `aycorn-mcp-<platform>` asset, rename it to `aycorn-mcp` (`aycorn-mcp.exe` on Windows), and place it beside the Aycorn executable. On macOS/Linux, make it executable; on macOS, remove its quarantine flag as with the main binary. Sign in with `codex login` on the server; authentication remains managed by Codex. The startup check reports if the installed CLI is missing required noninteractive features.
 
-Ask and Plan work with just the task. To include code, link a Git repository in project settings. Implement edits an isolated worktree; this version does not give the model shell access or run tests for it. Results preserve the actual branch, workspace, and patch for review. Merging and workspace cleanup remain manual. Existing persona-stage bindings are inactive, and prior AI history is retained.
+Ask and Plan work with just the task. To include code, link a Git repository in project settings. Implement edits an isolated worktree and can run project commands and tests in the Codex workspace sandbox. Command network access is disabled; unavailable dependencies are reported as blockers. Results preserve the actual branch, workspace, and patch for review. Workspace cleanup remains manual. Existing persona-stage bindings are inactive, and prior AI history is retained.
+
+See [Conductor mode](Documentation/conductor-mode.md) for workflow and agent setup, and the [branch environment spec](Documentation/branch-environments-spec.md) for the proposed Docker Compose preview system.
 
 The [AI redesign review](Documentation/ai-integration-redesign-review.md) explains the replacement architecture. The [implementation and verification notes](Documentation/ai-redesign-implementation.md) record the shipped behavior and remaining validation.
 
@@ -148,7 +150,7 @@ Aycorn starts a local web server and prints where your database lives and which 
 2025/01/01 12:00:00 Listening on http://localhost:8000
 ```
 
-Open the URL from the `Listening on` line in your browser. Aycorn defaults to port 8000, but automatically tries the next port up if 8000 is already in use. Aycorn runs entirely on your machine — nothing is sent anywhere.
+Open the URL from the `Listening on` line in your browser. Aycorn defaults to port 8000, but automatically tries the next port up if 8000 is already in use. Task storage runs on your machine. Optional AI runs send the selected task and repository context to OpenAI through Codex.
 
 **To stop it:** press `Ctrl-C` in the terminal where it's running. Aycorn waits for any in-progress requests to finish before it exits.
 

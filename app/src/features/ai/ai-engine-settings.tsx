@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OpenAIModelInput } from "@/features/ai/openai-model-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,10 +29,9 @@ export function AIEngineSettings() {
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-medium">OpenCode</h2>
+          <h2 className="font-medium">Codex</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Runs start only when you ask. Task owners and stages stay
-            independent.
+            Run tasks with Codex, or let Conductor manage the tasks you delegate.
           </p>
         </div>
         <Button
@@ -53,18 +53,17 @@ export function AIEngineSettings() {
       ) : (
         <>
           <div className="space-y-2">
-            <Label htmlFor="ai-model">Model</Label>
-            <Input
+            <Label htmlFor="ai-model">Default OpenAI model</Label>
+            <OpenAIModelInput
               id="ai-model"
               value={draft.model}
-              placeholder="provider/model"
+              placeholder="gpt-5.6-sol"
               disabled={update.isPending}
               onChange={(e) => setDraft({ ...draft, model: e.target.value })}
               onBlur={save}
             />
             <p className="text-xs text-muted-foreground">
-              Use a model available through your OpenCode account.
-              Authentication stays with OpenCode.
+              Used when a manual run has no custom agent. Each custom agent has its own model. Sign in with codex login on the server; authentication stays with Codex.
             </p>
           </div>
           <details>
@@ -73,7 +72,7 @@ export function AIEngineSettings() {
             </summary>
             <div className="mt-4 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="ai-executable">OpenCode executable</Label>
+                <Label htmlFor="ai-executable">Codex executable</Label>
                 <Input
                   id="ai-executable"
                   value={draft.executable}
@@ -115,7 +114,7 @@ export function AIEngineSettings() {
         {query.isFetching
           ? "Checking engine…"
           : query.data?.engine.ready
-            ? `Executable ready · OpenCode ${query.data.engine.version}. Model access is checked when a run starts.`
+            ? `Executable ready · Codex ${query.data.engine.version}. Model access is checked when a run starts.`
             : query.data?.engine.error}
       </p>
     </section>

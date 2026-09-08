@@ -27,7 +27,7 @@ export function PersonasBulkActionsToolbar({
       onSuccess: (result) => {
         bulkResultToast(
           result,
-          `Deleted ${result.success} preset${result.success === 1 ? "" : "s"}.`,
+          `Deleted ${result.success} agent${result.success === 1 ? "" : "s"}.`,
         );
         clearSelection();
       },
@@ -43,7 +43,7 @@ export function PersonasBulkActionsToolbar({
       onClear={clearSelection}
       delete={{
         onConfirm: handleDelete,
-        title: `Delete ${count} preset${count === 1 ? "" : "s"}?`,
+        title: `Delete ${count} agent${count === 1 ? "" : "s"}?`,
         description: "The saved instructions will be deleted. Previous AI runs will remain available.",
         busy: bulkDeletePersonas.isPending,
       }}

@@ -13,19 +13,18 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 )
 
 var ErrInvalidAIRun = errors.New("invalid AI request")
 var ErrAISetup = errors.New("AI setup needs attention")
-var modelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$`)
 
 type AIRunInput struct {
-	Intent        string `json:"intent"`
-	Instruction   string `json:"instruction"`
-	PresetID      int    `json:"presetId"`
-	UseRepository bool   `json:"useRepository"`
+	Agent         *models.AgentSnapshot `json:"-"` // Frozen custom agent for a Conductor cycle.
+	Intent        string                `json:"intent"`
+	Instruction   string                `json:"instruction"`
+	PresetID      int                   `json:"presetId"`
+	UseRepository bool                  `json:"useRepository"`
 }
 type AIService struct {
 	Jobs          *repos.AgentJobRepo
@@ -55,8 +54,8 @@ func (s *AIService) Health(ctx context.Context, executable string) harness.Engin
 func (s *AIService) UpdateSettings(settings models.AISettings) error {
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.Executable = strings.TrimSpace(settings.Executable)
-	if settings.Model != "" && (!modelID.MatchString(settings.Model) || !strings.Contains(settings.Model, "/")) {
-		return fmt.Errorf("%w: model must use provider/model format", ErrInvalidAIRun)
+	if settings.Model != "" && !models.IsOpenAIModel(settings.Model) {
+		return fmt.Errorf("%w: choose an OpenAI model ID (for example gpt-5.6-sol)", ErrInvalidAIRun)
 	}
 	if settings.TimeoutSeconds < 10 || settings.TimeoutSeconds > 1800 {
 		return fmt.Errorf("%w: timeout must be 10–1800 seconds", ErrInvalidAIRun)
@@ -64,6 +63,16 @@ func (s *AIService) UpdateSettings(settings models.AISettings) error {
 	return s.Jobs.UpdateAISettings(settings)
 }
 func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*models.AgentJob, error) {
+	req, err := s.Prepare(ctx, taskID, in)
+	if err != nil {
+		return nil, err
+	}
+	return s.Jobs.EnqueueAI(taskID, in.PresetID, *req)
+}
+
+// Prepare resolves an immutable request without enqueueing it. Conductor uses
+// this so its state transition and queue insertion can share one transaction.
+func (s *AIService) Prepare(ctx context.Context, taskID int, in AIRunInput) (*models.AIRunRequest, error) {
 	if in.Intent == "" {
 		in.Intent = "ask"
 	}
@@ -84,31 +93,35 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	if !modelID.MatchString(settings.Model) || !strings.Contains(settings.Model, "/") {
-		return nil, fmt.Errorf("%w: choose a provider/model in AI settings", ErrAISetup)
+	agent := in.Agent
+	if agent == nil && in.PresetID > 0 {
+		agent, err = s.ResolveAgent(ctx, in.PresetID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if agent != nil {
+		settings.Model = agent.Model
+	}
+	if !models.IsOpenAIModel(settings.Model) {
+		return nil, fmt.Errorf("%w: choose an OpenAI model in AI settings", ErrAISetup)
 	}
 	health := s.Health(ctx, settings.Executable)
 	if !health.Ready {
 		return nil, fmt.Errorf("%w: %s", ErrAISetup, health.Error)
 	}
-	req := models.AIRunRequest{Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
-	bodies := []string{task.Body}
-	if in.PresetID > 0 {
-		preset, err := s.Presets.FindOne(in.PresetID)
-		if err != nil {
-			return nil, err
-		}
-		req.PresetName = preset.Name
-		bodies = append(bodies, preset.SystemPrompt)
+	req := models.AIRunRequest{Engine: "codex", Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
+
+	if agent != nil {
+		req.AgentID = agent.ID
+		req.PresetName = agent.Name
+		req.SystemPrompt = agent.Instructions
 	}
-	converted, err := s.Converter.ToMarkdown(ctx, bodies)
+	converted, err := s.Converter.ToMarkdown(ctx, []string{task.Body})
 	if err != nil {
 		return nil, err
 	}
 	req.TaskBody = converted[0]
-	if len(converted) > 1 {
-		req.SystemPrompt = converted[1]
-	}
 	if in.UseRepository || in.Intent == "implement" || in.Intent == "review" {
 		project, err := s.Projects.FindOne(task.ProjectID)
 		if err != nil {
@@ -128,7 +141,7 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 		return nil, err
 	}
 	req.Key = hex.EncodeToString(key)
-	return s.Jobs.EnqueueAI(taskID, in.PresetID, req)
+	return &req, nil
 }
 
 func (s *AIService) Settings() (models.AISettings, error) { return s.Jobs.AISettings() }
@@ -137,4 +150,23 @@ func (s *AIService) Cancel(id int) (bool, error) {
 		return false, err
 	}
 	return s.Jobs.CancelAI(id)
+}
+
+// ResolveAgent snapshots editable instructions and model once per planning cycle.
+func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnapshot, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("%w: select a custom agent from the AI page", ErrAISetup)
+	}
+	p, err := s.Presets.FindOne(id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: selected agent is missing; choose another agent", ErrAISetup)
+	}
+	if p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
+		return nil, fmt.Errorf("%w: selected agent must use Codex and an OpenAI model", ErrAISetup)
+	}
+	prompts, err := s.Converter.ToMarkdown(ctx, []string{p.SystemPrompt})
+	if err != nil {
+		return nil, err
+	}
+	return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: prompts[0]}, nil
 }

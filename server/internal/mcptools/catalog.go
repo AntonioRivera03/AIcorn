@@ -55,7 +55,13 @@ func All() []Definition {
 
 func Tool(name Name) *mcp.Tool {
 	tool := definition(name)
-	return &mcp.Tool{Name: tool.Name, Description: tool.Description}
+	result := &mcp.Tool{Name: tool.Name, Description: tool.Description}
+	switch name {
+	case SearchTasks, ReadTask, ListProjects, ListWorkflowStages, ListChecklists, ListTaskTypes:
+		closedWorld := false
+		result.Annotations = &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
+	}
+	return result
 }
 
 func definition(name Name) Definition {

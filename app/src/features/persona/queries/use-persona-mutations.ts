@@ -11,6 +11,7 @@ export function usePersonaMutations(personaId?: number) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["personas"] });
+    queryClient.invalidateQueries({ queryKey: ["conductor"] });
     queryClient.invalidateQueries({ queryKey: ["allWorkflows"] });
     if (personaId !== undefined) {
       queryClient.invalidateQueries({ queryKey: ["persona", personaId] });
@@ -32,6 +33,7 @@ export function usePersonaMutations(personaId?: number) {
   });
 
   const updatePersona = useMutation({
+    scope: { id: `agent-${personaId}` },
     mutationFn: async (persona: Persona) => {
       const payload = serializePersona(persona);
       const response = await fetch(`/api/persona/${persona.ID}`, {
@@ -53,6 +55,7 @@ export function usePersonaMutations(personaId?: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["personas"] });
+    queryClient.invalidateQueries({ queryKey: ["conductor"] });
       queryClient.invalidateQueries({ queryKey: ["allWorkflows"] });
       if (personaId !== undefined) {
         queryClient.removeQueries({ queryKey: ["persona", personaId] });

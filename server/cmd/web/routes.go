@@ -7,7 +7,7 @@ func (app *app) routes() http.Handler {
 
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, POST, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-Match")
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /api/", app.getDashboard)
@@ -20,6 +20,9 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/project/bulk/delete", app.bulkDeleteProjects)
 
 	mux.HandleFunc("GET /api/project/{projectId}/settings/workflow", app.getProjectWorkflowSettings)
+	mux.HandleFunc("GET /api/project/{projectId}/settings/conductor", app.getConductor)
+	mux.HandleFunc("PUT /api/project/{projectId}/settings/conductor", app.putConductor)
+	mux.HandleFunc("POST /api/project/{projectId}/conductor/bulk", app.bulkConductor)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/workflow", app.switchProjectWorkflow)
 	mux.HandleFunc("GET /api/project/{projectId}/settings/task-types", app.getProjectTaskTypeSettings)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/task-types", app.putProjectTaskTypes)

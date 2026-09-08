@@ -14,10 +14,10 @@ function RouteComponent() {
       <PageContent>
         <PageTitle
           title="AI"
-          description="Configure your engine and reusable instructions."
+          description="Create custom agents and choose their OpenAI models and instructions."
         />
         <AIEngineSettings />
-        <h2 className="mt-6 mb-3 font-medium">Instruction presets</h2>
+        <h2 className="mt-6 mb-3 font-medium">Custom agents</h2>
         <PersonasPage />
       </PageContent>
     </Page>

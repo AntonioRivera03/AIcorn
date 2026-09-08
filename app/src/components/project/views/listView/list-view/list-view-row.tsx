@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import type { ChecklistTask, Stage } from "@/types/types";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
+import { ConductorTaskBadge, ConductorTaskMenu } from "@/features/conductor/conductor-task";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export function ListViewRow({
   const itemClassName = (itemProps.className as string | undefined) ?? "";
   const subtaskProgress = useSubtaskProgress(task.ID);
   const { openAI } = useAI();
+  const [actionsOpen, setActionsOpen] = useState(false);
   const { Stages } = useContext(ProjectContext);
   const { data: personas = [] } = usePersonasQuery();
   const isPersonaAssignee = useMemo(() => {
@@ -60,7 +62,7 @@ export function ListViewRow({
 
   return (
     <TaskProvider defaultState={task}>
-      <div className="relative flex items-center group/row w-full">
+      <div className="relative flex items-center group/row w-full" onContextMenu={(e) => { e.preventDefault(); setActionsOpen(true); }} onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); setActionsOpen(true); } }}>
         <TaskEditorDrawer>
           <Item asChild className="flex-1 min-w-0">
             <a
@@ -122,6 +124,7 @@ export function ListViewRow({
 
                   <UnresolvedBlockersBadge taskId={task.ID} />
                   <AgentWorkingBadge taskId={task.ID} compact />
+                  <ConductorTaskBadge taskId={task.ID} name={task.Name} />
                 </span>
               </ItemDescription>
             </ItemContent>
@@ -154,7 +157,7 @@ export function ListViewRow({
           </a>
         </Item>
       </TaskEditorDrawer>
-        <DropdownMenu>
+        <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -173,6 +176,7 @@ export function ListViewRow({
               <Bot className="size-4" />
               Ask AI
             </DropdownMenuItem>
+            <ConductorTaskMenu taskId={task.ID} />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

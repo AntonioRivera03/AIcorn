@@ -84,6 +84,7 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	conductorService     *services.ConductorService
 	aiService            *services.AIService
 	projectRepo          *repos.ProjectRepo
 	checklistRepo        *repos.ChecklistRepo
@@ -226,8 +227,8 @@ func main() {
 	}
 	personaService := &services.PersonaService{PersonaRepo: personaRepo}
 
-	// Single-worker ticker: one goroutine claims pending jobs every 10s,
-	// recovers stale on startup (claimed > 5m), executes read-only shim.
+	// Single-worker ticker reconciles Conductor and claims one Codex job.
+	// In-flight work is interrupted on restart and requires an explicit recheck.
 	// WAL + busy_timeout already handles concurrent DB access.
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
@@ -248,14 +249,17 @@ func main() {
 		log.Fatal(err)
 	}
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
-	engine := &harness.OpenCode{MCPExecutable: mcpPath, DBPath: dbPath}
+	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
+	engine := &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}
 	w := worker.New(agentJobService, engine)
-	if err := w.Start(workerCtx, 10*time.Second); err != nil {
+	w.Conductor = conductorService
+	if err := w.Start(workerCtx, 2*time.Second); err != nil {
 		log.Fatalf("worker start: %v", err)
 	}
 	defer w.Stop()
 
 	app := app{
+		conductorService:     conductorService,
 		aiService:            aiService,
 		projectRepo:          projectRepo,
 		checklistRepo:        checklistRepo,

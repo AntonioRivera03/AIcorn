@@ -54,7 +54,7 @@ export function DeletePersonaDialog({
             disabled={deletePersona.isPending}
             onClick={handleDelete}
           >
-            Delete preset
+            Delete agent
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

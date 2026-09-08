@@ -11,9 +11,11 @@ import { useProjectWorkflowSettingsQuery } from "@/features/settings/project-wor
 import { ProjectWorkflowTab } from "@/features/settings/project-workflow/project-workflow-tab";
 import { ProjectTaskTypesTab } from "@/features/settings/project-task-types/project-task-types-tab";
 import { ProjectGeneralTab } from "@/features/settings/project-general/project-general-tab";
+import { ConductorSettingsTab } from "@/features/conductor/conductor-settings";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   LandPlotIcon,
+  AudioLines,
   Settings2Icon,
   TagsIcon,
   WorkflowIcon,
@@ -53,7 +55,8 @@ function RouteComponent() {
         />
 
         <Tabs defaultValue={tab} className="flex-1 min-h-0">
-          <TabsList>
+          <TabsList className="h-auto flex-wrap justify-start gap-1 [&>button]:h-8">
+            <TabsTrigger value="conductor"><AudioLines />Conductor</TabsTrigger>
             <TabsTrigger value="general">
               <Settings2Icon />
               General
@@ -73,6 +76,8 @@ function RouteComponent() {
           </TabsList>
 
           <Separator />
+
+          <TabsContent value="conductor"><ConductorSettingsTab projectId={id} /></TabsContent>
 
           <TabsContent value="general">
             <ProjectGeneralTab projectId={id} />

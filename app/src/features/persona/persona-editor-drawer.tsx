@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { OpenAIModelInput } from "@/features/ai/openai-model-input";
 import { Label } from "@/components/ui/label";
 import { EditableHeader } from "@/components/EditableHeader";
 import { RichEditor } from "@/features/editor/rich-editor";
@@ -54,6 +55,7 @@ function PersonaEditorSession({
   const savedPromptRef = useRef<Value | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const hasAutoFocused = useRef(false);
+  const [modelDraft, setModelDraft] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
@@ -75,7 +77,7 @@ function PersonaEditorSession({
       },
       onError: () => {
         if (persona) setDraft(persona);
-        toast.error("Failed to update preset.");
+        toast.error("Failed to update agent.");
       },
     });
   };
@@ -132,7 +134,7 @@ function PersonaEditorSession({
     >
       <DrawerContent className="md:min-w-3xl p-0 overflow-x-visible box-border rounded-lg data-[vaul-drawer-direction=bottom]:h-[calc(100dvh-var(--header-height))] data-[vaul-drawer-direction=bottom]:max-h-dvh flex flex-col">
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <DrawerTitle>Instruction preset</DrawerTitle>
+          <DrawerTitle>Custom agent</DrawerTitle>
           <DrawerDescription className="sr-only">
             Edit reusable instructions for task AI runs.
           </DrawerDescription>
@@ -143,7 +145,7 @@ function PersonaEditorSession({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Preset actions"
+                    aria-label="Agent actions"
                   >
                     <MoreHorizontal />
                   </Button>
@@ -154,7 +156,7 @@ function PersonaEditorSession({
                     onClick={() => setDeleteOpen(true)}
                   >
                     <Trash2 />
-                    Delete preset
+                    Delete agent
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -194,10 +196,19 @@ function PersonaEditorSession({
                 ref={titleRef}
                 value={draft.Name}
                 setValue={saveName}
-                placeholder="Untitled preset"
+                placeholder="Untitled agent"
                 className="min-w-0 flex-1"
               />
 
+              <div className="space-y-2">
+                <Label htmlFor="agent-model">OpenAI model</Label>
+                <OpenAIModelInput id="agent-model" value={modelDraft ?? draft.Model} onChange={(event) => setModelDraft(event.target.value)} onBlur={() => {
+                  const Model = (modelDraft ?? draft.Model).trim();
+                  if (Model !== draft.Model) save({ ...draft, Model });
+                  setModelDraft(null);
+                }} />
+                <p className="text-xs text-muted-foreground">Runs with Codex. Select this agent as a Conductor or task agent in project settings. Model availability depends on your Codex account.</p>
+              </div>
               <div className="flex min-h-0 flex-1 flex-col gap-2">
                 <Label>Instructions</Label>
                 {open ? (
