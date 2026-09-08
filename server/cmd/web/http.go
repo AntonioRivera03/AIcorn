@@ -4,9 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/waseem-polus/aycorn/server/internal/environments"
+	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"log"
 	"net/http"
 
+	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
 
@@ -15,7 +18,14 @@ import (
 // request logging. Applied once around the whole mux in routes().
 func withCommon(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if !trustedOrigin(r) {
+			http.Error(w, "This origin cannot access the Aycorn API.", http.StatusForbidden)
+			return
+		}
+		if origin := r.Header.Get("Origin"); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
 		log.Println(r.Method, r.RequestURI)
 		next.ServeHTTP(w, r)
 	})
@@ -43,7 +53,11 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidPersona),
 		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, services.ErrInvalidStageType),
+	case errors.Is(err, worktree.ErrBranchUnavailable),
+		errors.Is(err, environments.ErrInvalid),
+		errors.Is(err, repos.ErrConductorConfig),
+		errors.Is(err, services.ErrInvalidAIRun),
+		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
 		errors.Is(err, services.ErrInvalidPersonaAgent),
@@ -55,15 +69,25 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidStageMapping),
 		errors.Is(err, services.ErrTransferTypeRequired),
 		errors.Is(err, services.ErrInvalidTransferType),
-		errors.Is(err, services.ErrInvalidProjectView):
+		errors.Is(err, services.ErrInvalidProjectView),
+		errors.Is(err, services.ErrRepoPathMissing),
+		errors.Is(err, services.ErrRepoInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, services.ErrWorkflowInUse),
+	case errors.Is(err, repos.ErrActiveAIRun),
+		errors.Is(err, environments.ErrConflict),
+		errors.Is(err, repos.ErrConductorConflict),
+		errors.Is(err, repos.ErrConductorPaused),
+		errors.Is(err, services.ErrAISetup),
+		errors.Is(err, worktree.ErrMergeBlocked),
+		errors.Is(err, services.ErrWorkflowInUse),
 		errors.Is(err, services.ErrDuplicateRelationship),
 		errors.Is(err, services.ErrStageConflict),
 		errors.Is(err, services.ErrInvalidJobStatus),
-		errors.Is(err, services.ErrJobStatusConflict):
+		errors.Is(err, services.ErrJobStatusConflict),
+		errors.Is(err, services.ErrNoPersonaBound),
+		errors.Is(err, services.ErrJobAlreadyPending):
 		return http.StatusConflict
 	case errors.Is(err, services.ErrDefaultTaskType):
 		return http.StatusForbidden

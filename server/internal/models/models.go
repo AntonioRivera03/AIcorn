@@ -12,6 +12,7 @@ type Project struct {
 	Workflow     int
 	WorkflowName string
 	DefaultView  string
+	RepoPath     string
 	TimeCreated  *time.Time
 	TimeModified *time.Time
 }

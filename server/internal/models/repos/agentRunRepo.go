@@ -13,12 +13,13 @@ type AgentRunRepo struct {
 	DB *sql.DB
 }
 
-const agentRunColumns = "id, job, COALESCE(output, ''), COALESCE(summary, ''), exitCode, COALESCE(usageJson, ''), createdAt"
+const agentRunColumns = "id, job, COALESCE(output, ''), COALESCE(summary, ''), exitCode, COALESCE(usageJson, ''), createdAt, artifactJson"
 
 func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun) error {
 	var exitCode sql.NullInt64
 	var usageJson string
 	var createdAt string
+	var artifacts string
 	var output string
 	var summary string
 	if err := scanner.Scan(
@@ -28,8 +29,11 @@ func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun)
 		&summary,
 		&exitCode,
 		&usageJson,
-		&createdAt,
+		&createdAt, &artifacts,
 	); err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(artifacts), &run.Artifacts); err != nil {
 		return err
 	}
 	run.Output = output
@@ -40,16 +44,7 @@ func scanAgentRun(scanner interface{ Scan(...any) error }, run *models.AgentRun)
 	} else {
 		run.ExitCode = nil
 	}
-	// usageJson is stored as TEXT JSON; keep raw string but validate if non-empty
-	if usageJson != "" && usageJson != "null" {
-		var js json.RawMessage
-		if err := json.Unmarshal([]byte(usageJson), &js); err != nil {
-			return fmt.Errorf("parse agent_run %d usageJson: %w", run.ID, err)
-		}
-		run.UsageJson = usageJson
-	} else {
-		run.UsageJson = ""
-	}
+	run.UsageJson = usageJson // Legacy provider output remains readable.
 	parsed, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return fmt.Errorf("parse agent_run %d createdAt: %w", run.ID, err)

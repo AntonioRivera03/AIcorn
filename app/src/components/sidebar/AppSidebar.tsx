@@ -48,7 +48,7 @@ const data = {
       icon: TagsIcon,
     },
     {
-      title: "Personas",
+      title: "AI",
       url: "/personas",
       icon: BotIcon,
     },

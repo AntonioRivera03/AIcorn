@@ -4,10 +4,29 @@ import "net/http"
 
 func (app *app) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/health/ready", app.readiness)
+	mux.HandleFunc("GET /api/preview", app.getPreviewInfo)
+	if app.environmentService != nil {
+		mux.HandleFunc("GET /api/project/{projectId}/settings/environments", app.getEnvironmentSettings)
+		mux.HandleFunc("PUT /api/project/{projectId}/settings/environments", app.putEnvironmentSettings)
+		mux.HandleFunc("GET /api/environments/project/{projectId}/check", app.checkEnvironmentConnection)
+		mux.HandleFunc("GET /api/environments/project/{projectId}/branches", app.getEnvironmentBranches)
+		mux.HandleFunc("GET /api/environments/project/{projectId}", app.listEnvironments)
+		mux.HandleFunc("POST /api/environments/project/{projectId}", app.createEnvironment)
+		mux.HandleFunc("POST /api/environments/project/{projectId}/bulk", app.bulkEnvironmentAction)
+		mux.HandleFunc("GET /api/environments/task/{taskId}", app.listEnvironments)
+		mux.HandleFunc("POST /api/environments/task/{taskId}", app.createEnvironment)
+		mux.HandleFunc("GET /api/environment/{id}", app.getEnvironment)
+		mux.HandleFunc("PUT /api/environment/{id}", app.editEnvironment)
+		mux.HandleFunc("GET /api/environment/{id}/logs", app.environmentLogs)
+		mux.HandleFunc("GET /api/environment/{id}/source", app.environmentSourceStatus)
+		mux.HandleFunc("POST /api/environment/{id}/{action}", app.environmentAction)
+		mux.HandleFunc("DELETE /api/environment/{id}", app.environmentAction)
+	}
 
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, POST, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-Match")
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /api/", app.getDashboard)
@@ -20,6 +39,9 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/project/bulk/delete", app.bulkDeleteProjects)
 
 	mux.HandleFunc("GET /api/project/{projectId}/settings/workflow", app.getProjectWorkflowSettings)
+	mux.HandleFunc("GET /api/project/{projectId}/settings/conductor", app.getConductor)
+	mux.HandleFunc("PUT /api/project/{projectId}/settings/conductor", app.putConductor)
+	mux.HandleFunc("POST /api/project/{projectId}/conductor/bulk", app.bulkConductor)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/workflow", app.switchProjectWorkflow)
 	mux.HandleFunc("GET /api/project/{projectId}/settings/task-types", app.getProjectTaskTypeSettings)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/task-types", app.putProjectTaskTypes)
@@ -38,6 +60,7 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/task", app.postTask)
 	mux.HandleFunc("PUT /api/task", app.putTask)
 	mux.HandleFunc("POST /api/task/{taskId}/transition", app.transitionTaskStage)
+	mux.HandleFunc("POST /api/task/{taskId}/request-agent", app.requestAgent)
 	mux.HandleFunc("PUT /api/task/bulk", app.bulkUpdateTasks)
 	mux.HandleFunc("POST /api/task/bulk/delete", app.bulkDeleteTasks)
 	mux.HandleFunc("DELETE /api/task/{taskId}", app.deleteTask)
@@ -88,8 +111,6 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("PUT /api/stage/bulk/color", app.bulkSetStageColor)
 	mux.HandleFunc("PUT /api/stage/bulk/icon", app.bulkSetStageIcon)
 	mux.HandleFunc("POST /api/stage/bulk/delete", app.bulkDeleteStages)
-	mux.HandleFunc("PUT /api/stage/{stageId}/persona", app.putStagePersona)
-	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
 	mux.HandleFunc("PUT /api/stage/{stageId}", app.putStage)
 	mux.HandleFunc("DELETE /api/stage/{stageId}", app.deleteStage)
 
@@ -103,6 +124,16 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/persona/{personaId}", app.deletePersona)
 	mux.HandleFunc("GET /api/mcp/tools", app.getMCPTools)
 
+	// Legacy binding data remains editable for compatibility; it never triggers execution.
+	mux.HandleFunc("PUT /api/stage/{stageId}/persona", app.putStagePersona)
+	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
+	mux.HandleFunc("GET /api/ai/settings", app.getAISettings)
+	mux.HandleFunc("PUT /api/ai/settings", app.putAISettings)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/runs", app.startAIRun)
+	mux.HandleFunc("POST /api/ai/runs/{jobId}/cancel", app.cancelAIRun)
+	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches", app.getTaskBranches)
+	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches/{jobId}/merge", app.previewTaskMerge)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/branches/{jobId}/merge", app.mergeTaskBranch)
 	mux.HandleFunc("GET /api/agent-jobs", app.getAgentJobs)
 	mux.HandleFunc("GET /api/agent-jobs/{taskId}", app.getAgentJobsForTask)
 
@@ -110,5 +141,5 @@ func (app *app) routes() http.Handler {
 		mux.Handle("GET /", spa)
 	}
 
-	return withCommon(mux)
+	return withCommon(previewGuard(mux))
 }

@@ -1,3 +1,4 @@
+import { TaskBranches } from "@/features/task/branches/task-branches";
 import {
   Drawer,
   DrawerContent,
@@ -230,9 +231,12 @@ export default function TaskEditorDrawer({
                 <Separator orientation="horizontal" className="my-2"/>
 
                 <TaskRelationshipsCard />
+
               </section>
             </CollapsibleContent>
           </Collapsible>
+
+          {open && <div className="mx-3 sm:mx-6"><TaskBranches key={task.ID} taskId={task.ID} /></div>}
 
           {open &&
           (task.ID === 0 ||

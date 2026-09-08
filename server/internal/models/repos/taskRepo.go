@@ -346,6 +346,23 @@ func (repo *TaskRepo) UpdateTaskBody(taskId int, body string) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
+func (repo *TaskRepo) CompareAndSwapBody(taskID int, previous, body string) (bool, error) {
+	res, err := repo.DB.Exec(`UPDATE task SET body=? WHERE id=? AND COALESCE(body,'')=?`, body, taskID, previous)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+// RawTaskBody is the exact storage baseline for optimistic writes. Read models
+// normalize historical empty documents for Plate and cannot serve as a CAS token.
+func (repo *TaskRepo) RawTaskBody(taskID int) (string, error) {
+	var body string
+	err := repo.DB.QueryRow(`SELECT COALESCE(body,'') FROM task WHERE id=?`, taskID).Scan(&body)
+	return body, err
+}
+
 func (repo *TaskRepo) FindOne(taskId int64) (*models.ChecklistTask, error) {
 	query := `
 		SELECT
@@ -359,7 +376,7 @@ func (repo *TaskRepo) FindOne(taskId int64) (*models.ChecklistTask, error) {
 			t.hasTimePlannedStart,
 			t.hasTimePlannedEnd,
 			t.timeCompleted,
-			t.assignee,
+			COALESCE(t.assignee, ''),
 			t.priority,
 			t.stage,
 			t.checklist,

@@ -41,7 +41,7 @@ jobs:
 
       - name: Build React app
         working-directory: app
-        run: npm ci && npx vite build
+        run: npm ci && npm run build:md-convert && npx vite build
 
       - name: Build Go server
         working-directory: server
@@ -50,14 +50,25 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: go build -ldflags="-s -w" -o ../aycorn-${{ matrix.suffix }}${{ matrix.ext }} ./cmd/web
 
+      - name: Build AI task tools
+        working-directory: server
+        env:
+          CGO_ENABLED: '0'
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -ldflags="-s -w" -o ../aycorn-mcp-${{ matrix.suffix }}${{ matrix.ext }} ./cmd/mcp
+
       - name: Ad-hoc sign (macOS)
         if: runner.os == 'macOS'
-        run: codesign --force --deep -s - aycorn-${{ matrix.suffix }}
+        run: |
+          codesign --force --deep -s - aycorn-${{ matrix.suffix }}
+          codesign --force --deep -s - aycorn-mcp-${{ matrix.suffix }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: aycorn-${{ matrix.suffix }}
-          path: aycorn-${{ matrix.suffix }}${{ matrix.ext }}
+          path: |
+            aycorn-${{ matrix.suffix }}${{ matrix.ext }}
+            aycorn-mcp-${{ matrix.suffix }}${{ matrix.ext }}
 
   release:
     name: Create GitHub Release

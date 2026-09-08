@@ -1,15 +1,7 @@
-import { SELF_ASSIGNEE } from "@/features/task/stage-move-assignee";
+import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
 
 type TaskWithAssignee = {
   readonly Assignee: string;
-};
-
-type NamedPersona = {
-  readonly Name: string;
-};
-
-type StageWithPersona = {
-  readonly Persona?: NamedPersona | null;
 };
 
 export type AssigneeOptionState = {
@@ -21,18 +13,10 @@ export type AssigneeOptionState = {
 
 export const createAssigneeOptions = (
   tasks: readonly TaskWithAssignee[],
-  personas: readonly NamedPersona[],
-  stages: readonly StageWithPersona[],
 ): readonly string[] => {
   const names = new Set<string>([SELF_ASSIGNEE]);
   for (const task of tasks) {
     if (task.Assignee) names.add(task.Assignee);
-  }
-  for (const persona of personas) {
-    if (persona.Name) names.add(persona.Name);
-  }
-  for (const stage of stages) {
-    if (stage.Persona?.Name) names.add(stage.Persona.Name);
   }
   return [...names];
 };

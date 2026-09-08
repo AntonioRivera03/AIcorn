@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { MoreHorizontal, Trash2 } from "lucide-react";
-import { Drawer, DrawerContent } from "@/components/ui/drawer";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerDescription,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,31 +16,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { OpenAIModelInput } from "@/features/ai/openai-model-input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { EditableHeader } from "@/components/EditableHeader";
 import { RichEditor } from "@/features/editor/rich-editor";
 import { DeletePersonaDialog } from "@/features/persona/delete-persona-dialog";
-import { PersonaToolsSelect } from "@/features/persona/persona-tools-select";
-import { useMcpToolsQuery } from "@/features/persona/queries/use-mcp-tools-query";
 import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonaQuery } from "@/features/persona/queries/use-persona-query";
-import {
-  LEGACY_PERSONA_MODELS,
-  PERSONA_AGENTS,
-  PERSONA_HARNESSES,
-  PERSONA_MODELS,
-  type Persona,
-  type PersonaAgent,
-  type PersonaHarness,
-  type PersonaModel,
-} from "@/types/types";
+import type { Persona } from "@/types/types";
 import { useIsMobile } from "@/hooks/useMobile";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -45,31 +33,30 @@ type PersonaEditorDrawerProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEditorDrawerProps) {
+export function PersonaEditorDrawer(props: PersonaEditorDrawerProps) {
+  return props.open && props.personaId !== null ? (
+    <PersonaEditorSession key={props.personaId} {...props} />
+  ) : null;
+}
+
+function PersonaEditorSession({
+  personaId,
+  open,
+  onOpenChange,
+}: PersonaEditorDrawerProps) {
   const isMobile = useIsMobile();
   const { data: persona, isPending, error } = usePersonaQuery(personaId ?? 0);
-  const { data: tools = [], isPending: toolsLoading } = useMcpToolsQuery();
   const { updatePersona } = usePersonaMutations(personaId ?? undefined);
 
-  const [draft, setDraft] = useState<Persona | null>(null);
+  const [changes, setDraft] = useState<Persona | null>(null);
+  const draft = changes ?? persona ?? null;
   const editorRef = useRef<PlateEditor | null>(null);
   const [editorReady, setEditorReady] = useState(false);
   const savedPromptRef = useRef<Value | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const hasAutoFocused = useRef(false);
+  const [modelDraft, setModelDraft] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  useEffect(() => {
-    if (persona) setDraft(persona);
-  }, [persona]);
-
-  useEffect(() => {
-    if (!open) {
-      hasAutoFocused.current = false;
-      setEditorReady(false);
-      editorRef.current = null;
-    }
-  }, [open]);
 
   useEffect(() => {
     if (!open || !draft || hasAutoFocused.current || !titleRef.current) return;
@@ -90,7 +77,7 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
       },
       onError: () => {
         if (persona) setDraft(persona);
-        toast.error("Failed to update persona.");
+        toast.error("Failed to update agent.");
       },
     });
   };
@@ -128,23 +115,6 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
     }
   };
 
-  const saveHarness = (Harness: PersonaHarness) => {
-    if (!draft) return;
-    save({ ...draft, Harness });
-  };
-  const saveModel = (Model: PersonaModel) => {
-    if (!draft) return;
-    save({ ...draft, Model });
-  };
-  const saveAgent = (Agent: PersonaAgent | "") => {
-    if (!draft) return;
-    save({ ...draft, Agent });
-  };
-  const saveTools = (AllowedTools: string[]) => {
-    if (!draft) return;
-    save({ ...draft, AllowedTools });
-  };
-
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) commitPendingPrompt();
     onOpenChange(nextOpen);
@@ -164,24 +134,38 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
     >
       <DrawerContent className="md:min-w-3xl p-0 overflow-x-visible box-border rounded-lg data-[vaul-drawer-direction=bottom]:h-[calc(100dvh-var(--header-height))] data-[vaul-drawer-direction=bottom]:max-h-dvh flex flex-col">
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <span className="text-sm font-medium">Edit Persona</span>
+          <DrawerTitle>Custom agent</DrawerTitle>
+          <DrawerDescription className="sr-only">
+            Edit reusable instructions for task AI runs.
+          </DrawerDescription>
           <div className="flex items-center gap-1">
             {draft && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Persona actions">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Agent actions"
+                  >
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setDeleteOpen(true)}
+                  >
                     <Trash2 />
-                    Delete persona
+                    Delete agent
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <Button variant="ghost" size="sm" onClick={() => handleClose(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleClose(false)}
+            >
               Close
             </Button>
           </div>
@@ -195,7 +179,9 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
           {isPending || !draft ? (
             <div className="flex flex-col gap-4 p-6">
               {error ? (
-                <div className="text-sm text-muted-foreground">Persona could not be loaded.</div>
+                <div className="text-sm text-muted-foreground">
+                  Preset could not be loaded.
+                </div>
               ) : (
                 <>
                   <Skeleton className="h-8 w-3/4" />
@@ -210,90 +196,21 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
                 ref={titleRef}
                 value={draft.Name}
                 setValue={saveName}
-                placeholder="Untitled Persona"
+                placeholder="Untitled agent"
                 className="min-w-0 flex-1"
               />
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="persona-drawer-harness">Harness</Label>
-                  <Select value={draft.Harness} onValueChange={saveHarness} disabled={updatePersona.isPending}>
-                    <SelectTrigger id="persona-drawer-harness" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PERSONA_HARNESSES.map((harness) => (
-                        <SelectItem key={harness} value={harness}>
-                          {harness}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="persona-drawer-model">Model</Label>
-                  <Select value={draft.Model} onValueChange={saveModel} disabled={updatePersona.isPending}>
-                    <SelectTrigger id="persona-drawer-model" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PERSONA_MODELS.map((model) => (
-                        <SelectItem key={model} value={model} className="capitalize">
-                          {model}
-                        </SelectItem>
-                      ))}
-                      {draft.Model &&
-                        (LEGACY_PERSONA_MODELS as readonly string[]).includes(draft.Model) &&
-                        !(PERSONA_MODELS as readonly string[]).includes(draft.Model) && (
-                          <SelectItem key={draft.Model} value={draft.Model} className="capitalize">
-                            {draft.Model} (legacy)
-                          </SelectItem>
-                        )}
-                      {draft.Model &&
-                        !(PERSONA_MODELS as readonly string[]).includes(draft.Model) &&
-                        !(LEGACY_PERSONA_MODELS as readonly string[]).includes(draft.Model) && (
-                          <SelectItem key={draft.Model} value={draft.Model}>
-                            {draft.Model} (legacy)
-                          </SelectItem>
-                        )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="persona-drawer-agent">Agent</Label>
-                  <Select
-                    value={draft.Agent ?? ""}
-                    onValueChange={(v) => saveAgent(v as PersonaAgent | "")}
-                    disabled={updatePersona.isPending}
-                  >
-                    <SelectTrigger id="persona-drawer-agent" className="w-full">
-                      <SelectValue placeholder="Select agent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PERSONA_AGENTS.map((agent) => (
-                        <SelectItem key={agent} value={agent}>
-                          {agent}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="agent-model">OpenAI model</Label>
+                <OpenAIModelInput id="agent-model" value={modelDraft ?? draft.Model} onChange={(event) => setModelDraft(event.target.value)} onBlur={() => {
+                  const Model = (modelDraft ?? draft.Model).trim();
+                  if (Model !== draft.Model) save({ ...draft, Model });
+                  setModelDraft(null);
+                }} />
+                <p className="text-xs text-muted-foreground">Runs with Codex. Select this agent as a Conductor or task agent in project settings. Model availability depends on your Codex account.</p>
               </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="persona-drawer-tools">Allowed tools</Label>
-                <PersonaToolsSelect
-                  tools={tools}
-                  selected={draft.AllowedTools}
-                  loading={toolsLoading}
-                  disabled={updatePersona.isPending}
-                  onChange={saveTools}
-                />
-                <p className="text-xs text-muted-foreground">An empty selection means this persona has no tool access.</p>
-              </div>
-
               <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <Label>System prompt</Label>
+                <Label>Instructions</Label>
                 {open ? (
                   <RichEditor
                     key={`${draft.ID}-${open}`}
@@ -310,7 +227,11 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
                 ) : (
                   <Skeleton className="h-32 w-full" />
                 )}
-                {!editorReady && open && <p className="text-xs text-muted-foreground">Loading editor…</p>}
+                {!editorReady && open && (
+                  <p className="text-xs text-muted-foreground">
+                    Loading editor…
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -322,7 +243,7 @@ export function PersonaEditorDrawer({ personaId, open, onOpenChange }: PersonaEd
             onOpenChange={setDeleteOpen}
             onDeleted={() => {
               setDeleteOpen(false);
-              handleClose(false);
+              onOpenChange(false);
             }}
           />
         )}

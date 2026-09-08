@@ -4,51 +4,12 @@ import {
   createAssigneeOptions,
   getAssigneeOptionState,
 } from "@/features/task/properties/task-assignee-options";
-import {
-  createPersonaNames,
-  isPersona,
-} from "@/features/task/stage-move-assignee";
-
 const options = ["Me", "Alice", "Researcher", "Stage Builder"];
 
 describe("createAssigneeOptions", () => {
-  it("combines self, task, catalog persona, and stage persona names without duplicates", () => {
-    // Given assignee names supplied through every picker data source
-    const tasks = [
-      { Assignee: "Alice" },
-      { Assignee: "Researcher" },
-      { Assignee: "" },
-      { Assignee: "Alice" },
-    ];
-    const personas = [{ Name: "Researcher" }, { Name: "" }];
-    const stages = [
-      { Persona: { Name: "Stage Builder" } },
-      { Persona: null },
-    ];
-
-    // When TaskAssignee builds its command options
-    const result = createAssigneeOptions(tasks, personas, stages);
-
-    // Then every selectable identity appears once with self first
-    expect(result).toEqual(options);
-  });
-
-  it("classifies a stage persona separately from a human option", () => {
-    // Given names sourced from the persona catalog and stage hydration
-    const personaNames = createPersonaNames(
-      [{ Name: "Researcher" }],
-      [{ Persona: { Name: "Stage Builder" } }],
-    );
-
-    // When TaskAssignee chooses Bot versus Users treatment
-    const result = {
-      stagePersona: isPersona("Stage Builder", personaNames),
-      human: isPersona("Alice", personaNames),
-    };
-
-    // Then the stage persona is distinct while the human remains generic
-    expect(result).toEqual({ stagePersona: true, human: false });
-  });
+ it("preserves existing free-text owners without injecting personas", () => {
+  expect(createAssigneeOptions([{Assignee:"Alice"}, {Assignee:"Researcher"}, {Assignee:""}, {Assignee:"Alice"}])).toEqual(["Me", "Alice", "Researcher"]);
+ });
 });
 
 describe("getAssigneeOptionState", () => {

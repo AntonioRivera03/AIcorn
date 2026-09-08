@@ -11,6 +11,9 @@ import { DndProvider } from "@/features/calendar/contexts/dnd-context";
 import { WeekView } from "./views/calendarViews/week-view";
 import { useSharedSelection } from "@/hooks/useSelection";
 import { BulkActionsToolbar } from "@/features/task/bulk-actions-toolbar";
+import { useConductor } from "@/features/conductor/use-conductor";
+import { ConductorContext } from "@/features/conductor/conductor-context";
+import { ConductorControls, ConductorFrame } from "@/features/conductor/conductor-board";
 import {
   CalendarDaysIcon,
   CalendarIcon,
@@ -28,6 +31,9 @@ export function ProjectDetails({
   projectId: number;
 }) {
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [conductorOnly, setConductorOnly] = useState(false);
+  const conductor = useConductor(projectId);
+  const projectContext = useContext(ProjectContext);
   const {
     SetProject,
     SetWorkflow,
@@ -36,7 +42,7 @@ export function ProjectDetails({
     SetTasks,
     Filter,
     Tasks,
-  } = useContext(ProjectContext);
+  } = projectContext;
   const selection = useSharedSelection();
   const selectedTasks = useMemo(
     () => Tasks.filter((t) => selection.selectedIds.has(t.ID.toString())),
@@ -63,7 +69,15 @@ export function ProjectDetails({
     refetch();
   }, [refetch, Filter]);
 
+  const visibleContext = useMemo(() => {
+    if (!conductorOnly) return projectContext;
+    const ids = new Set(conductor.data?.tasks.map((task) => task.taskId));
+    return { ...projectContext, Tasks: Tasks.filter((task) => ids.has(task.ID)) };
+  }, [conductorOnly, conductor.data?.tasks, projectContext, Tasks]);
+
   return (
+    <ConductorContext.Provider value={conductor}>
+    <ProjectContext.Provider value={visibleContext}>
     <div className="flex flex-col gap-4 grow min-h-0 overflow-visible">
       <ProjectContentHeader />
 
@@ -71,6 +85,7 @@ export function ProjectDetails({
         <CalendarProvider events={[]} users={[]} view="month">
           <DndProvider>
             <Tabs value={view} onValueChange={setView} className="h-full">
+              <div className="flex flex-wrap items-center justify-between gap-3">
               <TabsList>
                 <TabsTrigger value="list">
                   <Rows3Icon />
@@ -89,18 +104,20 @@ export function ProjectDetails({
                   Week
                 </TabsTrigger>
               </TabsList>
+              <ConductorControls projectId={projectId} only={conductorOnly} onOnlyChange={(value) => { setConductorOnly(value); selection.clearSelection(); }} />
+              </div>
 
               <TabsContent
                 value="list"
                 className="h-full overflow-visible min-h-0"
               >
-                <ListView setTaskDrawerOpen={setNewTaskOpen} />
+                <ConductorFrame only={conductorOnly}><ListView setTaskDrawerOpen={setNewTaskOpen} /></ConductorFrame>
               </TabsContent>
               <TabsContent
                 value="kanban"
                 className="h-full overflow-visible min-h-0"
               >
-                <KanbanView setTaskDrawerOpen={setNewTaskOpen} />
+                <ConductorFrame only={conductorOnly}><KanbanView setTaskDrawerOpen={setNewTaskOpen} /></ConductorFrame>
               </TabsContent>
               <TabsContent
                 value="month"
@@ -124,5 +141,7 @@ export function ProjectDetails({
         onClear={selection.clearSelection}
       />
     </div>
+    </ProjectContext.Provider>
+    </ConductorContext.Provider>
   );
 }

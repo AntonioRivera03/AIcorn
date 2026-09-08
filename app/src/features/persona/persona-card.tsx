@@ -1,6 +1,6 @@
-import { Bot, Cable, Wrench } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip,
   TooltipContent,
@@ -12,11 +12,10 @@ import type { Persona } from "@/types/types";
 
 type PersonaCardProps = {
   persona: Persona;
-  boundStageCount: number;
   onOpen: (personaId: number) => void;
 };
 
-export function PersonaCard({ persona, boundStageCount, onOpen }: PersonaCardProps) {
+export function PersonaCard({ persona, onOpen }: PersonaCardProps) {
   const { getItemProps } = useSharedSelection();
   const itemProps = getItemProps(`persona-${persona.ID}`);
   const itemOnClick = itemProps.onClick;
@@ -37,7 +36,7 @@ export function PersonaCard({ persona, boundStageCount, onOpen }: PersonaCardPro
       data-task-card=""
       role="button"
       tabIndex={0}
-      aria-label={`Open ${persona.Name || "Untitled Persona"}`}
+      aria-label={`Open ${persona.Name || "Untitled agent"}`}
       className={cn(
         "cursor-pointer gap-4 rounded-lg py-4 shadow-none transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selectedItemClasses(),
@@ -54,29 +53,15 @@ export function PersonaCard({ persona, boundStageCount, onOpen }: PersonaCardPro
           <Tooltip>
             <TooltipTrigger asChild>
               <span className={cn("block truncate", persona.Name === "" && "text-muted-foreground")}>
-                {persona.Name || "Untitled Persona"}
+                {persona.Name || "Untitled agent"}
               </span>
             </TooltipTrigger>
-            <TooltipContent>{persona.Name || "Untitled Persona"}</TooltipContent>
+            <TooltipContent>{persona.Name || "Untitled agent"}</TooltipContent>
           </Tooltip>
         </CardTitle>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Bot className="size-3.5" />
-          <span>{persona.Harness}</span>
-          <span aria-hidden="true">·</span>
-          <span className="capitalize">{persona.Model}</span>
-        </p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="size-3.5" /> Codex · {persona.Model}</p>
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-2 px-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-          <Wrench className="size-3" />
-          {persona.AllowedTools.length} {persona.AllowedTools.length === 1 ? "tool" : "tools"}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-          <Cable className="size-3" />
-          {boundStageCount} {boundStageCount === 1 ? "stage" : "stages"}
-        </span>
-      </CardContent>
+
     </Card>
   );
 }

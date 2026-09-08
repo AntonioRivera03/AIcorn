@@ -8,6 +8,8 @@ server/web
 server/bin/
 dist-release/
 .DS_Store
+.worktrees/
+aycorn-worktrees/
 
 # Desktop build output
 build/Aycorn.app

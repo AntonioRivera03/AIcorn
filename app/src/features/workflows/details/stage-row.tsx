@@ -11,7 +11,6 @@ import { IconColorPicker } from "@/features/icon-picker/icon-color-picker";
 import { stageStrokeClass } from "@/features/stage/stage-palette";
 import { StageTypeSelect } from "@/features/workflows/details/stage-type-select";
 import { StageRowMenu } from "@/features/workflows/details/stage-row-menu";
-import { StagePersonaPicker } from "@/features/workflows/details/stage-persona-picker";
 import { DeleteStagesDialog } from "@/features/workflows/details/delete-stages-dialog";
 import { useStageMutation } from "@/features/workflows/shared/queries/useStageMutation";
 import { selectedItemClasses, useSharedSelection } from "@/hooks/useSelection";
@@ -133,7 +132,6 @@ export function StageRow({
       </div>
 
       <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
-        <StagePersonaPicker stage={stage} workflowId={workflowId} />
 
         <div className="shrink-0 w-fit sm:w-20">
           <StageTypeSelect stage={stage} workflowId={workflowId} />

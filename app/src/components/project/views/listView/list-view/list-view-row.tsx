@@ -8,7 +8,7 @@ import {
   ItemMedia,
 } from "@/components/ui/item";
 import { ListViewTaskName } from "@/components/project/views/listView/list-view/list-view-task-name";
-import { Bot, ChevronRightIcon, LandPlot, User } from "lucide-react";
+import { Bot, ChevronRightIcon, Ellipsis, LandPlot, User } from "lucide-react";
 import TaskEditorDrawer from "@/features/task/task-editor-drawer";
 import { StageIcon } from "@/features/stage/stage-visual";
 import TaskTypeBadge from "@/features/task/properties/task-type-badge";
@@ -22,9 +22,18 @@ import { cn } from "@/lib/utils";
 import type { ChecklistTask, Stage } from "@/types/types";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
+import { ConductorTaskBadge, ConductorTaskMenu } from "@/features/conductor/conductor-task";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { AgentWorkingBadge } from "@/features/agentJob/agentWorkingBadge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAI } from "@/features/ai/ai-context";
 
 export function ListViewRow({
   task,
@@ -39,6 +48,8 @@ export function ListViewRow({
 }) {
   const itemClassName = (itemProps.className as string | undefined) ?? "";
   const subtaskProgress = useSubtaskProgress(task.ID);
+  const { openAI } = useAI();
+  const [actionsOpen, setActionsOpen] = useState(false);
   const { Stages } = useContext(ProjectContext);
   const { data: personas = [] } = usePersonasQuery();
   const isPersonaAssignee = useMemo(() => {
@@ -51,12 +62,18 @@ export function ListViewRow({
 
   return (
     <TaskProvider defaultState={task}>
-      <TaskEditorDrawer>
-        <Item asChild>
-          <a
-            {...itemProps}
-            className={cn("px-0 sm:px-4", itemClassName, selectedItemClasses())}
-          >
+      <div className="relative flex items-center group/row w-full" onContextMenu={(e) => { e.preventDefault(); setActionsOpen(true); }} onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); setActionsOpen(true); } }}>
+        <TaskEditorDrawer>
+          <Item asChild className="flex-1 min-w-0">
+            <a
+              {...itemProps}
+              data-task-card=""
+              className={cn(
+                "px-0 sm:px-4 flex-1 min-w-0",
+                itemClassName,
+                selectedItemClasses({ ring: false }),
+              )}
+            >
             <ItemMedia className="flex flex-col">
               <StageIcon stage={stage} />
               <TaskPriorityIcon variant={task.Priority} />
@@ -107,6 +124,7 @@ export function ListViewRow({
 
                   <UnresolvedBlockersBadge taskId={task.ID} />
                   <AgentWorkingBadge taskId={task.ID} compact />
+                  <ConductorTaskBadge taskId={task.ID} name={task.Name} />
                 </span>
               </ItemDescription>
             </ItemContent>
@@ -139,6 +157,29 @@ export function ListViewRow({
           </a>
         </Item>
       </TaskEditorDrawer>
+        <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Task actions"
+              className="shrink-0 mr-1 opacity-60 hover:opacity-100 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 data-[state=open]:bg-muted"
+            >
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuItem
+              onClick={() => openAI({ id: task.ID, name: task.Name })}
+              disabled={task.ID === 0}
+            >
+              <Bot className="size-4" />
+              Ask AI
+            </DropdownMenuItem>
+            <ConductorTaskMenu taskId={task.ID} />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </TaskProvider>
   );
 }

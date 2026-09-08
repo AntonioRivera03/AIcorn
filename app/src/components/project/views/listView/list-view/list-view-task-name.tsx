@@ -58,7 +58,12 @@ export function ListViewTaskName() {
     <ItemTitle className={`w-full min-w-0${isEmpty ? " text-muted-foreground" : ""}`}>
       <HoverCard openDelay={150} closeDelay={100}>
         <HoverCardTrigger asChild>
-          <span className="truncate">{fullName}</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="font-mono text-xs text-muted-foreground shrink-0">
+              #{task.ID}
+            </span>
+            <span className="truncate min-w-0 flex-1">{fullName}</span>
+          </span>
         </HoverCardTrigger>
         <HoverCardContent
           side="top"

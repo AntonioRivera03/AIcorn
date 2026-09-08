@@ -59,8 +59,8 @@ func testPersona(name string) models.Persona {
 	return models.Persona{
 		Name:         name,
 		SystemPrompt: "Research carefully.",
-		Harness:      models.PersonaHarnessOpencode,
-		Model:        models.PersonaModelSonnet,
+		Harness:      models.PersonaHarnessCodex,
+		Model:        models.PersonaModelDefault,
 		AllowedTools: []string{"read_task", "search_tasks"},
 	}
 }
@@ -115,14 +115,22 @@ func TestPersonaAPI_supports_full_lifecycle(t *testing.T) {
 	if err := json.Unmarshal(listResponse.Body.Bytes(), &listed); err != nil {
 		t.Fatalf("decode persona list: %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != created.ID {
-		t.Fatalf("listed personas = %#v; want created persona", listed)
+	// Migration 00013 seeds a Coder persona, so list contains at least the seeded one plus created.
+	found := false
+	for _, p := range listed {
+		if p.ID == created.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("listed personas = %#v; want created ID %d", listed, created.ID)
 	}
 
 	// When
 	updated := created
 	updated.Name = "Lead Researcher"
-	updated.Model = models.PersonaModelOpus
+	updated.Model = models.PersonaModelAstra
 	updateResponse := request(http.MethodPut, "/api/persona/"+jsonNumber(created.ID), updated)
 
 	// Then
@@ -130,7 +138,7 @@ func TestPersonaAPI_supports_full_lifecycle(t *testing.T) {
 		t.Fatalf("update status = %d; want 200: %s", updateResponse.Code, updateResponse.Body.String())
 	}
 	readUpdated := decodePersona(t, request(http.MethodGet, "/api/persona/"+jsonNumber(created.ID), nil))
-	if readUpdated.Name != updated.Name || readUpdated.Model != models.PersonaModelOpus {
+	if readUpdated.Name != updated.Name || readUpdated.Model != models.PersonaModelAstra {
 		t.Fatalf("updated persona = %#v; want name/model update", readUpdated)
 	}
 
@@ -187,32 +195,39 @@ func TestPersonaAPI_bulk_operations_report_counts_and_delete_bindings(t *testing
 	if err := json.Unmarshal(listResponse.Body.Bytes(), &stored); err != nil {
 		t.Fatalf("decode personas: %v", err)
 	}
-	updates := []models.Persona{stored[0], testPersona("Missing")}
+	var target models.Persona
+	for _, p := range stored {
+		if p.Name == "One" || p.Name == "Two" {
+			target = p
+			break
+		}
+	}
+	if target.ID == 0 {
+		t.Fatalf("stored personas = %#v; want One/Two present", stored)
+	}
+	updates := []models.Persona{target, testPersona("Missing")}
 	updates[0].Name = "Updated"
 	updates[1].ID = 999999
 
-	// When
 	updateResponse := request(http.MethodPut, "/api/persona/bulk", updates)
 
-	// Then
 	if got := decodeBulkResult(t, updateResponse); got != (models.BulkResult{Success: 1, Skipped: 1}) {
 		t.Fatalf("bulk update result = %#v; want 1 success and 1 skipped", got)
 	}
 
 	stageID := insertPersonaTestStage(t, db)
-	if _, err := db.Exec("INSERT INTO stage_persona (stage_id, persona_id) VALUES (?, ?)", stageID, stored[0].ID); err != nil {
+	if _, err := db.Exec("INSERT INTO stage_persona (stage_id, persona_id) VALUES (?, ?)", stageID, target.ID); err != nil {
 		t.Fatalf("bind persona to stage: %v", err)
 	}
 
-	// When
-	deleteResponse := request(http.MethodPost, "/api/persona/bulk/delete", []int{stored[0].ID, 999999})
+	deleteResponse := request(http.MethodPost, "/api/persona/bulk/delete", []int{target.ID, 999999})
 
 	// Then
 	if got := decodeBulkResult(t, deleteResponse); got != (models.BulkResult{Success: 1, Skipped: 1}) {
 		t.Fatalf("bulk delete result = %#v; want 1 success and 1 skipped", got)
 	}
 	var bindings int
-	if err := db.QueryRow("SELECT COUNT(*) FROM stage_persona WHERE persona_id = ?", stored[0].ID).Scan(&bindings); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM stage_persona WHERE persona_id = ?", target.ID).Scan(&bindings); err != nil {
 		t.Fatalf("count persona bindings: %v", err)
 	}
 	if bindings != 0 {

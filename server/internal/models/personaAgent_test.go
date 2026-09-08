@@ -50,10 +50,10 @@ func TestIsValidPersonaHarness_rejectsClaudeCode(t *testing.T) {
 	if models.IsValidPersonaHarness("claude-code") {
 		t.Fatal("expected claude-code harness to be invalid after removal")
 	}
-	if !models.IsValidPersonaHarness(models.PersonaHarnessOpencode) {
+	if !models.IsValidPersonaHarness(models.PersonaHarnessCodex) {
 		t.Fatal("expected opencode harness to remain valid")
 	}
-	if !models.IsValidPersonaHarness("opencode") {
+	if !models.IsValidPersonaHarness("codex") {
 		t.Fatal("expected string 'opencode' to be valid")
 	}
 }
@@ -88,32 +88,12 @@ func personaAgentTestApp(t *testing.T) (*sql.DB, *services.PersonaService) {
 	return db, svc
 }
 
-func TestPersonaServiceValidate_coercesLegacyClaudeCode(t *testing.T) {
+func TestPersonaServiceValidateRejectsOtherEngines(t *testing.T) {
 	_, svc := personaAgentTestApp(t)
-
-	created, err := svc.Create(&models.Persona{
-		Name:         "Legacy Harness",
-		Harness:      models.PersonaHarness("claude-code"),
-		Model:        models.PersonaModelMuseSpark12Contributor,
-		Agent:        models.PersonaAgentWorker,
-		AllowedTools: []string{"read_task"},
-	})
-	if err != nil {
-		t.Fatalf("Create with claude-code harness: %v", err)
-	}
-	if created.Harness != models.PersonaHarnessOpencode {
-		t.Fatalf("harness after coercion = %q; want %q", created.Harness, models.PersonaHarnessOpencode)
-	}
-	if created.Agent != models.PersonaAgentWorker {
-		t.Fatalf("agent after coercion = %q; want worker", created.Agent)
-	}
-	// Reload from DB to prove it persisted coerced.
-	reloaded, err := svc.Get(created.ID)
-	if err != nil {
-		t.Fatalf("Get after coercion: %v", err)
-	}
-	if reloaded.Harness != models.PersonaHarnessOpencode {
-		t.Fatalf("reloaded harness = %q; want opencode", reloaded.Harness)
+	for _, h := range []models.PersonaHarness{"opencode", "claude-code"} {
+		if _, err := svc.Create(&models.Persona{Harness: h}); err != services.ErrInvalidPersonaHarness {
+			t.Fatalf("accepted %s: %v", h, err)
+		}
 	}
 }
 
@@ -122,8 +102,8 @@ func TestPersonaServiceValidate_rejectsInvalidAgent(t *testing.T) {
 
 	_, err := svc.Create(&models.Persona{
 		Name:    "Bad Agent",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   models.PersonaAgent("unknown-agent"),
 	})
 	if err != services.ErrInvalidPersonaAgent {
@@ -137,7 +117,7 @@ func TestPersonaServiceValidate_rejectsUnknownHarness(t *testing.T) {
 	_, err := svc.Create(&models.Persona{
 		Name:    "Bad Harness",
 		Harness: models.PersonaHarness("other"),
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Model:   models.PersonaModelDefault,
 	})
 	if err != services.ErrInvalidPersonaHarness {
 		t.Fatalf("expected ErrInvalidPersonaHarness, got %v", err)
@@ -149,8 +129,8 @@ func TestPersonaServiceValidate_allowsEmptyAgent(t *testing.T) {
 
 	created, err := svc.Create(&models.Persona{
 		Name:    "No Agent",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   "",
 	})
 	if err != nil {
@@ -166,8 +146,8 @@ func TestPersonaServiceValidate_updateRejectsInvalidAgent(t *testing.T) {
 
 	created, err := svc.Create(&models.Persona{
 		Name:    "Updatable",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   models.PersonaAgentWorker,
 	})
 	if err != nil {
@@ -189,8 +169,8 @@ func TestPersonaServiceValidate_bulkCreateRejectsInvalidAgent(t *testing.T) {
 	_, svc := personaAgentTestApp(t)
 
 	personas := []models.Persona{
-		{Name: "Good", Harness: models.PersonaHarnessOpencode, Model: models.PersonaModelMuseSpark12Contributor, Agent: models.PersonaAgentWorker},
-		{Name: "Bad", Harness: models.PersonaHarnessOpencode, Model: models.PersonaModelMuseSpark12Contributor, Agent: models.PersonaAgent("bad")},
+		{Name: "Good", Harness: models.PersonaHarnessCodex, Model: models.PersonaModelDefault, Agent: models.PersonaAgentWorker},
+		{Name: "Bad", Harness: models.PersonaHarnessCodex, Model: models.PersonaModelDefault, Agent: models.PersonaAgent("bad")},
 	}
 	_, err := svc.BulkCreate(personas)
 	if err != services.ErrInvalidPersonaAgent {
@@ -202,12 +182,12 @@ func TestPersonaServiceValidate_bulkCreateRejectsInvalidAgent(t *testing.T) {
 	}
 }
 
-func TestPersonaServiceValidate_coercesEmptyAndClaudeCodeViaBulk(t *testing.T) {
+func TestPersonaServiceValidate_defaultsEmptyAndAcceptsCodexViaBulk(t *testing.T) {
 	_, svc := personaAgentTestApp(t)
 
 	personas := []models.Persona{
 		{Name: "From Empty", Harness: "", Model: "", Agent: ""},
-		{Name: "From Claude", Harness: models.PersonaHarness("claude-code"), Model: "", Agent: models.PersonaAgentResearch},
+		{Name: "Explicit Codex", Harness: models.PersonaHarnessCodex, Model: "", Agent: models.PersonaAgentResearch},
 	}
 	result, err := svc.BulkCreate(personas)
 	if err != nil {
@@ -218,7 +198,7 @@ func TestPersonaServiceValidate_coercesEmptyAndClaudeCodeViaBulk(t *testing.T) {
 	}
 	all, _ := svc.GetAll()
 	for _, p := range all {
-		if p.Harness != models.PersonaHarnessOpencode {
+		if p.Harness != models.PersonaHarnessCodex {
 			t.Fatalf("persona %q harness = %q; want opencode after coercion", p.Name, p.Harness)
 		}
 	}
@@ -234,8 +214,8 @@ func TestPersonaRepoScan_includesAgent(t *testing.T) {
 
 	created, err := svc.Create(&models.Persona{
 		Name:    "Agent Worker",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   models.PersonaAgentWorker,
 	})
 	if err != nil {
@@ -272,8 +252,8 @@ func TestPersonaRepoScan_includesAgent(t *testing.T) {
 	// Empty agent round-trips as empty
 	empty, err := svc.Create(&models.Persona{
 		Name:    "No Agent Row",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   "",
 	})
 	if err != nil {
@@ -290,8 +270,8 @@ func TestPersonaRepoScan_agentSurvivesBulkAndAll(t *testing.T) {
 	repo := &repos.PersonaRepo{DB: db}
 
 	personas := []models.Persona{
-		{Name: "a", Harness: models.PersonaHarnessOpencode, Model: models.PersonaModelMuseSpark12Contributor, Agent: models.PersonaAgentSynthesis},
-		{Name: "b", Harness: models.PersonaHarnessOpencode, Model: models.PersonaModelMuseSpark12Contributor, Agent: models.PersonaAgentCodeAnalysis},
+		{Name: "a", Harness: models.PersonaHarnessCodex, Model: models.PersonaModelDefault, Agent: models.PersonaAgentSynthesis},
+		{Name: "b", Harness: models.PersonaHarnessCodex, Model: models.PersonaModelDefault, Agent: models.PersonaAgentCodeAnalysis},
 	}
 	result, err := svc.BulkCreate(personas)
 	if err != nil {
@@ -344,8 +324,8 @@ func TestPersonaAgentHttp_invalidAgentMapsTo400(t *testing.T) {
 	// Direct service -> 400 mapping assertion:
 	_, svcErr := svc.Create(&models.Persona{
 		Name:    "Bad via HTTP",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   models.PersonaAgent("not-real"),
 	})
 	if svcErr != services.ErrInvalidPersonaAgent {
@@ -368,8 +348,8 @@ func TestPersonaAgentHttp_invalidAgentMapsTo400(t *testing.T) {
 	// Positive: valid request via service returns no error -> handler would write 200
 	valid, err := svc.Create(&models.Persona{
 		Name:    "Good via HTTP",
-		Harness: models.PersonaHarnessOpencode,
-		Model:   models.PersonaModelMuseSpark12Contributor,
+		Harness: models.PersonaHarnessCodex,
+		Model:   models.PersonaModelDefault,
 		Agent:   models.PersonaAgentWorker,
 	})
 	if err != nil {

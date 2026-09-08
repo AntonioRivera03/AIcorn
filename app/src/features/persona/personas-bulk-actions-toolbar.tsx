@@ -8,12 +8,10 @@ import { usePersonaMutations } from "@/features/persona/queries/use-persona-muta
 
 type PersonasBulkActionsToolbarProps = {
   personas: Persona[];
-  stageCounts: ReadonlyMap<number, number>;
 };
 
 export function PersonasBulkActionsToolbar({
   personas,
-  stageCounts,
 }: PersonasBulkActionsToolbarProps) {
   const { selectedIds, clearSelection } = useSharedSelection();
   const { bulkDeletePersonas } = usePersonaMutations();
@@ -22,17 +20,14 @@ export function PersonasBulkActionsToolbar({
     [personas, selectedIds],
   );
   const ids = selectedPersonas.map((persona) => persona.ID);
-  const boundStages = selectedPersonas.reduce(
-    (total, persona) => total + (stageCounts.get(persona.ID) ?? 0),
-    0,
-  );
+
 
   const handleDelete = () => {
     bulkDeletePersonas.mutate(ids, {
       onSuccess: (result) => {
         bulkResultToast(
           result,
-          `Deleted ${result.success} persona${result.success === 1 ? "" : "s"}.`,
+          `Deleted ${result.success} agent${result.success === 1 ? "" : "s"}.`,
         );
         clearSelection();
       },
@@ -48,11 +43,8 @@ export function PersonasBulkActionsToolbar({
       onClear={clearSelection}
       delete={{
         onConfirm: handleDelete,
-        title: `Delete ${count} persona${count === 1 ? "" : "s"}?`,
-        description:
-          boundStages > 0
-            ? `This will unbind ${boundStages} stage${boundStages === 1 ? "" : "s"}. This action cannot be undone.`
-            : "Any stages using these personas will be unbound. This action cannot be undone.",
+        title: `Delete ${count} agent${count === 1 ? "" : "s"}?`,
+        description: "The saved instructions will be deleted. Previous AI runs will remain available.",
         busy: bulkDeletePersonas.isPending,
       }}
     />

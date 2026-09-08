@@ -99,7 +99,7 @@ func TestAgentRunRepo_CreateAndList_ValidRowAndNulls(t *testing.T) {
 	}
 }
 
-func TestAgentRunRepo_InvalidUsageJson_ReturnsError(t *testing.T) {
+func TestAgentRunRepo_LegacyUsageRemainsReadable(t *testing.T) {
 	db := setupAgentJobTestDB(t)
 	jobRepo := &AgentJobRepo{DB: db}
 	runRepo := &AgentRunRepo{DB: db}
@@ -113,8 +113,8 @@ func TestAgentRunRepo_InvalidUsageJson_ReturnsError(t *testing.T) {
 		t.Fatalf("raw insert invalid json: %v", err)
 	}
 	// List path must surface parse error via scanAgentRun
-	if _, err := runRepo.ListByJob(job.ID); err == nil {
-		t.Fatal("expected error for invalid usageJson, got nil")
+	if runs, err := runRepo.ListByJob(job.ID); err != nil || runs[0].UsageJson != "not-json" {
+		t.Fatalf("legacy usage not preserved: %v", err)
 	}
 	// Direct scan via Find path: insert another invalid and query single
 	if _, err := db.Exec(`INSERT INTO agent_run (job, usageJson) VALUES (?, '{bad}');`, job.ID); err != nil {
@@ -132,8 +132,8 @@ func TestAgentRunRepo_InvalidUsageJson_ReturnsError(t *testing.T) {
 	defer rows.Close()
 	if rows.Next() {
 		var r models.AgentRun
-		if err := scanAgentRun(rows, &r); err == nil {
-			t.Fatal("expected scanAgentRun to fail on invalid usageJson")
+		if err := scanAgentRun(rows, &r); err != nil || r.UsageJson != "{bad}" {
+			t.Fatalf("legacy usage not preserved: %v", err)
 		}
 	}
 }
@@ -169,8 +169,8 @@ func TestAgentRunRepo_ListByJob_ValidJSONVariants(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO agent_run (job, usageJson) VALUES (?, 'plain text');`, job.ID); err != nil {
 		t.Fatalf("insert plain: %v", err)
 	}
-	if _, err := runRepo.ListByJob(job.ID); err == nil {
-		t.Fatal("expected error for plain text usageJson")
+	if runs, err := runRepo.ListByJob(job.ID); err != nil || runs[2].UsageJson != "plain text" {
+		t.Fatalf("legacy text not preserved: %v", err)
 	}
 	_ = sql.ErrNoRows // silence unused import check
 }

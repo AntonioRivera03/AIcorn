@@ -209,42 +209,6 @@ func (s *AgentJobService) ListActiveMapByProject(projectID int) (map[int]bool, e
 	return m, nil
 }
 
-func (s *AgentJobService) LoadTaskForRun(taskID int) (*models.ChecklistTask, error) {
-	if s.TaskRepo != nil {
-		task, err := s.TaskRepo.FindOne(int64(taskID))
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, ErrInvalidTask
-			}
-			return nil, err
-		}
-		return task, nil
-	}
-	if s.JobRepo != nil && s.JobRepo.DB != nil {
-		var name, body string
-		if err := s.JobRepo.DB.QueryRow(`SELECT COALESCE(name,''), COALESCE(body,'[]') FROM task WHERE id = ?;`, taskID).Scan(&name, &body); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, ErrInvalidTask
-			}
-			return nil, err
-		}
-		return &models.ChecklistTask{Task: models.Task{ID: taskID, Name: name, Body: body}}, nil
-	}
-	return nil, ErrInvalidTask
-}
-
-// LoadPersonaForRun loads the persona for a worker run via the repo,
-// mapping sql.ErrNoRows to ErrInvalidPersona.
-func (s *AgentJobService) LoadPersonaForRun(personaID int) (*models.Persona, error) {
-	if s.PersonaRepo == nil {
-		return nil, ErrInvalidPersona
-	}
-	p, err := s.PersonaRepo.FindOne(personaID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrInvalidPersona
-		}
-		return nil, err
-	}
-	return p, nil
+func (s *AgentJobService) LatestByProject(projectID int) ([]models.AgentJob, error) {
+	return s.JobRepo.LatestByProject(projectID)
 }

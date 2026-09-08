@@ -1,3 +1,5 @@
+> Superseded for new AI work by [the explicit-run redesign](ai-integration-redesign-review.md). Retained as historical phase notes; stage bindings and assignee-triggered execution are being retired.
+
 # Phase 1 — The MCP Server
 
 Status: Not started

@@ -14,16 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { TaskContext } from "@/contexts/task/TaskContext";
-import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import type { Task } from "@/types/types";
 import { cn } from "@/lib/utils";
-import { Bot, Check, ChevronDown, User, Users, X } from "lucide-react";
+import { Check, ChevronDown, User, Users, X } from "lucide-react";
 import { useContext, useMemo, useState } from "react";
-import {
-  createPersonaNames,
-  isPersona,
-  SELF_ASSIGNEE,
-} from "@/features/task/stage-move-assignee";
+import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
 import {
   createAssigneeOptions,
   getAssigneeOptionState,
@@ -43,25 +38,14 @@ export function TaskAssignee({
   placeholder = "Select an assignee",
 }: Props) {
   const { state: task, setState: setTask } = useContext(TaskContext);
-  const { Tasks, Stages } = useContext(ProjectContext);
-  const { data: personas = [] } = usePersonasQuery();
+  const { Tasks } = useContext(ProjectContext);
   const isControlled = onValueChange !== undefined;
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
   const currentValue = isControlled ? (value ?? "") : task.Assignee;
 
-  const personaNames = useMemo(
-    () => createPersonaNames(personas, Stages),
-    [personas, Stages],
-  );
-
-  const isPersonaAssignee = (name: string) => isPersona(name, personaNames);
-
-  const options = useMemo(
-    () => createAssigneeOptions(Tasks, personas, Stages),
-    [personas, Stages, Tasks],
-  );
+  const options = useMemo(() => createAssigneeOptions(Tasks), [Tasks]);
 
   const { filteredOptions, showCreate, trimmedSearch } = useMemo(
     () => getAssigneeOptionState(options, searchValue),
@@ -103,11 +87,7 @@ export function TaskAssignee({
         >
           <span className="flex items-center gap-2 min-w-0">
             {currentValue ? (
-              isPersonaAssignee(currentValue) ? (
-                <Bot className="size-4 shrink-0 text-primary" />
-              ) : (
-                <User className="size-4 shrink-0" />
-              )
+              <User className="size-4 shrink-0" />
             ) : (
               <User className="size-4 shrink-0 text-muted-foreground" />
             )}
@@ -121,7 +101,7 @@ export function TaskAssignee({
       <PopoverContent className="w-60 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search people or personas..."
+            placeholder="Search assignees..."
             value={searchValue}
             onValueChange={setSearchValue}
           />
@@ -139,7 +119,6 @@ export function TaskAssignee({
               <CommandGroup>
                 {filteredOptions.map((option) => {
                   const isMe = option === SELF_ASSIGNEE;
-                  const isPersona = !isMe && isPersonaAssignee(option);
                   return (
                     <CommandItem
                       key={option}
@@ -148,8 +127,6 @@ export function TaskAssignee({
                     >
                       {isMe ? (
                         <User className="size-4 shrink-0" />
-                      ) : isPersona ? (
-                        <Bot className="size-4 shrink-0 text-primary" />
                       ) : (
                         <Users className="size-4 shrink-0" />
                       )}

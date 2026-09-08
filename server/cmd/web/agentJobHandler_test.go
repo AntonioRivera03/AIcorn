@@ -52,7 +52,7 @@ func agentJobTestApp(t *testing.T) (*app, *services.AgentJobService) {
 	if _, err := db.Exec(`INSERT INTO task (id, checklist, stage, name, priority, type, assignee) VALUES (1,1,1,'t','Medium',1,'')`); err != nil {
 		t.Fatalf("task: %v", err)
 	}
-	if _, err := db.Exec(`INSERT INTO persona (id, name, harness, model) VALUES (1,'p','opencode','opencode-go/muse-spark-1.2-contributor')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO persona (id, name, harness, model) VALUES (1,'p','codex','gpt-5.6-sol')`); err != nil {
 		t.Fatalf("persona: %v", err)
 	}
 	agentJobRepo := &repos.AgentJobRepo{DB: db}

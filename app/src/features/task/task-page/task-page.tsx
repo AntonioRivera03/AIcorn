@@ -1,3 +1,5 @@
+import { TaskBranches } from "@/features/task/branches/task-branches";
+import { AskAIButton } from "@/features/ai/ask-ai-button";
 import { useContext, useEffect, useRef, useState } from "react";
 import {
   Collapsible,
@@ -8,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Bot,
   ChevronDown,
   ClipboardIcon,
   CopyCheckIcon,
@@ -57,6 +60,7 @@ import { Separator } from "@/components/ui/separator";
 import { TaskRelationshipsCard } from "@/features/task/relationships/task-relationships-card";
 import { TaskRelationshipBadges } from "@/features/task/relationships/task-relationship-badges";
 import { DeleteTaskDialog } from "@/features/task/delete-task-dialog";
+import { useAI } from "@/features/ai/ai-context";
 
 export function TaskPage({ projectId }: { projectId: number }) {
   const { state: task, setState: setTask } = useContext(TaskContext);
@@ -69,6 +73,7 @@ export function TaskPage({ projectId }: { projectId: number }) {
     Stages,
   } = useContext(ProjectContext);
   const { update, updateBody } = useTaskMutation(projectId);
+  const { openAI } = useAI();
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const editorRef = useRef<PlateEditor | null>(null);
@@ -151,7 +156,8 @@ export function TaskPage({ projectId }: { projectId: number }) {
               />
             </Button>
           </CollapsibleTrigger>
-          <DropdownMenu>
+          <AskAIButton taskId={task.ID} taskName={task.Name} />
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 size="icon"
@@ -188,6 +194,16 @@ export function TaskPage({ projectId }: { projectId: number }) {
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => openAI({ id: task.ID, name: task.Name })}
+                  disabled={task.ID === 0}
+                >
+                  <Bot className="size-4" />
+                  Ask AI
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -263,6 +279,8 @@ export function TaskPage({ projectId }: { projectId: number }) {
           </section>
         </CollapsibleContent>
       </Collapsible>
+
+      <TaskBranches key={task.ID} taskId={task.ID} />
 
       <DeleteTaskDialog
         task={task}

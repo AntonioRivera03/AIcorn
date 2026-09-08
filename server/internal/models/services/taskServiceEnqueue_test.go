@@ -24,9 +24,9 @@ func setupEnqueueTestDB(t *testing.T) (*sql.DB, *TaskService) {
 		`CREATE TABLE project (id INTEGER PRIMARY KEY, name TEXT, pinned BOOLEAN, workflow INTEGER REFERENCES workflow(id), defaultView TEXT, timeCreated TEXT, timeModified TEXT);`,
 		`CREATE TABLE checklist (id INTEGER PRIMARY KEY, project INTEGER REFERENCES project(id), name TEXT, description TEXT, timeCreated TEXT, timeModified TEXT, isDefault BOOLEAN);`,
 		`CREATE TABLE task_type (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', icon TEXT NOT NULL DEFAULT 'square-check', color TEXT NOT NULL DEFAULT 'gray', isDefault INTEGER NOT NULL DEFAULT 0, timeCreated TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timeModified TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
-		`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER REFERENCES checklist(id), stage INTEGER NOT NULL REFERENCES stage(id) ON DELETE RESTRICT, type INTEGER NOT NULL REFERENCES task_type(id), name TEXT DEFAULT '', body TEXT DEFAULT '[]', timeCreated TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timeModified TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), timePlannedStart TEXT, timePlannedEnd TEXT, hasTimePlannedStart BOOLEAN NOT NULL DEFAULT 0, hasTimePlannedEnd BOOLEAN NOT NULL DEFAULT 0, timeCompleted TEXT, assignee TEXT, priority TEXT);`,
-		`CREATE TABLE agent_job (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE, persona INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE, status TEXT NOT NULL, fromStage INTEGER, toStage INTEGER, claimedAt TEXT, startedAt TEXT, finishedAt TEXT, attempts INTEGER NOT NULL DEFAULT 0, error TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
-		`CREATE TABLE agent_run (id INTEGER PRIMARY KEY AUTOINCREMENT, job INTEGER NOT NULL REFERENCES agent_job(id) ON DELETE CASCADE, output TEXT, summary TEXT, exitCode INTEGER, usageJson TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));`,
+		`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER REFERENCES checklist(id), stage INTEGER NOT NULL REFERENCES stage(id) ON DELETE RESTRICT, type INTEGER NOT NULL REFERENCES task_type(id), name TEXT DEFAULT '', body TEXT DEFAULT '[]', timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP, timePlannedStart TIMESTAMP, timePlannedEnd TIMESTAMP, hasTimePlannedStart BOOLEAN NOT NULL DEFAULT 0, hasTimePlannedEnd BOOLEAN NOT NULL DEFAULT 0, timeCompleted TIMESTAMP, assignee TEXT, priority TEXT);`,
+		`CREATE TABLE agent_job (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE, persona INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE, status TEXT NOT NULL, fromStage INTEGER, toStage INTEGER, claimedAt TEXT, startedAt TEXT, finishedAt TEXT, attempts INTEGER NOT NULL DEFAULT 0, error TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), requestJson TEXT NOT NULL DEFAULT '{}', progress TEXT NOT NULL DEFAULT '');`,
+		`CREATE TABLE agent_run (id INTEGER PRIMARY KEY AUTOINCREMENT, job INTEGER NOT NULL REFERENCES agent_job(id) ON DELETE CASCADE, output TEXT, summary TEXT, exitCode INTEGER, usageJson TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), artifactJson TEXT NOT NULL DEFAULT '{}' );`,
 		`CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);`,
 	}
 	for i, s := range stmts {
@@ -72,10 +72,13 @@ func setupEnqueueTestDB(t *testing.T) (*sql.DB, *TaskService) {
 		PersonaRepo: personaRepo,
 		TaskRepo:    nil,
 	}
+	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
 	svc := &TaskService{
 		TaskRepo:         taskRepo,
+		TaskTypeRepo:     taskTypeRepo,
 		StagePersonaRepo: stagePersonaRepo,
 		AgentJobService:  agentJobService,
+		PersonaRepo:      personaRepo,
 	}
 	return db, svc
 }
@@ -89,242 +92,53 @@ func countPendingForTask(t *testing.T, db *sql.DB, taskID int) int {
 	return n
 }
 
-func TestTransitionStage_EnqueuesWhenBound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	ok, err := svc.TransitionStage(1, 10, 20)
-	if err != nil {
-		t.Fatalf("TransitionStage: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok true")
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending jobs for task 1 = %d; want 1", c)
-	}
-	var personaID, fromStage, toStage int
-	var status string
-	if err := db.QueryRow(`SELECT persona, status, fromStage, toStage FROM agent_job WHERE task = 1;`).Scan(&personaID, &status, &fromStage, &toStage); err != nil {
-		t.Fatalf("query job: %v", err)
-	}
-	if personaID != 1 || status != models.AgentJobStatusPending || fromStage != 10 || toStage != 20 {
-		t.Fatalf("job row mismatch persona=%d status=%q from=%d to=%d", personaID, status, fromStage, toStage)
-	}
-}
-
-func TestTransitionStage_NoJobWhenUnbound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	ok, err := svc.TransitionStage(1, 10, 30)
-	if err != nil {
-		t.Fatalf("TransitionStage: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok true")
-	}
-	if c := countPendingForTask(t, db, 1); c != 0 {
-		t.Fatalf("pending jobs for unbound dest = %d; want 0", c)
-	}
-	// Task should still have moved
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query task stage: %v", err)
-	}
-	if stage != 30 {
-		t.Fatalf("task stage = %d; want 30", stage)
-	}
-}
-
-func TestTransitionStage_NoJobOnConflict(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	// Task 1 is in stage 10, so fromStage 30 is wrong -> conflict
-	ok, err := svc.TransitionStage(1, 30, 20)
-	if err == nil {
-		t.Fatal("expected ErrStageConflict")
-	}
-	if ok {
-		t.Fatal("ok should be false on conflict")
-	}
-	if c := countPendingForTask(t, db, 1); c != 0 {
-		t.Fatalf("pending jobs after conflict = %d; want 0", c)
-	}
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query stage: %v", err)
-	}
-	if stage != 10 {
-		t.Fatalf("task stage after conflict = %d; want remains 10", stage)
-	}
-}
-
-func TestBulkUpdate_EnqueuesForBoundStage(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2, 3}, map[string]any{"Stage": 20})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 3 {
-		t.Fatalf("BulkUpdate success = %d; want 3", result.Success)
-	}
-	for _, id := range []int{1, 2, 3} {
-		if c := countPendingForTask(t, db, id); c != 1 {
-			t.Fatalf("task %d pending = %d; want 1", id, c)
-		}
-		var toStage int
-		if err := db.QueryRow(`SELECT toStage FROM agent_job WHERE task = ?;`, id).Scan(&toStage); err != nil {
-			t.Fatalf("query toStage task %d: %v", id, err)
-		}
-		if toStage != 20 {
-			t.Fatalf("task %d toStage = %d; want 20", id, toStage)
-		}
-	}
-}
-
-func TestBulkUpdate_NoJobWhenUnbound(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Stage": 30})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after unbound bulk = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_NoJobForNonStageEdit(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Priority": "High"})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after priority-only bulk = %d; want 0", n)
-	}
-	// Verify priority actually changed (not silently skipped)
-	var p string
-	if err := db.QueryRow(`SELECT priority FROM task WHERE id = 1;`).Scan(&p); err != nil {
-		t.Fatalf("query priority: %v", err)
-	}
-	if p != "High" {
-		t.Fatalf("priority = %q; want High", p)
-	}
-}
-
-func TestBulkUpdate_StageFloat64FromJSON(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	// JSON numbers decode as float64; ensure BulkUpdate handles it
-	result, err := svc.BulkUpdate([]int{1}, map[string]any{"Stage": float64(20)})
-	if err != nil {
-		t.Fatalf("BulkUpdate float64: %v", err)
-	}
-	if result.Success != 1 {
-		t.Fatalf("success = %d; want 1", result.Success)
-	}
-	if c := countPendingForTask(t, db, 1); c != 1 {
-		t.Fatalf("pending after float64 stage = %d; want 1", c)
-	}
-}
-
-func TestTransitionStage_AtomicRollbackOnEnqueueFailure(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	if _, err := db.Exec(`PRAGMA foreign_keys=OFF;`); err != nil {
-		t.Fatalf("pragma off: %v", err)
-	}
-	if _, err := db.Exec(`DELETE FROM stage_persona WHERE stage_id = 20;`); err != nil {
-		t.Fatalf("delete binding: %v", err)
-	}
-	if _, err := db.Exec(`INSERT INTO stage_persona (stage_id, persona_id) VALUES (20, 999);`); err != nil {
-		t.Fatalf("insert invalid binding: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA foreign_keys=ON;`); err != nil {
-		t.Fatalf("pragma on: %v", err)
-	}
-	_, err := svc.TransitionStage(1, 10, 20)
-	if err == nil {
-		t.Fatal("TransitionStage should fail when enqueue fails atomically")
-	}
-	var stage int
-	if err := db.QueryRow(`SELECT stage FROM task WHERE id = 1;`).Scan(&stage); err != nil {
-		t.Fatalf("query stage: %v", err)
-	}
-	if stage != 10 {
-		t.Fatalf("stage = %d; want 10 (rolled back) after atomic failure", stage)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after atomic failure = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_AtomicRollbackOnEnqueueFailure(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	if _, err := db.Exec(`PRAGMA foreign_keys=OFF;`); err != nil {
-		t.Fatalf("pragma off: %v", err)
-	}
-	if _, err := db.Exec(`DELETE FROM stage_persona WHERE stage_id = 20;`); err != nil {
-		t.Fatalf("delete binding: %v", err)
-	}
-	if _, err := db.Exec(`INSERT INTO stage_persona (stage_id, persona_id) VALUES (20, 999);`); err != nil {
-		t.Fatalf("insert invalid binding: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA foreign_keys=ON;`); err != nil {
-		t.Fatalf("pragma on: %v", err)
-	}
-	_, err := svc.BulkUpdate([]int{1, 2}, map[string]any{"Stage": 20})
-	if err == nil {
-		t.Fatal("BulkUpdate should fail atomically when bulk enqueue fails")
-	}
-	for _, id := range []int{1, 2} {
-		var stage int
-		if err := db.QueryRow(`SELECT stage FROM task WHERE id = ?;`, id).Scan(&stage); err != nil {
-			t.Fatalf("query stage %d: %v", id, err)
-		}
-		if stage != 10 {
-			t.Fatalf("task %d stage = %d; want 10 rolled back", id, stage)
-		}
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after bulk atomic failure = %d; want 0", n)
-	}
-}
-
-func TestBulkUpdate_BulkResult_SkippedNonExistent(t *testing.T) {
-	db, svc := setupEnqueueTestDB(t)
-	result, err := svc.BulkUpdate([]int{1, 999, 2, 999}, map[string]any{"Priority": "Low"})
-	if err != nil {
-		t.Fatalf("BulkUpdate: %v", err)
-	}
-	if result.Success != 2 {
-		t.Fatalf("success = %d; want 2", result.Success)
-	}
-	if result.Skipped != 1 {
-		t.Fatalf("skipped = %d; want 1 (deduped 999 non-existent)", result.Skipped)
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM agent_job;`).Scan(&n); err != nil {
-		t.Fatalf("count jobs: %v", err)
-	}
-	if n != 0 {
-		t.Fatalf("jobs after non-stage bulk = %d; want 0", n)
+// Historical bindings must never influence task ownership or start work.
+func TestTaskEditsNeverEnqueue(t *testing.T) {
+	for _, owner := range []string{"alice", "coder", ""} {
+		t.Run(owner, func(t *testing.T) {
+			db, svc := setupEnqueueTestDB(t)
+			if _, err := db.Exec("UPDATE task SET assignee = ?", owner); err != nil {
+				t.Fatal(err)
+			}
+			if ok, err := svc.TransitionStage(1, 10, 20); err != nil || !ok {
+				t.Fatalf("transition: %v %v", ok, err)
+			}
+			var got string
+			if err := db.QueryRow("SELECT assignee FROM task WHERE id=1").Scan(&got); err != nil || got != owner {
+				t.Fatalf("owner changed: %q %v", got, err)
+			}
+			if _, err := svc.TransitionStage(1, 10, 30); err != ErrStageConflict {
+				t.Fatalf("stale transition: %v", err)
+			}
+			r, err := svc.BulkUpdate([]int{1, 2, 999, 999}, map[string]any{"Stage": float64(20)})
+			if err != nil || r.Success != 2 || r.Skipped != 1 {
+				t.Fatalf("bulk: %+v %v", r, err)
+			}
+			if err := db.QueryRow("SELECT assignee FROM task WHERE id=2").Scan(&got); err != nil || got != owner {
+				t.Fatalf("bulk changed owner: %q %v", got, err)
+			}
+			r, err = svc.BulkUpdate([]int{1, 2}, map[string]any{"Assignee": "coder"})
+			if err != nil || r.Success != 2 {
+				t.Fatalf("assignment: %+v %v", r, err)
+			}
+			task := &models.ChecklistTask{Task: models.Task{Checklist: 1, Stage: 10, Name: "Explicit ownership", Assignee: "coder"}}
+			created, err := svc.CreateChecklistTask(task)
+			if err != nil {
+				t.Fatal(err)
+			}
+			created.Assignee = "alice"
+			if _, err := svc.UpdateTask(created); err != nil {
+				t.Fatal(err)
+			}
+			created.Assignee = "coder"
+			if _, err := svc.UpdateTaskProperties(created); err != nil {
+				t.Fatal(err)
+			}
+			var jobs int
+			if err := db.QueryRow("SELECT COUNT(*) FROM agent_job").Scan(&jobs); err != nil || jobs != 0 {
+				t.Fatalf("unexpected execution: %d %v", jobs, err)
+			}
+		})
 	}
 }
 

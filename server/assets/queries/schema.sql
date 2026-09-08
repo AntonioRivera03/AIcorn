@@ -78,6 +78,7 @@ CREATE TABLE project (
     pinned BOOLEAN,
     workflow INTEGER,
     defaultView TEXT NOT NULL DEFAULT '',
+    repoPath TEXT NOT NULL DEFAULT '',
     timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -304,7 +305,7 @@ END;
 CREATE TABLE agent_job (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     task       INTEGER NOT NULL REFERENCES task(id) ON DELETE CASCADE,
-    persona    INTEGER NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+    persona    INTEGER REFERENCES persona(id) ON DELETE SET NULL,
     status     TEXT NOT NULL,
     fromStage  INTEGER,
     toStage    INTEGER,
@@ -313,6 +314,8 @@ CREATE TABLE agent_job (
     finishedAt TEXT,
     attempts   INTEGER NOT NULL DEFAULT 0,
     error      TEXT,
+    requestJson TEXT NOT NULL DEFAULT '{}',
+    progress TEXT NOT NULL DEFAULT '',
     createdAt  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
@@ -323,7 +326,11 @@ CREATE TABLE agent_run (
     summary   TEXT,
     exitCode  INTEGER,
     usageJson TEXT,
+    artifactJson TEXT NOT NULL DEFAULT '{}',
     createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);
+
+CREATE UNIQUE INDEX one_active_ai_job_per_task ON agent_job(task) WHERE status IN ('pending','claimed','running','canceling');
+CREATE TABLE ai_settings (id INTEGER PRIMARY KEY CHECK(id=1), model TEXT NOT NULL DEFAULT '', executable TEXT NOT NULL DEFAULT '', timeoutSeconds INTEGER NOT NULL DEFAULT 300);
