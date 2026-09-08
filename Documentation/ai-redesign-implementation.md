@@ -44,7 +44,7 @@ One live test caught a defect simulated tests missed: OpenCode preferred inherit
 
 The browser walkthrough remains a required sign-off: drawer/full page, keyboard focus and Escape, request/cancel/reuse, empty/error states, narrow viewport, and light/dark presentation. Builds and source review cannot substitute for that visual check.
 
-This version does not run tests on the user's behalf, merge code, modify task text automatically, or delete workspaces. Review examines a fresh checkout of the linked repository; it does not yet select a previous Implement workspace. Request reuse prepares a new request using current task context/settings. Reported token/cost usage accumulates across steps; there is no dollar spending cap.
+This version does not run tests on the user's behalf, modify task text automatically, or delete agent workspaces. The subsequent task-branch feature adds explicit local Git merges through the task's Code branches section (see README). Review examines a fresh checkout of the linked repository; it does not yet select a previous Implement workspace. Request reuse prepares a new request using current task context/settings. Reported token/cost usage accumulates across steps; there is no dollar spending cap.
 
 Progress and partial answers are checkpointed, but a complete raw provider-event archive and linked-task context selection remain follow-up work. Stage automation, persona handoffs, multiple workers, automatic merging, and workspace cleanup controls remain deferred as proposed in the redesign.
 

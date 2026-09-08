@@ -1,6 +1,6 @@
 # Branch environments and task execution containers
 
-Status: researched proposal; container infrastructure is not implemented by the Conductor branch.
+Status: historical researched proposal. The subsequent implementation uses Kubernetes at the user's request; see [Kubernetes environments](kubernetes-environments.md) for shipped behavior, setup, and validation. The original Compose recommendation below is retained as design history.
 Researched: 7 September 2026.
 
 ## Recommendation

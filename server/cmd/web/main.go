@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/environments"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
@@ -84,6 +85,7 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	environmentService   *environments.Service
 	conductorService     *services.ConductorService
 	aiService            *services.AIService
 	projectRepo          *repos.ProjectRepo
@@ -155,6 +157,11 @@ func main() {
 
 	if err := appdb.Migrate(db, dbPath); err != nil {
 		log.Fatal(err)
+	}
+	if previewMode() {
+		if err := seedPreview(db); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	backupCtx, stopBackups := context.WithCancel(context.Background())
@@ -253,8 +260,10 @@ func main() {
 	engine := &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}
 	w := worker.New(agentJobService, engine)
 	w.Conductor = conductorService
-	if err := w.Start(workerCtx, 2*time.Second); err != nil {
-		log.Fatalf("worker start: %v", err)
+	if !previewMode() {
+		if err := w.Start(workerCtx, 2*time.Second); err != nil {
+			log.Fatalf("worker start: %v", err)
+		}
 	}
 	defer w.Stop()
 
@@ -287,6 +296,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if !previewMode() {
+		store := &environments.Store{DB: db}
+		token, err := store.Installation()
+		if err != nil {
+			log.Fatal(err)
+		}
+		runtime := &environments.Kubernetes{Token: token, MainURL: fmt.Sprintf("http://127.0.0.1:%d", port)}
+		app.environmentService = &environments.Service{Store: store, Runtime: runtime, Root: filepath.Join(filepath.Dir(dbPath), "environments-"+token)}
+		if err := app.environmentService.Start(workerCtx); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	server := http.Server{Handler: app.routes()}
 
@@ -312,6 +333,9 @@ func main() {
 
 	stopWorker()
 	w.Stop()
+	if app.environmentService != nil {
+		app.environmentService.Wait()
+	}
 
 	stopBackups()
 	<-backupLoopDone

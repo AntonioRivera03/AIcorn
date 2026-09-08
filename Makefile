@@ -9,18 +9,29 @@ VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev
 
 .PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck test test-app test-server install upgrade stop clean backup restore backup-test restore-test
 
+# Pick up the local cluster created by scripts/k8s-local.sh without changing
+# the user's global Kubernetes config. An explicit KUBECONFIG (even empty) wins.
+define load-dev-kubeconfig
+if [ "$${KUBECONFIG+x}" != x ]; then \
+	aycorn_kubeconfig="$${XDG_CONFIG_HOME:-$$HOME/.config}/aycorn/kubeconfig-aycorn"; \
+	if [ -f "$$aycorn_kubeconfig" ]; then export KUBECONFIG="$$aycorn_kubeconfig"; fi; \
+fi
+endef
+
 # Development: build frontend with dev icon, then start Go server against your
 # personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
 # back to <UserConfigDir>/aycorn/app.db, same DB the installed binary uses).
 dev: build-app-dev build-mcp
-	@trap 'kill 0' INT; \
+	@$(load-dev-kubeconfig); \
+    trap 'kill 0' INT; \
     cd $(SRV_DIR) && go run ./cmd/web; \
     wait
 
 # Development against a disposable test DB: pins AYCORN_DB to server/app.db so
 # it never touches your personal data. Safe to `rm -f server/app.db` anytime.
 dev-test: build-app-dev build-mcp
-	@trap 'kill 0' INT; \
+	@$(load-dev-kubeconfig); \
+    trap 'kill 0' INT; \
     cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web; \
     wait
 

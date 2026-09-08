@@ -105,6 +105,14 @@ export const useSelection = ({
 
   const handleBeforeStart = useCallback((e: SelectionEvent): boolean | void => {
     const target = e.event?.target;
+    // Floating bulk controls and their dialogs must not begin a new selection
+    // gesture, which would clear the items before their action runs.
+    if (
+      target instanceof Element &&
+      target.closest("[data-keep-selection], [role='dialog'], [role='alertdialog']")
+    ) {
+      return false;
+    }
     const native = e.event;
     const modifierHeld =
       !!native && hasModifier(native as unknown as PointerEvent);
