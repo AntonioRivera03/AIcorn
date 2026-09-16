@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "slug",
       "category": "coding",
-      "prompt": "Create a URL slug: lowercase ASCII letters and digits survive, every run of other characters becomes one hyphen; trim edge hyphens. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "prompt": "Create a URL slug: first convert ASCII uppercase letters to lowercase, then preserve ASCII lowercase letters and digits, every run of other characters becomes one hyphen; trim edge hyphens. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
       "starter": "def solve(value):\n    return value\n",
       "checks": [
         {

@@ -18,7 +18,7 @@ Use `-codex /absolute/path/to/codex` to select an installation. `-timeout 120` l
 
 Each case gets a disposable SQLite database, a scoped running task, and a separate workspace. No application database, real task, repository checkout, or GitHub state is modified. Temporary fixtures are removed afterward. Codex retains native session history under the local Codex home, as it does for application runs. Original files and graders are controlled by the runner; agent statements do not determine whether a case passed.
 
-## Fixed suite v1
+## Fixed suite v2
 
 Eight coding cases require `solve(value)` in Python: slug normalization, stable priority ordering, task mention filtering, revision-aware patches, configured workflow transitions, bounded retries, dependency ordering, and inclusive calendar dates. Each has several deterministic assertions, including empty inputs, stale revisions, cycles, large retry counts, and leap dates.
 
