@@ -14,6 +14,9 @@ const (
 	MoveTaskStage      Name = "move_task_stage"
 	ListChecklists     Name = "list_checklists"
 	ListTaskTypes      Name = "list_task_types"
+	ListTaskLinks      Name = "list_task_links"
+	AddTaskLink        Name = "add_task_link"
+	RemoveTaskLink     Name = "remove_task_link"
 )
 
 type Definition struct {
@@ -31,6 +34,9 @@ var orderedNames = [...]Name{
 	MoveTaskStage,
 	ListChecklists,
 	ListTaskTypes,
+	ListTaskLinks,
+	AddTaskLink,
+	RemoveTaskLink,
 }
 
 var descriptions = map[Name]string{
@@ -43,6 +49,9 @@ var descriptions = map[Name]string{
 	MoveTaskStage:      "Move a task to a different workflow stage. Requires the stage you currently believe the task is in (fromStage); fails safely if the task has moved since you last read it.",
 	ListChecklists:     "List all checklists, optionally filtered by project. Use this to learn valid checklist ids before calling create_task or update_task.",
 	ListTaskTypes:      "List all task types. Use this to learn valid type ids before calling create_task or update_task.",
+	ListTaskLinks:      "List GitHub pull request and branch references attached to a task, including their IDs and revisions.",
+	AddTaskLink:        "Attach a GitHub pull request or branch URL to a task with an optional label. Repeating the same URL returns the existing link. Other agents' active tasks are protected.",
+	RemoveTaskLink:     "Remove a GitHub reference from a task using its ID and revision. This does not change anything on GitHub. Other agents' active tasks are protected.",
 }
 
 func All() []Definition {
@@ -57,7 +66,7 @@ func Tool(name Name) *mcp.Tool {
 	tool := definition(name)
 	result := &mcp.Tool{Name: tool.Name, Description: tool.Description}
 	switch name {
-	case SearchTasks, ReadTask, ListProjects, ListWorkflowStages, ListChecklists, ListTaskTypes:
+	case SearchTasks, ReadTask, ListProjects, ListWorkflowStages, ListChecklists, ListTaskTypes, ListTaskLinks:
 		closedWorld := false
 		result.Annotations = &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
 	}

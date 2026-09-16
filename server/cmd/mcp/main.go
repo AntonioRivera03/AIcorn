@@ -89,6 +89,17 @@ func main() {
 		}
 		toolset.runProjectID = projectID
 	}
+	if raw, scoped := os.LookupEnv("AYCORN_RUN_JOB"); scoped {
+		jobID, err := strconv.Atoi(raw)
+		if err != nil || jobID <= 0 || toolset.runTaskID <= 0 {
+			log.Fatal("invalid run job scope")
+		}
+		job, err := agentJobRepo.FindOne(jobID)
+		if err != nil || job.Task != toolset.runTaskID {
+			log.Fatal("run job does not belong to task scope")
+		}
+		toolset.runJobID = jobID
+	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)
 	toolset.register(srv)
 

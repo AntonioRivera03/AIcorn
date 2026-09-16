@@ -1,3 +1,4 @@
+import { TaskGitHubLinks } from "@/features/task/links/task-github-links";
 import { TicketChat } from "@/features/chat/ticket-chat";
 import { TaskBranches } from "@/features/task/branches/task-branches";
 import { AskAIButton } from "@/features/ai/ask-ai-button";
@@ -281,6 +282,7 @@ export function TaskPage({ projectId }: { projectId: number }) {
         </CollapsibleContent>
       </Collapsible>
 
+      <TaskGitHubLinks key={`links-${task.ID}`} taskId={task.ID} />
       <TaskBranches key={task.ID} taskId={task.ID} />
 
       <DeleteTaskDialog

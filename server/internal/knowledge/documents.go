@@ -12,7 +12,10 @@ import (
 var ErrInvalid = errors.New("invalid knowledge item")
 var ErrConflict = errors.New("this item changed elsewhere; reload before editing again")
 
-type Store struct{ DB *sql.DB }
+type Store struct {
+	DB           *sql.DB
+	ProjectScope int // Optional agent scope, enforced again inside link write transactions.
+}
 
 type Document struct {
 	ID        int             `json:"id"`

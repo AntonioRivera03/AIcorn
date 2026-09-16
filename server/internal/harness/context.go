@@ -14,6 +14,7 @@ func BuildContext(spec RunSpec) (developer, user string) {
 	if r.Chat != nil {
 		developer += " This is a human-led ticket chat. Respond to the current message using the conversation history. Do not autonomously plan or implement the ticket, edit its body or configuration, assign it, or move its stage. Only make repository changes explicitly requested by the user in edit mode. The user owns ticket handling."
 	}
+	developer += " You may attach GitHub PR or branch references for your assigned task through add_task_link when relevant to the user's request. Use only actual URLs supplied by the user or produced by verified work; never invent a PR or claim a push occurred without evidence. Link tools do not create or modify anything on GitHub."
 	if r.Intent != "implement" {
 		developer += " This run is read-only: analyze and explain without editing repository files."
 	}

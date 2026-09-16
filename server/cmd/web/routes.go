@@ -7,6 +7,9 @@ func (app *app) routes() http.Handler {
 	if app.projectRepo != nil {
 		app.documentRoutes(mux)
 	}
+	if app.taskService != nil {
+		app.taskLinkRoutes(mux)
+	}
 	if app.jobService != nil {
 		app.jobRoutes(mux)
 	}

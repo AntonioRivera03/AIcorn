@@ -16,6 +16,10 @@ import (
 func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 	tools := []string{"read_task"}
 	env := map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_RUN_TASK": fmt.Sprint(spec.TaskID)}
+	if spec.JobID > 0 {
+		env["AYCORN_RUN_JOB"] = fmt.Sprint(spec.JobID)
+		tools = append(tools, "list_task_links", "add_task_link", "remove_task_link")
+	}
 	if spec.Request.Conductor != nil {
 		tools = append(tools, "search_tasks")
 		env["AYCORN_CONDUCTOR_PROJECT"] = fmt.Sprint(spec.Request.ProjectID)

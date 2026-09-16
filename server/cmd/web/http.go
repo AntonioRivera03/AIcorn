@@ -7,6 +7,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/environments"
 	"github.com/waseem-polus/aycorn/server/internal/jobs"
 	"github.com/waseem-polus/aycorn/server/internal/knowledge"
+	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"io"
 	"log"
@@ -78,7 +79,7 @@ func httpStatusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, knowledge.ErrConflict), errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
+	case errors.Is(err, taskownership.ErrBusy), errors.Is(err, taskownership.ErrNotOwner), errors.Is(err, knowledge.ErrConflict), errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
 		errors.Is(err, environments.ErrConflict),
 		errors.Is(err, repos.ErrConductorConflict),
 		errors.Is(err, repos.ErrConductorPaused),

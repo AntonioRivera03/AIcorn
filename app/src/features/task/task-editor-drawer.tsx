@@ -1,3 +1,4 @@
+import { TaskGitHubLinks } from "@/features/task/links/task-github-links";
 import { TicketChat } from "@/features/chat/ticket-chat";
 import { TaskBranches } from "@/features/task/branches/task-branches";
 import {
@@ -237,7 +238,7 @@ export default function TaskEditorDrawer({
             </CollapsibleContent>
           </Collapsible>
 
-          {open && <div className="mx-3 sm:mx-6"><TaskBranches key={task.ID} taskId={task.ID} /></div>}
+          {open && <div className="mx-3 sm:mx-6"><TaskGitHubLinks key={`links-${task.ID}`} taskId={task.ID} /><TaskBranches key={task.ID} taskId={task.ID} /></div>}
 
           {open && task.Type.ViewMode === "chat" ? <div className="m-3 sm:m-6"><TicketChat key={task.ID} taskId={task.ID} /></div> : open &&
           (task.ID === 0 ||
