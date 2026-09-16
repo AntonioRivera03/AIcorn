@@ -126,7 +126,7 @@ func (s *Store) PutLink(task, id int, in LinkInput, actorJob *int) (TaskLink, er
 		return TaskLink{}, err
 	}
 	if actorJob != nil {
-		if err = taskownership.Check(tx, task, *actorJob); err != nil {
+		if err = taskownership.Check(tx, task, *actorJob, s.ChatTurnID); err != nil {
 			return TaskLink{}, err
 		}
 	}
@@ -163,7 +163,7 @@ func (s *Store) DeleteLink(task, id, revision int, actorJob *int) error {
 	}
 	defer tx.Rollback()
 	if actorJob != nil {
-		if err = taskownership.Check(tx, task, *actorJob); err != nil {
+		if err = taskownership.Check(tx, task, *actorJob, s.ChatTurnID); err != nil {
 			return err
 		}
 	}

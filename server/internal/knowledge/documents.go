@@ -15,6 +15,7 @@ var ErrConflict = errors.New("this item changed elsewhere; reload before editing
 type Store struct {
 	DB           *sql.DB
 	ProjectScope int // Optional agent scope, enforced again inside link write transactions.
+	ChatTurnID   int
 }
 
 type Document struct {

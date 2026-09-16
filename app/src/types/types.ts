@@ -2,7 +2,14 @@ import type { Value } from "platejs";
 
 export const PRIORITIES = ["Urgent", "High", "Medium", "Low"] as const;
 export const STAGE_TYPES = ["open", "todo", "doing", "done"] as const;
-export const PROJECT_VIEWS = ["list", "kanban", "month", "week", "documents"] as const;
+export const PROJECT_VIEWS = [
+  "list",
+  "kanban",
+  "month",
+  "week",
+  "documents",
+  "chats",
+] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 export type StageType = (typeof STAGE_TYPES)[number];
@@ -50,7 +57,15 @@ export const PERSONA_AGENTS = [
   "worker",
 ] as const;
 // Suggestions; the API also accepts new OpenAI model IDs supported by Codex.
-export const PERSONA_MODELS = ["gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex"] as const;
+export const PERSONA_MODELS = [
+  "gpt-5.6-sol",
+  "gpt-6-astra",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.3-codex",
+] as const;
 export const ALL_PERSONA_MODELS = PERSONA_MODELS;
 
 export type PersonaHarness = (typeof PERSONA_HARNESSES)[number];

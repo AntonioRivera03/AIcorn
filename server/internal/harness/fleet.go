@@ -13,7 +13,7 @@ import (
 //go:embed fleet
 var fleet embed.FS
 
-var fleetRoles = []string{"conductor", "planner", "researcher", "coder", "reviewer"}
+var fleetRoles = []string{"conductor", "planner", "researcher", "coder", "reviewer", "chatter"}
 
 // Agent files are bundled with the server, so a task in any repository receives
 // the same fleet. Versioned paths survive restarts and native Codex resume.

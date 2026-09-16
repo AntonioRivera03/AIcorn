@@ -65,6 +65,7 @@ var validProjectViews = map[string]struct{}{
 	"month":     {},
 	"week":      {},
 	"documents": {},
+	"chats":     {},
 }
 
 var ErrInvalidProjectView = errors.New("invalid default view")

@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // AIRunRequest is an immutable snapshot resolved before enqueueing. Manual runs
 // do not control task stages; only Conductor carries an explicit stage contract.
 type AgentSnapshot struct {
@@ -20,24 +22,33 @@ type ChatTurn struct {
 	BaseCommit  string `json:"baseCommit,omitempty"`
 }
 
+type ProjectChatTurn struct {
+	ConversationID int             `json:"conversationId"`
+	TurnID         int             `json:"turnId"`
+	SessionID      string          `json:"sessionId,omitempty"`
+	Context        json.RawMessage `json:"context"`
+	TaskIDs        []int           `json:"taskIds"`
+}
+
 type AIRunRequest struct {
-	Chat           *ChatTurn     `json:"chat,omitempty"`
-	Engine         string        `json:"engine"`
-	AgentID        int           `json:"agentId,omitempty"`
-	Conductor      *ConductorRun `json:"conductor,omitempty"`
-	Key            string        `json:"key"`
-	Intent         string        `json:"intent"`
-	Instruction    string        `json:"instruction"`
-	TaskName       string        `json:"taskName"`
-	TaskBody       string        `json:"taskBody"`
-	PresetName     string        `json:"presetName,omitempty"`
-	SystemPrompt   string        `json:"systemPrompt,omitempty"`
-	Model          string        `json:"model"`
-	Executable     string        `json:"executable"`
-	EngineVersion  string        `json:"engineVersion"`
-	RepoPath       string        `json:"repoPath,omitempty"`
-	ProjectID      int           `json:"projectId"`
-	TimeoutSeconds int           `json:"timeoutSeconds"`
+	ProjectChat    *ProjectChatTurn `json:"projectChat,omitempty"`
+	Chat           *ChatTurn        `json:"chat,omitempty"`
+	Engine         string           `json:"engine"`
+	AgentID        int              `json:"agentId,omitempty"`
+	Conductor      *ConductorRun    `json:"conductor,omitempty"`
+	Key            string           `json:"key"`
+	Intent         string           `json:"intent"`
+	Instruction    string           `json:"instruction"`
+	TaskName       string           `json:"taskName"`
+	TaskBody       string           `json:"taskBody"`
+	PresetName     string           `json:"presetName,omitempty"`
+	SystemPrompt   string           `json:"systemPrompt,omitempty"`
+	Model          string           `json:"model"`
+	Executable     string           `json:"executable"`
+	EngineVersion  string           `json:"engineVersion"`
+	RepoPath       string           `json:"repoPath,omitempty"`
+	ProjectID      int              `json:"projectId"`
+	TimeoutSeconds int              `json:"timeoutSeconds"`
 }
 
 type AISettings struct {

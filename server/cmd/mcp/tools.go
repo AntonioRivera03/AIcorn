@@ -95,7 +95,7 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 		return nil, nil, err
 	}
 	if t.runProjectID > 0 && task.ProjectID != t.runProjectID {
-		return nil, nil, errors.New("Conductor may only read tasks in its project")
+		return nil, nil, errors.New("this run may only read tasks in its project")
 	}
 
 	body, err := t.bodyToMarkdown(ctx, task.Body)
@@ -139,6 +139,9 @@ type CreateTaskInput struct {
 }
 
 func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in CreateTaskInput) (*mcp.CallToolResult, *models.ChecklistTask, error) {
+	if in.Priority == "" {
+		in.Priority = "Medium"
+	}
 	task := &models.ChecklistTask{
 		Task: models.Task{
 			Checklist: in.ChecklistID,
@@ -167,6 +170,10 @@ func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in C
 		task.HasTimePlannedEnd = true
 	}
 
+	if t.runChatTurnID > 0 {
+		newTask, err := t.taskService.TaskRepo.CreateFromChat(t.runProjectID, t.runChatTurnID, task)
+		return nil, newTask, err
+	}
 	newTask, err := t.taskService.CreateChecklistTask(task)
 	if err != nil {
 		return nil, nil, err
@@ -202,7 +209,7 @@ func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in U
 	if t.runTaskID > 0 {
 		return nil, OkOutput{}, errors.New("task runs cannot change ticket properties")
 	}
-	ok, err := t.taskService.TaskRepo.UpdateByAgent(in.TaskID, t.runProjectID, 0, patch)
+	ok, err := t.taskService.TaskRepo.UpdateByAgent(in.TaskID, t.runProjectID, 0, patch, t.runChatTurnID)
 	return nil, OkOutput{Ok: ok}, err
 }
 
@@ -216,7 +223,7 @@ func (t *toolset) moveTaskStage(ctx context.Context, req *mcp.CallToolRequest, i
 	if t.runTaskID > 0 {
 		return nil, OkOutput{}, errors.New("task runs cannot move tickets")
 	}
-	ok, err := t.taskService.TaskRepo.MoveByAgent(in.TaskID, t.runProjectID, 0, in.FromStage, in.ToStage)
+	ok, err := t.taskService.TaskRepo.MoveByAgent(in.TaskID, t.runProjectID, 0, in.FromStage, in.ToStage, t.runChatTurnID)
 	if err == nil && !ok {
 		err = services.ErrStageConflict
 	}

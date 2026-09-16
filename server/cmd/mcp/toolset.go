@@ -23,6 +23,8 @@ type toolset struct {
 	runProjectID     int
 	runTaskID        int
 	runJobID         int
+	runChatTurnID    int
+	aiService        *services.AIService
 	taskService      *services.TaskService
 	projectService   *services.ProjectService
 	stageService     *services.StageService
@@ -67,6 +69,17 @@ func (toolset *toolset) register(server *mcp.Server) {
 		mcp.AddTool(server, mcptools.Tool(mcptools.ListTaskLinks), toolset.listTaskLinks)
 		mcp.AddTool(server, mcptools.Tool(mcptools.AddTaskLink), toolset.addTaskLink)
 		mcp.AddTool(server, mcptools.Tool(mcptools.RemoveTaskLink), toolset.removeTaskLink)
+	}
+	if toolset.runChatTurnID > 0 {
+		mcp.AddTool(server, mcptools.Tool(mcptools.ProjectContext), toolset.projectContext)
+		mcp.AddTool(server, mcptools.Tool(mcptools.ReadProjectDocument), toolset.readProjectDocument)
+		mcp.AddTool(server, mcptools.Tool(mcptools.RequestTaskWork), toolset.requestTaskWork)
+		mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)
+		mcp.AddTool(server, mcptools.Tool(mcptools.SearchTasks), toolset.searchTasks)
+		mcp.AddTool(server, mcptools.Tool(mcptools.CreateTask), toolset.createTask)
+		mcp.AddTool(server, mcptools.Tool(mcptools.UpdateTask), toolset.updateTask)
+		mcp.AddTool(server, mcptools.Tool(mcptools.MoveTaskStage), toolset.moveTaskStage)
+		return
 	}
 	if toolset.runProjectID > 0 {
 		mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)

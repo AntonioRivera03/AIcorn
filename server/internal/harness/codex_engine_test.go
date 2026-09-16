@@ -225,3 +225,30 @@ func makeFakeScript(t *testing.T, body string) string {
 	}
 	return path
 }
+
+func TestMCPApprovalsAreLimitedToExposedScopedTools(t *testing.T) {
+	h := &Codex{}
+	spec := RunSpec{TaskID: 42, JobID: 7, Request: &models.AIRunRequest{ProjectID: 1}}
+	config := h.sessionConfig(spec)
+	if config["mcp_servers.aycorn.tools.add_task_link.approval_mode"] != "approve" {
+		t.Fatal("authorized local writes would be rejected")
+	}
+	if _, ok := config["mcp_servers.aycorn.tools.update_task.approval_mode"]; ok {
+		t.Fatal("task agent gained project mutations")
+	}
+	spec.Request.ProjectChat = &models.ProjectChatTurn{TurnID: 8, ConversationID: 2}
+	spec.TaskID = 0
+	spec.JobID = 0
+	config = h.sessionConfig(spec)
+	env := config["mcp_servers.aycorn.env"].(map[string]string)
+	if env["AYCORN_CHAT_TURN"] != "8" || env["AYCORN_CHAT_PROJECT"] != "1" || env["AYCORN_RUN_TASK"] != "" {
+		t.Fatal(env)
+	}
+	if config["mcp_servers.aycorn.tools.create_task.approval_mode"] != "approve" {
+		t.Fatal(config)
+	}
+	developer, _ := BuildContext(spec)
+	if strings.Contains(developer, "human-led ticket chat") || !strings.Contains(developer, "Chatter") {
+		t.Fatal(developer)
+	}
+}

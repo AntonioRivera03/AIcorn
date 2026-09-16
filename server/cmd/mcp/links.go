@@ -41,20 +41,20 @@ func (t *toolset) listTaskLinks(ctx context.Context, req *mcp.CallToolRequest, i
 	if err := t.linkScope(in.TaskID, false); err != nil {
 		return nil, TaskLinksOutput{}, err
 	}
-	links, err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID}).Links(in.TaskID)
+	links, err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID, ChatTurnID: t.runChatTurnID}).Links(in.TaskID)
 	return nil, TaskLinksOutput{Links: links}, err
 }
 func (t *toolset) addTaskLink(ctx context.Context, req *mcp.CallToolRequest, in AddTaskLinkInput) (*mcp.CallToolResult, knowledge.TaskLink, error) {
 	if err := t.linkScope(in.TaskID, true); err != nil {
 		return nil, knowledge.TaskLink{}, err
 	}
-	link, err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID}).PutLink(in.TaskID, 0, knowledge.LinkInput{URL: in.URL, Label: in.Label}, &t.runJobID)
+	link, err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID, ChatTurnID: t.runChatTurnID}).PutLink(in.TaskID, 0, knowledge.LinkInput{URL: in.URL, Label: in.Label}, &t.runJobID)
 	return nil, link, err
 }
 func (t *toolset) removeTaskLink(ctx context.Context, req *mcp.CallToolRequest, in RemoveTaskLinkInput) (*mcp.CallToolResult, OkOutput, error) {
 	if err := t.linkScope(in.TaskID, true); err != nil {
 		return nil, OkOutput{}, err
 	}
-	err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID}).DeleteLink(in.TaskID, in.LinkID, in.Revision, &t.runJobID)
+	err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID, ChatTurnID: t.runChatTurnID}).DeleteLink(in.TaskID, in.LinkID, in.Revision, &t.runJobID)
 	return nil, OkOutput{Ok: err == nil}, err
 }

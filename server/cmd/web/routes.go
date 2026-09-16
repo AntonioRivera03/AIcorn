@@ -4,6 +4,9 @@ import "net/http"
 
 func (app *app) routes() http.Handler {
 	mux := http.NewServeMux()
+	if app.projectChatService != nil {
+		app.projectChatRoutes(mux)
+	}
 	if app.projectRepo != nil {
 		app.documentRoutes(mux)
 	}

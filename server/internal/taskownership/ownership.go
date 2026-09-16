@@ -49,10 +49,15 @@ func Begin(db *sql.DB) (*sql.Tx, error) {
 	return tx, nil
 }
 
-func Check(q Querier, task, job int) error {
+func Check(q Querier, task, job int, chatTurn ...int) error {
 	var exists int
-	if err := q.QueryRow("SELECT id FROM task WHERE id=?", task).Scan(&exists); err != nil {
+	if err := q.QueryRow("SELECT c.project FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=?", task).Scan(&exists); err != nil {
 		return err
+	}
+	if len(chatTurn) > 0 && chatTurn[0] > 0 {
+		if err := CheckChat(q, exists, chatTurn[0]); err != nil {
+			return err
+		}
 	}
 	if job > 0 {
 		var active bool
@@ -69,6 +74,20 @@ func Check(q Querier, task, job int) error {
 	}
 	if owner != nil && (job == 0 || owner.JobID != job) {
 		return fmt.Errorf("%w: #%d is managed by %s (%s); wait until it finishes", ErrBusy, task, owner.Name, owner.State)
+	}
+	return nil
+}
+
+// CheckChat runs inside the mutation's write transaction, so canceling a turn
+// revokes its tools even if an MCP process is still finishing a request.
+func CheckChat(q Querier, project, turn int) error {
+	var active bool
+	err := q.QueryRow(`SELECT EXISTS(SELECT 1 FROM project_chat_turn t JOIN project_chat c ON c.id=t.conversation WHERE t.id=? AND c.project=? AND c.archivedAt IS NULL AND t.status='running')`, turn, project).Scan(&active)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return ErrNotOwner
 	}
 	return nil
 }

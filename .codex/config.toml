@@ -27,3 +27,7 @@ config_file = "../server/internal/harness/fleet/coder.toml"
 [agents.reviewer]
 description = "Aycorn reviewer; ticket lifecycle belongs to Conductor"
 config_file = "../server/internal/harness/fleet/reviewer.toml"
+
+[agents.chatter]
+description = "Aycorn project conversation and task coordination"
+config_file = "../server/internal/harness/fleet/chatter.toml"

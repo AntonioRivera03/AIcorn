@@ -18,7 +18,7 @@ func (r *AgentJobRepo) UpdateAISettings(s models.AISettings) error {
 	_, err := r.DB.Exec("UPDATE ai_settings SET model=?, executable=?, timeoutSeconds=? WHERE id=1", s.Model, s.Executable, s.TimeoutSeconds)
 	return err
 }
-func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunRequest) (*models.AgentJob, error) {
+func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunRequest, chatTurn ...int) (*models.AgentJob, error) {
 	raw, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunReque
 		return nil, err
 	}
 	defer tx.Rollback()
-	if err = taskownership.Check(tx, taskID, 0); err != nil {
+	if err = taskownership.Check(tx, taskID, 0, chatTurn...); err != nil {
 		return nil, err
 	}
 	// The project may have changed while the immutable snapshot was prepared.

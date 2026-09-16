@@ -21,6 +21,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/jobs"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
+	"github.com/waseem-polus/aycorn/server/internal/projectchat"
 	"github.com/waseem-polus/aycorn/server/internal/worker"
 	_ "modernc.org/sqlite"
 )
@@ -86,6 +87,7 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	projectChatService   *projectchat.Service
 	jobService           *jobs.Service
 	environmentService   *environments.Service
 	conductorService     *services.ConductorService
@@ -277,7 +279,19 @@ func main() {
 	}
 	defer func() { stopWorker(); <-schedulerDone }()
 
+	projectChatService := &projectchat.Service{Store: projectchat.Store{DB: db}, AI: aiService, Engine: engine, WorkspaceRoot: filepath.Join(filepath.Dir(dbPath), "project-chat-workspaces")}
+	chatDone := make(chan struct{})
+	if previewMode() {
+		close(chatDone)
+	} else {
+		if err := projectChatService.Start(workerCtx); err != nil {
+			log.Fatal(err)
+		}
+		go func() { defer close(chatDone); projectChatService.Run(workerCtx) }()
+	}
+	defer func() { stopWorker(); <-chatDone }()
 	app := app{
+		projectChatService:   projectChatService,
 		jobService:           jobService,
 		conductorService:     conductorService,
 		aiService:            aiService,

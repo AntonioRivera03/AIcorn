@@ -24,7 +24,11 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 		tools = append(tools, "search_tasks")
 		env["AYCORN_CONDUCTOR_PROJECT"] = fmt.Sprint(spec.Request.ProjectID)
 	}
-	return map[string]any{
+	if c := spec.Request.ProjectChat; c != nil {
+		env = map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_CHAT_TURN": fmt.Sprint(c.TurnID), "AYCORN_CHAT_PROJECT": fmt.Sprint(spec.Request.ProjectID)}
+		tools = []string{"project_context", "read_task", "search_tasks", "create_task", "update_task", "move_task_stage", "list_task_links", "add_task_link", "remove_task_link", "read_project_document", "request_task_work"}
+	}
+	config := map[string]any{
 		"agents.enabled": true,
 		"agents.max_concurrent_threads_per_session": 4,
 		"approval_policy":                        "never",
@@ -34,6 +38,12 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 		"mcp_servers.aycorn.required":            true,
 		"mcp_servers.aycorn.enabled_tools":       tools,
 	}
+	// These scoped local tools are authorized by starting the Aycorn operation;
+	// their server-side transaction guards still enforce ownership and turn scope.
+	for _, name := range tools {
+		config["mcp_servers.aycorn.tools."+name+".approval_mode"] = "approve"
+	}
+	return config
 }
 
 func codexEnvironment(cwd string) []string {
@@ -105,10 +115,17 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 	}
 	method := "thread/start"
 	threadParams := map[string]any{"cwd": spec.WorkDir, "model": r.Model, "modelProvider": "openai", "approvalPolicy": "never", "sandbox": sandbox, "ephemeral": false, "developerInstructions": developer, "config": config}
-	if r.Chat != nil && r.Chat.SessionID != "" {
+	sessionID := ""
+	if r.Chat != nil {
+		sessionID = r.Chat.SessionID
+	}
+	if r.ProjectChat != nil {
+		sessionID = r.ProjectChat.SessionID
+	}
+	if sessionID != "" {
 		method = "thread/resume"
 		delete(threadParams, "ephemeral")
-		threadParams["threadId"] = r.Chat.SessionID
+		threadParams["threadId"] = sessionID
 		threadParams["excludeTurns"] = true
 	}
 	if err = client.call(ctx, method, threadParams, &opened); err != nil {
@@ -125,7 +142,11 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 			return result, err
 		}
 	}
-	if err = client.call(ctx, "thread/name/set", map[string]any{"threadId": opened.Thread.ID, "name": fmt.Sprintf("Aycorn #%d · %s", spec.TaskID, r.TaskName)}, nil); err != nil {
+	threadName := fmt.Sprintf("Aycorn #%d · %s", spec.TaskID, r.TaskName)
+	if r.ProjectChat != nil {
+		threadName = "Aycorn · Chatter · " + r.TaskName
+	}
+	if err = client.call(ctx, "thread/name/set", map[string]any{"threadId": opened.Thread.ID, "name": threadName}, nil); err != nil {
 		return result, err
 	}
 	params := map[string]any{"threadId": opened.Thread.ID, "input": []map[string]any{{"type": "text", "text": prompt}}}
@@ -245,7 +266,7 @@ func (s *sessionState) notify(m rpcMessage) {
 		case "fileChange":
 			progress = "Editing files"
 		case "mcpToolCall":
-			progress = "Reading ticket context"
+			progress = "Using Aycorn tools"
 		case "collabAgentToolCall":
 			progress = "Coordinating agents"
 		}

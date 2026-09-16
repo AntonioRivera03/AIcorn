@@ -25,12 +25,16 @@ const VIEW_LABELS: Record<string, string> = {
   month: "Month",
   week: "Week",
   documents: "Documents",
+  chats: "Chats",
 };
 
 export function ProjectGeneralTab({ projectId }: { projectId: number }) {
   const { data, isFetching } = useProjectWorkflowSettingsQuery(projectId);
   const { updateProject } = useProjectMutation(projectId);
-  const [repoEdit, setRepoEdit] = useState<{ projectId: number; value: string } | null>(null);
+  const [repoEdit, setRepoEdit] = useState<{
+    projectId: number;
+    value: string;
+  } | null>(null);
 
   if (!data?.Project) {
     return (
@@ -42,7 +46,10 @@ export function ProjectGeneralTab({ projectId }: { projectId: number }) {
 
   const project = data.Project;
 
-  const repoPathDraft = repoEdit?.projectId === projectId ? repoEdit.value : project.RepoPath ?? "";
+  const repoPathDraft =
+    repoEdit?.projectId === projectId
+      ? repoEdit.value
+      : (project.RepoPath ?? "");
   const setRepoPathDraft = (value: string) => setRepoEdit({ projectId, value });
 
   const repoPathTrimmed = repoPathDraft.trim();
