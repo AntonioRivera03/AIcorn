@@ -11,6 +11,7 @@ export type AISettings = {
   timeoutSeconds: number;
 };
 export type AISettingsResponse = {
+	providers: { id: string; name: string; enabled: boolean; reason?: string }[];
   settings: AISettings;
   engine: {
     ready: boolean;
@@ -37,6 +38,9 @@ export type AIRunRequest = {
   timeoutSeconds: number;
 };
 export type AIArtifacts = {
+	provider?: string;
+	sessionId?: string;
+	turnId?: string;
   workspace?: string;
   branch?: string;
   baseCommit?: string;

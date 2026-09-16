@@ -223,7 +223,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		if err != nil {
 			return err
 		}
-		req.Conductor = &models.ConductorRun{Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent}
+		req.Conductor = &models.ConductorRun{Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent, ConductorAgent: &models.AgentSnapshot{ID: req.AgentID, Name: req.PresetName, Model: req.Model, Instructions: req.SystemPrompt}}
 		return s.Repo.Advance(t, task, task.Body, settings.PlanningStage, "planning", "Conductor is checking the task", req, settings)
 	}
 	if t.JobID == 0 {
@@ -280,7 +280,11 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 			if contract.TaskAgent == nil {
 				return errors.New("Task agent snapshot is missing; recheck the task")
 			}
-			req, err = s.AI.Prepare(ctx, t.TaskID, AIRunInput{Intent: intent, Agent: contract.TaskAgent, Instruction: contract.Settings.WorkingPrompt + "\n\nHuman review handoff requirements:\n" + contract.Settings.CompletionPrompt})
+			rootAgent := contract.ConductorAgent
+			if rootAgent == nil {
+				rootAgent = contract.TaskAgent
+			} // existing queued cycles
+			req, err = s.AI.Prepare(ctx, t.TaskID, AIRunInput{Intent: intent, Agent: rootAgent, Instruction: contract.Settings.WorkingPrompt + "\n\nHuman review handoff requirements:\n" + contract.Settings.CompletionPrompt})
 			if err != nil {
 				return err
 			}
@@ -298,7 +302,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 				return err
 			}
 			req.TaskBody = converted[0]
-			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body}
+			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body, ConductorAgent: contract.ConductorAgent, TaskAgent: contract.TaskAgent}
 		}
 		return s.Repo.Advance(t, task, body, task.Stage, state, message, req, contract.Settings)
 	}

@@ -29,7 +29,7 @@ export function AIEngineSettings() {
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-medium">Codex</h2>
+          <h2 className="font-medium">Local harness</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Run tasks with Codex, or let Conductor manage the tasks you delegate.
           </p>
@@ -52,6 +52,17 @@ export function AIEngineSettings() {
         <p className="text-sm text-muted-foreground">Loading settings…</p>
       ) : (
         <>
+          <div className="space-y-2">
+            <Label htmlFor="ai-harness">Harness</Label>
+            <select id="ai-harness" value="codex" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" onChange={() => {}}>
+              {(query.data?.providers ?? [{ id: "codex", name: "Codex", enabled: true }]).map((provider) => (
+                <option key={provider.id} value={provider.id} disabled={!provider.enabled}>
+                  {provider.name}{!provider.enabled ? " · Coming later" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Uses your local Codex login. Conversations are saved in Codex so you can continue them there.</p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="ai-model">Default OpenAI model</Label>
             <OpenAIModelInput

@@ -8,6 +8,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -119,7 +120,19 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 	if err = repo.SetProgress(job.ID, "Starting Codex"); err != nil {
 		return finish(err)
 	}
+	var checkpointMu sync.Mutex
+	var partialOutput string
+	spec.OnSession = func(sessionID, turnID string) error {
+		checkpointMu.Lock()
+		defer checkpointMu.Unlock()
+		artifacts.Provider = job.Request.Engine
+		artifacts.SessionID, artifacts.TurnID = sessionID, turnID
+		return repo.Checkpoint(job.ID, partialOutput, "{}", artifacts)
+	}
 	spec.OnProgress = func(progress, output string) error {
+		checkpointMu.Lock()
+		defer checkpointMu.Unlock()
+		partialOutput = output
 		if err := repo.Checkpoint(job.ID, output, "{}", artifacts); err != nil {
 			return err
 		}

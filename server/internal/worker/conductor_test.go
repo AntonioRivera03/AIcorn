@@ -101,8 +101,8 @@ func TestConductorLifecyclePreservesBodyAndStopsAtReview(t *testing.T) {
 			return harness.RunResult{Output: readyDecision}, nil
 		}
 		conductorState(t, w, "working", 3)
-		if spec.Request.Model != "gpt-5.6-sol" || !strings.Contains(spec.Request.TaskBody, "Conductor planning") {
-			t.Fatal("worker did not get the plan or selected model")
+		if spec.Request.Model != "gpt-6-astra" || spec.Request.Conductor.TaskAgent == nil || spec.Request.Conductor.TaskAgent.Model != "gpt-5.6-sol" || !strings.Contains(spec.Request.TaskBody, "Conductor planning") {
+			t.Fatal("Conductor did not retain the plan and selected coder model")
 		}
 		// Concurrent human body edits during work survive the appended handoff.
 		current, _ := w.Conductor.AI.Tasks.FindOneWithProject(1)
@@ -131,7 +131,7 @@ func TestConductorLifecyclePreservesBodyAndStopsAtReview(t *testing.T) {
 			t.Fatalf("lost %s: %s", text, task.Body)
 		}
 	}
-	if task.TimeCompleted != nil || task.Assignee != "AI · Task agent" {
+	if task.TimeCompleted != nil || task.Assignee != "AI · Conductor agent" {
 		t.Fatalf("bad handoff: %+v", task)
 	}
 	untouched, _ := w.Conductor.AI.Tasks.FindOneWithProject(2)
@@ -408,7 +408,11 @@ func TestConductorFreezesSelectedCustomAgentsForCycle(t *testing.T) {
 			}
 			return harness.RunResult{Output: readyDecision}, nil
 		}
-		if spec.Request.AgentID != 11 || spec.Request.Model != "gpt-5.6-sol" || spec.Request.PresetName != "Task agent" || !strings.Contains(spec.Request.SystemPrompt, "Implement carefully") {
+		if spec.Request.AgentID != 10 || spec.Request.Model != "gpt-6-astra" || !strings.Contains(spec.Request.SystemPrompt, "Plan carefully") {
+			t.Fatalf("lost root Conductor: %+v", spec.Request)
+		}
+		coder := spec.Request.Conductor.TaskAgent
+		if coder == nil || coder.ID != 11 || coder.Model != "gpt-5.6-sol" || coder.Name != "Task agent" || !strings.Contains(coder.Instructions, "Implement carefully") {
 			t.Fatalf("lost frozen task agent: %+v", spec.Request)
 		}
 		return harness.RunResult{Output: completeDecision}, nil

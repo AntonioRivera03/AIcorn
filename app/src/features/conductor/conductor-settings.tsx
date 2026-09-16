@@ -37,7 +37,7 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
     <Card className="border-conductor/25">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><AudioLines className="size-5 text-conductor" />Conductor</CardTitle>
-        <CardDescription>Delegate selected tasks on this board. Conductor plans, assigns your task agent, and hands completed work back to you.</CardDescription>
+        <CardDescription>Delegate selected tasks on this board. Conductor coordinates planning, research, coding and review, and handles ticket stages.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -88,7 +88,7 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
           <Checkbox id="conductor-repository" checked={settings.useRepository} disabled={conductor.update.isPending} onCheckedChange={(value) => conductor.update.mutate({ useRepository: value === true })} />
           <div className="space-y-1"><Label htmlFor="conductor-repository">Work in the project repository</Label><p className="text-sm text-muted-foreground">Uses the repository folder in General settings. Agents edit isolated branches; you review and merge their work. Turn this off for tasks that produce a written answer.</p></div>
         </div>
-        <p className="text-xs text-muted-foreground">Uses Codex and OpenAI models. One agent runs at a time. Conductor plans with read-only access; task agents can edit files and run project commands and tests in their worktree. Command network access is disabled.</p>
+        <p className="text-xs text-muted-foreground">Uses your local Codex login. Conductor owns each ticket and can delegate to up to four subagents. The task agent supplies the coder’s model and instructions. Planning is read-only; implementation runs in an isolated worktree. Command network access is disabled.</p>
       </CardContent>
     </Card>
   </section>;
