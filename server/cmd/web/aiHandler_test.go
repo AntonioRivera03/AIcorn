@@ -38,7 +38,7 @@ func TestAIRunRequestIsExplicitAndSnapshotsContext(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &job); err != nil {
 		t.Fatal(err)
 	}
-	if job.Request == nil || job.Request.Instruction != "Explain this" || job.Request.RepoPath != "" {
+	if job.Request == nil || job.Request.Engine != "codex" || job.Request.AgentID != 1 || job.Request.Model != "gpt-5.6-sol" || job.Request.Instruction != "Explain this" || job.Request.RepoPath != "" {
 		t.Fatalf("bad snapshot: %+v", job)
 	}
 	// Preset deletion neither cancels nor deletes its run.

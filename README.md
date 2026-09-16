@@ -6,11 +6,23 @@ A personal, self-hosted task manager that blends Jira-style project tracking wit
 
 ## Task AI
 
-Open a task and choose **Ask AI** to ask a question, plan work, implement a change, or review the linked repository. AI runs are explicit: changing an owner or stage does not start one. The same panel shows progress, Stop, Markdown answers, and preserved file changes. Use **AI** in the sidebar to select a model and edit optional instruction presets.
+Open a task and choose **Ask AI** to ask a question, plan work, implement a change, or review the linked repository. Manual AI runs are explicit: changing an owner or stage does not start one. Conductor can automatically manage tasks you delegate to it. The same panel shows progress, Stop, Markdown answers, and preserved file changes. Use **AI** in the sidebar to create custom agents with their own OpenAI models and instructions. Select a Conductor agent and task agent in Project Settings → Conductor.
 
-AI requires OpenCode, access to the configured model, Node.js for task-description conversion, and the `aycorn-mcp` companion executable. `make dev`, `make build`, and `make install` build the companion. For a release download, also download the matching `aycorn-mcp-<platform>` asset, rename it to `aycorn-mcp` (`aycorn-mcp.exe` on Windows), and place it beside the Aycorn executable. On macOS/Linux, make it executable; on macOS, remove its quarantine flag as with the main binary. OpenCode authentication remains managed by OpenCode.
+AI requires a current Codex CLI, access to the configured OpenAI model, Node.js for task-description conversion, and the `aycorn-mcp` companion executable. `make dev`, `make build`, and `make install` build the companion. For a release download, also download the matching `aycorn-mcp-<platform>` asset, rename it to `aycorn-mcp` (`aycorn-mcp.exe` on Windows), and place it beside the Aycorn executable. On macOS/Linux, make it executable; on macOS, remove its quarantine flag as with the main binary. Sign in with `codex login` on the server; authentication remains managed by Codex. The startup check reports if the installed CLI is missing required noninteractive features.
 
-Ask and Plan work with just the task. To include code, link a Git repository in project settings. Implement edits an isolated worktree; this version does not give the model shell access or run tests for it. Results preserve the actual branch, workspace, and patch for review. Merging and workspace cleanup remain manual. Existing persona-stage bindings are inactive, and prior AI history is retained.
+Ask and Plan work with just the task. To include code, link a Git repository in project settings. Implement edits an isolated worktree and can run project commands and tests in the Codex workspace sandbox. Command network access is disabled; unavailable dependencies are reported as blockers. Results preserve the actual branch, workspace, and patch for review. Agent branches appear in a **Code branches** section on the task page and drawer. Choose **Review & merge**, select a local destination branch, and inspect the changed files and diff. **Commit & merge** includes uncommitted agent edits; **Merge branch** merges existing commits. Both actions require confirmation. Workspace cleanup remains manual. Existing persona-stage bindings are inactive, and prior AI history is retained.
+
+Branch status comes directly from Git, so merges performed in a terminal also appear on the task. Aycorn checks for active runs, uncommitted destination changes, and stale previews. It tests merges in a temporary workspace; conflicts preserve the agent branch and leave the destination unchanged. Resolve conflicts in the terminal and review again. Commits use your configured Git identity. Branches stay local and are kept after merging.
+
+See [Conductor mode](Documentation/conductor-mode.md) for workflow and agent setup.
+
+## Branch previews with Kubernetes
+
+Run application versions side by side from local branches or completed task runs. Each preview captures an immutable source snapshot, runs its configured tests, and starts with an isolated database and localhost URL. Open **Project Settings → Environments** to configure Kubernetes and build a preview, or use **Preview** beside a task's code branch. Stop preserves preview data; Delete removes it after confirmation. Conductor can prepare previews automatically after successful code tasks.
+
+Docker, kubectl, and a Kubernetes cluster with persistent storage and NetworkPolicy enforcement are required. The included setup script creates a dedicated local kind cluster. `make dev` and `make dev-test` automatically load its default kubeconfig unless you explicitly set `KUBECONFIG`. Project previews let you choose Working tree (including local edits) or Latest commit. See the [Kubernetes setup and verification guide](Documentation/kubernetes-environments.md); the [original research proposal](Documentation/branch-environments-spec.md) records earlier design options.
+
+The [technical architecture](Documentation/kubernetes-architecture.md) explains source capture, orchestration, Kubernetes resources, isolation, and the API. The [installed-system verification report](Documentation/kubernetes-verification.md) records the local setup, tested behavior, and launch instructions.
 
 The [AI redesign review](Documentation/ai-integration-redesign-review.md) explains the replacement architecture. The [implementation and verification notes](Documentation/ai-redesign-implementation.md) record the shipped behavior and remaining validation.
 
@@ -148,7 +160,7 @@ Aycorn starts a local web server and prints where your database lives and which 
 2025/01/01 12:00:00 Listening on http://localhost:8000
 ```
 
-Open the URL from the `Listening on` line in your browser. Aycorn defaults to port 8000, but automatically tries the next port up if 8000 is already in use. Aycorn runs entirely on your machine — nothing is sent anywhere.
+Open the URL from the `Listening on` line in your browser. Aycorn defaults to port 8000, but automatically tries the next port up if 8000 is already in use. Task storage runs on your machine. Optional AI runs send the selected task and repository context to OpenAI through Codex.
 
 **To stop it:** press `Ctrl-C` in the terminal where it's running. Aycorn waits for any in-progress requests to finish before it exits.
 
@@ -273,15 +285,17 @@ aycorn                                # start normally; the schema rolls forward
 
 | Command | What it does |
 |---|---|
-| `make dev` | Start a local dev environment: hot-reloading frontend + Go backend. Uses a separate dev database (`server/app.db`) so it doesn't touch your installed data. |
+| `make dev` | Build the frontend and run the Go server using your personal database, unless `AYCORN_DB` is explicitly set. |
+| `make dev-test` | Build and run against the separate test database at `server/app.db`. |
 | `make build` | Build the production binary (React + Go bundled together) at `./aycorn`. |
 | `make install` | Build and copy the binary to `/usr/local/bin/aycorn` so you can run it from anywhere. |
 | `make upgrade` | Rebuild, reinstall, and stop the running instance. Run after `git pull`. Then run `aycorn` to start the new version. |
 | `make stop` | Gracefully stop the running `aycorn` process. Does nothing if it isn't running. |
 | `make typecheck` | Run the TypeScript type checker on the frontend without building. |
 | `make clean` | Delete the built binary and frontend build artifacts. |
-| `make backup` | Snapshot the dev database (`server/app.db`). Pass `DEST=path` to choose where it's written. Acts on the dev DB only — not your installed data. |
-| `make restore` | Restore the dev database from a snapshot. Pass `SRC=path` for the snapshot to restore. Acts on the dev DB only. |
+| `make backup` | Snapshot the personal database, or the path selected by `AYCORN_DB`. Pass `DEST=path` to choose the snapshot destination. |
+| `make restore` | Restore the personal database, or the path selected by `AYCORN_DB`, from `SRC=path`. Stop its server before restoring. |
+| `make backup-test` / `make restore-test` | Snapshot or restore the separate test database at `server/app.db`. |
 
 ---
 

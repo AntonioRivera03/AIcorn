@@ -1,3 +1,4 @@
+import { TaskBranches } from "@/features/task/branches/task-branches";
 import { AskAIButton } from "@/features/ai/ask-ai-button";
 import { useContext, useEffect, useRef, useState } from "react";
 import {
@@ -278,6 +279,8 @@ export function TaskPage({ projectId }: { projectId: number }) {
           </section>
         </CollapsibleContent>
       </Collapsible>
+
+      <TaskBranches key={task.ID} taskId={task.ID} />
 
       <DeleteTaskDialog
         task={task}

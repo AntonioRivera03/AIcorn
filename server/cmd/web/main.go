@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/environments"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
@@ -84,6 +85,8 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	environmentService   *environments.Service
+	conductorService     *services.ConductorService
 	aiService            *services.AIService
 	projectRepo          *repos.ProjectRepo
 	checklistRepo        *repos.ChecklistRepo
@@ -154,6 +157,11 @@ func main() {
 
 	if err := appdb.Migrate(db, dbPath); err != nil {
 		log.Fatal(err)
+	}
+	if previewMode() {
+		if err := seedPreview(db); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	backupCtx, stopBackups := context.WithCancel(context.Background())
@@ -226,8 +234,8 @@ func main() {
 	}
 	personaService := &services.PersonaService{PersonaRepo: personaRepo}
 
-	// Single-worker ticker: one goroutine claims pending jobs every 10s,
-	// recovers stale on startup (claimed > 5m), executes read-only shim.
+	// Single-worker ticker reconciles Conductor and claims one Codex job.
+	// In-flight work is interrupted on restart and requires an explicit recheck.
 	// WAL + busy_timeout already handles concurrent DB access.
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	defer stopWorker()
@@ -248,14 +256,19 @@ func main() {
 		log.Fatal(err)
 	}
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
-	engine := &harness.OpenCode{MCPExecutable: mcpPath, DBPath: dbPath}
+	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
+	engine := &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}
 	w := worker.New(agentJobService, engine)
-	if err := w.Start(workerCtx, 10*time.Second); err != nil {
-		log.Fatalf("worker start: %v", err)
+	w.Conductor = conductorService
+	if !previewMode() {
+		if err := w.Start(workerCtx, 2*time.Second); err != nil {
+			log.Fatalf("worker start: %v", err)
+		}
 	}
 	defer w.Stop()
 
 	app := app{
+		conductorService:     conductorService,
 		aiService:            aiService,
 		projectRepo:          projectRepo,
 		checklistRepo:        checklistRepo,
@@ -283,6 +296,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if !previewMode() {
+		store := &environments.Store{DB: db}
+		token, err := store.Installation()
+		if err != nil {
+			log.Fatal(err)
+		}
+		runtime := &environments.Kubernetes{Token: token, MainURL: fmt.Sprintf("http://127.0.0.1:%d", port)}
+		app.environmentService = &environments.Service{Store: store, Runtime: runtime, Root: filepath.Join(filepath.Dir(dbPath), "environments-"+token)}
+		if err := app.environmentService.Start(workerCtx); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	server := http.Server{Handler: app.routes()}
 
@@ -308,6 +333,9 @@ func main() {
 
 	stopWorker()
 	w.Stop()
+	if app.environmentService != nil {
+		app.environmentService.Wait()
+	}
 
 	stopBackups()
 	<-backupLoopDone

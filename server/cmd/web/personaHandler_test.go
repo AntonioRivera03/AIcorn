@@ -59,8 +59,8 @@ func testPersona(name string) models.Persona {
 	return models.Persona{
 		Name:         name,
 		SystemPrompt: "Research carefully.",
-		Harness:      models.PersonaHarnessOpencode,
-		Model:        models.PersonaModelSonnet,
+		Harness:      models.PersonaHarnessCodex,
+		Model:        models.PersonaModelDefault,
 		AllowedTools: []string{"read_task", "search_tasks"},
 	}
 }
@@ -130,7 +130,7 @@ func TestPersonaAPI_supports_full_lifecycle(t *testing.T) {
 	// When
 	updated := created
 	updated.Name = "Lead Researcher"
-	updated.Model = models.PersonaModelOpus
+	updated.Model = models.PersonaModelAstra
 	updateResponse := request(http.MethodPut, "/api/persona/"+jsonNumber(created.ID), updated)
 
 	// Then
@@ -138,7 +138,7 @@ func TestPersonaAPI_supports_full_lifecycle(t *testing.T) {
 		t.Fatalf("update status = %d; want 200: %s", updateResponse.Code, updateResponse.Body.String())
 	}
 	readUpdated := decodePersona(t, request(http.MethodGet, "/api/persona/"+jsonNumber(created.ID), nil))
-	if readUpdated.Name != updated.Name || readUpdated.Model != models.PersonaModelOpus {
+	if readUpdated.Name != updated.Name || readUpdated.Model != models.PersonaModelAstra {
 		t.Fatalf("updated persona = %#v; want name/model update", readUpdated)
 	}
 

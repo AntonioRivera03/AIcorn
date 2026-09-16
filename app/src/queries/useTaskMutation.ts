@@ -3,6 +3,7 @@ import type { BulkResult, ProjectDetails, Task } from "@/types/types";
 import { useMutation } from "@tanstack/react-query";
 import type { Value } from "platejs";
 import { toast } from "sonner";
+import { rememberTaskBodyRevision, taskBodyRevision } from "@/lib/task-body-revision";
 
 const getSaveTaskQuery = (isNewTask: boolean) => {
   const method = isNewTask ? "POST" : "PUT";
@@ -189,15 +190,19 @@ export function useTaskMutation(projectId: number) {
   });
 
   const updateBody = useMutation({
+    scope: { id: `task-body-${projectId}` },
     mutationFn: async ({ taskId, body }: { taskId: number; body: Value }) => {
+      const revision = taskBodyRevision(taskId);
       const res = await fetch(`/api/task/body/${taskId}`, {
         method: "PUT",
+        headers: revision ? { "If-Match": revision } : undefined,
         body: JSON.stringify(body),
       });
       if (!res.ok) {
         const message = await res.text();
         throw new Error(message || "Failed to save task body");
       }
+      rememberTaskBodyRevision(taskId, res);
       return await res.json();
     },
     onSuccess: (_data, { taskId, body }) => {
@@ -206,6 +211,7 @@ export function useTaskMutation(projectId: number) {
       // its loading skeleton mid-edit.
       queryClient.setQueryData(["taskBody", taskId], body);
     },
+    onError: (error: Error) => toast.error(error.message, { duration: 10000 }),
   });
 
   const bulkDelete = useMutation({

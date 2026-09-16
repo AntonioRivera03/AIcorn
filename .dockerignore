@@ -1,0 +1,27 @@
+# Defense in depth for manual Docker builds. Managed previews additionally filter
+# their source snapshots before Docker receives the build context.
+.git
+**/.git
+.worktrees
+**/node_modules
+**/dist
+**/.cache
+**/.codegraph
+**/.env
+**/.env.*
+**/.ssh
+**/.aws
+**/.azure
+**/.kube
+**/.codex
+**/.docker
+**/.npmrc
+**/.netrc
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite3
+**/*.pem
+**/*.key
+**/backups
+server/environments-*

@@ -34,7 +34,7 @@ export type TaskTypeWithCount = TaskType & {
   TaskCount: number;
 };
 
-export const PERSONA_HARNESSES = ["opencode"] as const;
+export const PERSONA_HARNESSES = ["codex"] as const;
 export const PERSONA_AGENTS = [
   "code-analysis",
   "code-implementation",
@@ -48,38 +48,12 @@ export const PERSONA_AGENTS = [
   "test-integration",
   "worker",
 ] as const;
-export const PERSONA_MODELS = [
-  "opencode-go/deepseek-v4-flash",
-  "opencode-go/deepseek-v4-flash-vision-exp",
-  "opencode-go/deepseek-v4-pro",
-  "opencode-go/glm-5.1",
-  "opencode-go/glm-5.2",
-  "opencode-go/glm-5.3",
-  "opencode-go/glm-5.3-flash",
-  "opencode-go/gpt-5.6-luna",
-  "opencode-go/grok-4.6",
-  "opencode-go/hy3",
-  "opencode-go/kimi-k2.6",
-  "opencode-go/kimi-k2.7-code",
-  "opencode-go/kimi-k3",
-  "opencode-go/longcat-2.0",
-  "opencode-go/mimo-v2.5",
-  "opencode-go/mimo-v2.5-pro",
-  "opencode-go/minimax-m2.7",
-  "opencode-go/minimax-m3",
-  "opencode-go/muse-spark-1.2-contributor",
-  "opencode-go/qwen3.6-plus",
-  "opencode-go/qwen3.7-max",
-  "opencode-go/qwen3.7-plus",
-  "opencode-go/qwen3.8-max",
-] as const;
-
-export const LEGACY_PERSONA_MODELS = ["sonnet", "opus", "haiku"] as const;
-
-export const ALL_PERSONA_MODELS = [...PERSONA_MODELS, ...LEGACY_PERSONA_MODELS] as const;
+// Suggestions; the API also accepts new OpenAI model IDs supported by Codex.
+export const PERSONA_MODELS = ["gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex"] as const;
+export const ALL_PERSONA_MODELS = PERSONA_MODELS;
 
 export type PersonaHarness = (typeof PERSONA_HARNESSES)[number];
-export type PersonaModel = (typeof PERSONA_MODELS)[number];
+export type PersonaModel = string;
 export type PersonaAgent = (typeof PERSONA_AGENTS)[number];
 
 export type PersonaSummary = {

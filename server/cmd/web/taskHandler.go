@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -63,6 +65,7 @@ func (app *app) getTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("ETag", taskBodyETag(task.Body))
 	writeJSON(w, http.StatusOK, task)
 }
 
@@ -79,6 +82,7 @@ func (app *app) getTaskBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("ETag", taskBodyETag(taskBody))
 	writeJSON(w, http.StatusOK, taskBody)
 }
 
@@ -99,13 +103,36 @@ func (app *app) putTaskBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success, err := app.taskService.UpdateTaskBody(taskId, string(body))
+	var success bool
+	if revision := r.Header.Get("If-Match"); revision != "" {
+		previous, getErr := app.taskService.TaskRepo.RawTaskBody(taskId)
+		if getErr != nil {
+			respondErr(w, getErr)
+			return
+		}
+		if revision != taskBodyETag(previous) {
+			http.Error(w, "Task description changed elsewhere. Copy your unsaved edits, then reopen the task before saving again.", http.StatusPreconditionFailed)
+			return
+		}
+		success, err = app.taskService.TaskRepo.CompareAndSwapBody(taskId, previous, string(body))
+		if err == nil && !success {
+			http.Error(w, "Task description changed while saving. Copy your unsaved edits, then reopen the task.", http.StatusPreconditionFailed)
+			return
+		}
+	} else {
+		success, err = app.taskService.UpdateTaskBody(taskId, string(body))
+	}
 	if err != nil {
 		respondErr(w, err)
 		return
 	}
 
+	w.Header().Set("ETag", taskBodyETag(string(body)))
 	writeJSON(w, http.StatusOK, success)
+}
+
+func taskBodyETag(body string) string {
+	return fmt.Sprintf(`"%x"`, sha256.Sum256([]byte(models.NormalizeBody(body))))
 }
 
 func (app *app) postTask(w http.ResponseWriter, r *http.Request) {

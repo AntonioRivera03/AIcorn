@@ -3,54 +3,28 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	PersonaHarnessOpencode PersonaHarness = "opencode"
+	PersonaHarnessCodex PersonaHarness = "codex"
 
-	PersonaAgentCodeAnalysis      PersonaAgent = "code-analysis"
+	PersonaAgentCodeAnalysis       PersonaAgent = "code-analysis"
 	PersonaAgentCodeImplementation PersonaAgent = "code-implementation"
-	PersonaAgentGeneralJunior     PersonaAgent = "general-junior"
-	PersonaAgentGeneralSenior     PersonaAgent = "general-senior"
-	PersonaAgentOxCodingAgent     PersonaAgent = "ox-coding-agent"
-	PersonaAgentResearch          PersonaAgent = "research"
-	PersonaAgentReviewer          PersonaAgent = "reviewer"
-	PersonaAgentSummarizer        PersonaAgent = "summarizer"
-	PersonaAgentSynthesis         PersonaAgent = "synthesis"
-	PersonaAgentTestIntegration   PersonaAgent = "test-integration"
-	PersonaAgentWorker            PersonaAgent = "worker"
+	PersonaAgentGeneralJunior      PersonaAgent = "general-junior"
+	PersonaAgentGeneralSenior      PersonaAgent = "general-senior"
+	PersonaAgentOxCodingAgent      PersonaAgent = "ox-coding-agent"
+	PersonaAgentResearch           PersonaAgent = "research"
+	PersonaAgentReviewer           PersonaAgent = "reviewer"
+	PersonaAgentSummarizer         PersonaAgent = "summarizer"
+	PersonaAgentSynthesis          PersonaAgent = "synthesis"
+	PersonaAgentTestIntegration    PersonaAgent = "test-integration"
+	PersonaAgentWorker             PersonaAgent = "worker"
 
-	PersonaModelSonnet PersonaModel = "sonnet"
-	PersonaModelOpus   PersonaModel = "opus"
-	PersonaModelHaiku  PersonaModel = "haiku"
-
-	// New opencode-go catalog — verified via `opencode models opencode-go` (23 models).
-	// Kept for backwards compat: sonnet/opus/haiku still validate via IsValidPersonaModel.
-	PersonaModelDeepseekV4Flash            PersonaModel = "opencode-go/deepseek-v4-flash"
-	PersonaModelDeepseekV4FlashVisionExp   PersonaModel = "opencode-go/deepseek-v4-flash-vision-exp"
-	PersonaModelDeepseekV4Pro              PersonaModel = "opencode-go/deepseek-v4-pro"
-	PersonaModelGLM51                      PersonaModel = "opencode-go/glm-5.1"
-	PersonaModelGLM52                      PersonaModel = "opencode-go/glm-5.2"
-	PersonaModelGLM53                      PersonaModel = "opencode-go/glm-5.3"
-	PersonaModelGLM53Flash                 PersonaModel = "opencode-go/glm-5.3-flash"
-	PersonaModelGPT56Luna                  PersonaModel = "opencode-go/gpt-5.6-luna"
-	PersonaModelGrok46                     PersonaModel = "opencode-go/grok-4.6"
-	PersonaModelHy3                        PersonaModel = "opencode-go/hy3"
-	PersonaModelKimiK26                    PersonaModel = "opencode-go/kimi-k2.6"
-	PersonaModelKimiK27Code                PersonaModel = "opencode-go/kimi-k2.7-code"
-	PersonaModelKimiK3                     PersonaModel = "opencode-go/kimi-k3"
-	PersonaModelLongcat20                  PersonaModel = "opencode-go/longcat-2.0"
-	PersonaModelMimoV25                    PersonaModel = "opencode-go/mimo-v2.5"
-	PersonaModelMimoV25Pro                 PersonaModel = "opencode-go/mimo-v2.5-pro"
-	PersonaModelMinimaxM27                 PersonaModel = "opencode-go/minimax-m2.7"
-	PersonaModelMinimaxM3                  PersonaModel = "opencode-go/minimax-m3"
-	PersonaModelMuseSpark12Contributor     PersonaModel = "opencode-go/muse-spark-1.2-contributor"
-	PersonaModelQwen36Plus                 PersonaModel = "opencode-go/qwen3.6-plus"
-	PersonaModelQwen37Max                  PersonaModel = "opencode-go/qwen3.7-max"
-	PersonaModelQwen37Plus                 PersonaModel = "opencode-go/qwen3.7-plus"
-	PersonaModelQwen38Max                  PersonaModel = "opencode-go/qwen3.8-max"
+	PersonaModelDefault PersonaModel = "gpt-5.6-sol"
+	PersonaModelAstra   PersonaModel = "gpt-6-astra"
 )
 
 type PersonaHarness string
@@ -60,7 +34,7 @@ type PersonaModel string
 type PersonaAgent string
 
 var PersonaHarnesses = [...]PersonaHarness{
-	PersonaHarnessOpencode,
+	PersonaHarnessCodex,
 }
 
 var PersonaAgents = [...]PersonaAgent{
@@ -77,58 +51,11 @@ var PersonaAgents = [...]PersonaAgent{
 	PersonaAgentWorker,
 }
 
-// PersonaModels is the curated opencode-go catalog (23 models) as listed by
-// `opencode models opencode-go`. Exact output (2026-08-26):
-// opencode-go/deepseek-v4-flash
-// opencode-go/deepseek-v4-flash-vision-exp
-// opencode-go/deepseek-v4-pro
-// opencode-go/glm-5.1
-// opencode-go/glm-5.2
-// opencode-go/glm-5.3
-// opencode-go/glm-5.3-flash
-// opencode-go/gpt-5.6-luna
-// opencode-go/grok-4.6
-// opencode-go/hy3
-// opencode-go/kimi-k2.6
-// opencode-go/kimi-k2.7-code
-// opencode-go/kimi-k3
-// opencode-go/longcat-2.0
-// opencode-go/mimo-v2.5
-// opencode-go/mimo-v2.5-pro
-// opencode-go/minimax-m2.7
-// opencode-go/minimax-m3
-// opencode-go/muse-spark-1.2-contributor
-// opencode-go/qwen3.6-plus
-// opencode-go/qwen3.7-max
-// opencode-go/qwen3.7-plus
-// opencode-go/qwen3.8-max
-// No migration needed: persona.harness and persona.model are plain TEXT columns
-// without CHECK constraints, so adding values is validation-only.
-var PersonaModels = [...]PersonaModel{
-	PersonaModelDeepseekV4Flash,
-	PersonaModelDeepseekV4FlashVisionExp,
-	PersonaModelDeepseekV4Pro,
-	PersonaModelGLM51,
-	PersonaModelGLM52,
-	PersonaModelGLM53,
-	PersonaModelGLM53Flash,
-	PersonaModelGPT56Luna,
-	PersonaModelGrok46,
-	PersonaModelHy3,
-	PersonaModelKimiK26,
-	PersonaModelKimiK27Code,
-	PersonaModelKimiK3,
-	PersonaModelLongcat20,
-	PersonaModelMimoV25,
-	PersonaModelMimoV25Pro,
-	PersonaModelMinimaxM27,
-	PersonaModelMinimaxM3,
-	PersonaModelMuseSpark12Contributor,
-	PersonaModelQwen36Plus,
-	PersonaModelQwen37Max,
-	PersonaModelQwen37Plus,
-	PersonaModelQwen38Max,
-}
+// Suggestions only; OpenAI may add new Codex-compatible models without a schema change.
+var PersonaModels = [...]PersonaModel{PersonaModelDefault, PersonaModelAstra, "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex"}
+var openAIModel = regexp.MustCompile(`^(gpt-[0-9][a-z0-9.-]*|o[0-9][a-z0-9.-]*|codex-mini-latest)$`)
+
+func IsOpenAIModel(model string) bool { return len(model) <= 100 && openAIModel.MatchString(model) }
 
 type Persona struct {
 	ID           int
@@ -157,7 +84,7 @@ type StagePersona struct {
 
 func IsValidPersonaHarness(harness PersonaHarness) bool {
 	switch harness {
-	case PersonaHarnessOpencode:
+	case PersonaHarnessCodex:
 		return true
 	default:
 		return false
@@ -179,21 +106,7 @@ func IsValidPersonaAgent(agent PersonaAgent) bool {
 	}
 }
 
-func IsValidPersonaModel(model PersonaModel) bool {
-	switch model {
-	case PersonaModelSonnet, PersonaModelOpus, PersonaModelHaiku,
-		PersonaModelDeepseekV4Flash, PersonaModelDeepseekV4FlashVisionExp, PersonaModelDeepseekV4Pro,
-		PersonaModelGLM51, PersonaModelGLM52, PersonaModelGLM53, PersonaModelGLM53Flash,
-		PersonaModelGPT56Luna, PersonaModelGrok46, PersonaModelHy3,
-		PersonaModelKimiK26, PersonaModelKimiK27Code, PersonaModelKimiK3,
-		PersonaModelLongcat20, PersonaModelMimoV25, PersonaModelMimoV25Pro,
-		PersonaModelMinimaxM27, PersonaModelMinimaxM3, PersonaModelMuseSpark12Contributor,
-		PersonaModelQwen36Plus, PersonaModelQwen37Max, PersonaModelQwen37Plus, PersonaModelQwen38Max:
-		return true
-	default:
-		return false
-	}
-}
+func IsValidPersonaModel(model PersonaModel) bool { return IsOpenAIModel(string(model)) }
 
 func ParseAllowedTools(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)

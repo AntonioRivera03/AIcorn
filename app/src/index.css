@@ -45,12 +45,15 @@
   --color-brand: var(--brand);
   --color-highlight: var(--highlight);
   --color-success: var(--success);
+  --color-conductor: var(--conductor);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
+  --conductor: oklch(0.60 0.18 48);
+  --conductor-glint: oklch(0.87 0.13 78);
   --background: oklch(1 0 0);
   --foreground: oklch(0.148 0.004 228.8);
   --card: oklch(1 0 0);
@@ -91,6 +94,8 @@
 }
 
 .dark {
+  --conductor: oklch(0.77 0.16 58);
+  --conductor-glint: oklch(0.95 0.10 85);
   --background: oklch(0.148 0.004 228.8);
   --foreground: oklch(0.987 0.002 197.1);
   --card: oklch(0.218 0.008 223.9);
@@ -202,4 +207,38 @@
     border-radius: var(--radius-xs);
     pointer-events: none;
   }
+}
+
+@property --conductor-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.conductor-frame {
+  position: relative;
+  isolation: isolate;
+  border-color: color-mix(in oklch, var(--conductor) 45%, transparent);
+  box-shadow: 0 0 24px -10px color-mix(in oklch, var(--conductor) 25%, transparent);
+}
+
+.conductor-frame::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(from var(--conductor-angle), var(--conductor), var(--conductor) 35%, var(--conductor-glint) 46%, var(--conductor) 54%, var(--conductor) 85%, var(--conductor-glint) 96%, var(--conductor));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: conductor-orbit 7s linear infinite;
+}
+
+@keyframes conductor-orbit {
+  to { --conductor-angle: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conductor-frame::before { animation: none; }
 }

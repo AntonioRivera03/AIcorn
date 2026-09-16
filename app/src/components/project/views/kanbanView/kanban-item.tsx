@@ -17,7 +17,8 @@ import type { ChecklistTask } from "@/types/types";
 import { useDraggableItem } from "@/hooks/useDraggableItem";
 import { selectedItemClasses } from "@/hooks/useSelection";
 import { cn } from "@/lib/utils";
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
+import { ConductorTaskBadge, ConductorTaskMenu } from "@/features/conductor/conductor-task";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { SubtaskProgressBar } from "@/features/task/relationships/subtask-progress-bar";
 import { useSubtaskProgress } from "@/features/task/relationships/queries/useSubtaskProgress";
@@ -76,10 +77,11 @@ export function KanbanItem({
 
   const subtaskProgress = useSubtaskProgress(task.ID);
   const { openAI } = useAI();
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   return (
     <TaskProvider defaultState={task} key={task.ID}>
-      <div className="relative group/card">
+      <div className="relative group/card" onContextMenu={(e) => { e.preventDefault(); setActionsOpen(true); }} onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); setActionsOpen(true); } }}>
         <TaskEditorDrawer>
           <Item
             asChild
@@ -159,6 +161,7 @@ export function KanbanItem({
 
                 <UnresolvedBlockersBadge taskId={task.ID} />
                 <AgentWorkingBadge taskId={task.ID} />
+                <ConductorTaskBadge taskId={task.ID} name={task.Name} />
               </span>
             </ItemContent>
 
@@ -170,7 +173,7 @@ export function KanbanItem({
           </a>
         </Item>
       </TaskEditorDrawer>
-        <DropdownMenu>
+        <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -189,6 +192,7 @@ export function KanbanItem({
               <Bot className="size-4" />
               Ask AI
             </DropdownMenuItem>
+            <ConductorTaskMenu taskId={task.ID} />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

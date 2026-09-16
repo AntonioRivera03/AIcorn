@@ -72,7 +72,7 @@ export function AIPanel({
   const active = isAgentWorking(jobs);
   const needsRepo =
     intent === "implement" || intent === "review" || useRepository;
-  const ready = settings.data?.engine.ready && !!settings.data.settings.model;
+  const ready = settings.data?.engine.ready && (presetId !== "none" || !!settings.data.settings.model);
   const repoMissing =
     needsRepo &&
     !context.projects.isPending &&
@@ -206,28 +206,27 @@ export function AIPanel({
               </label>
               {intent === "implement" && (
                 <p>
-                  Edits stay in a separate worktree. This version cannot run
-                  shell commands or tests.
+                  Codex can edit files and run project commands and tests in a separate worktree. Command network access is disabled.
                 </p>
               )}
             </div>
             {presets.length > 0 && (
               <div className="flex items-center gap-3">
                 <Label
-                  htmlFor="ai-preset"
+                  htmlFor="ai-agent"
                   className="shrink-0 text-xs text-muted-foreground"
                 >
-                  Instructions
+                  Agent
                 </Label>
                 <Select value={presetId} onValueChange={setPresetId}>
-                  <SelectTrigger id="ai-preset" className="w-full">
+                  <SelectTrigger id="ai-agent" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No preset</SelectItem>
+                    <SelectItem value="none">Default model</SelectItem>
                     {presets.map((preset) => (
                       <SelectItem key={preset.ID} value={String(preset.ID)}>
-                        {preset.Name || "Untitled preset"}
+                        {preset.Name || "Untitled agent"}
                       </SelectItem>
                     ))}
                   </SelectContent>

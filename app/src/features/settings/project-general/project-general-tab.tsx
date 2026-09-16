@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -29,6 +29,7 @@ const VIEW_LABELS: Record<string, string> = {
 export function ProjectGeneralTab({ projectId }: { projectId: number }) {
   const { data, isFetching } = useProjectWorkflowSettingsQuery(projectId);
   const { updateProject } = useProjectMutation(projectId);
+  const [repoEdit, setRepoEdit] = useState<{ projectId: number; value: string } | null>(null);
 
   if (!data?.Project) {
     return (
@@ -40,11 +41,8 @@ export function ProjectGeneralTab({ projectId }: { projectId: number }) {
 
   const project = data.Project;
 
-  const [repoPathDraft, setRepoPathDraft] = useState(project.RepoPath ?? "");
-
-  useEffect(() => {
-    setRepoPathDraft(project.RepoPath ?? "");
-  }, [project.RepoPath]);
+  const repoPathDraft = repoEdit?.projectId === projectId ? repoEdit.value : project.RepoPath ?? "";
+  const setRepoPathDraft = (value: string) => setRepoEdit({ projectId, value });
 
   const repoPathTrimmed = repoPathDraft.trim();
   const repoPathValidation =
@@ -71,6 +69,7 @@ export function ProjectGeneralTab({ projectId }: { projectId: number }) {
     updateProject.mutate(
       { ...project, RepoPath: trimmed },
       {
+        onSuccess: () => setRepoEdit(null),
         onError: () => toast.error("Failed to update repo folder."),
       },
     );

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AIMarkdown } from "@/features/ai/ai-markdown";
+import { conductorOutput } from "@/features/conductor/conductor-output";
 import {
   isAgentWorking,
   type AgentJob,
@@ -64,6 +65,7 @@ export function AIRunCard({
 
   const artifacts = run?.artifacts;
   const legacy = !job.request;
+  const output = job.request?.conductor ? conductorOutput(run?.output ?? "") : run?.output;
   return (
     <article
       className="rounded-xl border border-border bg-card p-4"
@@ -80,7 +82,7 @@ export function AIRunCard({
           {statusLabels[job.status] || job.status}
         </Badge>
         <span className="text-sm capitalize">
-          {job.request?.intent || "Previous run"}
+          {job.request?.conductor ? `Conductor · ${job.request.conductor.phase}` : job.request?.intent || "Previous run"}
         </span>
         {elapsed && (
           <span
@@ -115,7 +117,7 @@ export function AIRunCard({
           {job.error}
         </p>
       )}
-      {run?.output && <AIMarkdown>{run.output}</AIMarkdown>}
+      {output && <AIMarkdown>{output}</AIMarkdown>}
       {!active && !run?.output && (
         <p className="mt-3 text-sm text-muted-foreground">
           No response was recorded for this attempt.
@@ -161,6 +163,8 @@ export function AIRunCard({
             <Square className="size-3" />{" "}
             {job.status === "canceling" ? "Stopping…" : "Stop"}
           </Button>
+        ) : job.request?.conductor ? (
+          <span className="text-xs text-muted-foreground">Manage this task from its Conductor badge on the project board.</span>
         ) : (
           <Button variant="ghost" size="sm" onClick={onRetry} disabled={busy}>
             <RotateCcw className="size-3" /> Use request again
@@ -170,7 +174,7 @@ export function AIRunCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void copy(run.output)}
+            onClick={() => void copy(output || run.output)}
           >
             <Copy className="size-3" /> Copy answer
           </Button>
@@ -187,10 +191,10 @@ export function AIRunCard({
           {job.request && (
             <>
               <dt>Engine</dt>
-              <dd>OpenCode {job.request.engineVersion}</dd>
+              <dd>{job.request.engine === "codex" ? "Codex" : "Previous engine"} {job.request.engineVersion}</dd>
               <dt>Model</dt>
               <dd>{job.request.model}</dd>
-              <dt>Preset</dt>
+              <dt>Agent</dt>
               <dd>{job.request.presetName || "None"}</dd>
             </>
           )}

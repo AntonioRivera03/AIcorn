@@ -50,8 +50,8 @@ export function PersonasPage() {
       <div className="flex flex-col items-center gap-2 md:flex-row">
         <InputGroup>
           <InputGroupInput
-            aria-label="Search presets"
-            placeholder="Search presets..."
+            aria-label="Search agents"
+            placeholder="Search agents..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -59,7 +59,7 @@ export function PersonasPage() {
             <Search />
           </InputGroupAddon>
           <InputGroupAddon align="inline-end">
-            {filtered.length} {filtered.length === 1 ? "preset" : "presets"}
+            {filtered.length} {filtered.length === 1 ? "agent" : "agents"}
           </InputGroupAddon>
         </InputGroup>
         <Button
@@ -68,18 +68,18 @@ export function PersonasPage() {
           disabled={createPersona.isPending}
         >
           <Plus />
-          New preset
+          New agent
         </Button>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-sm text-muted-foreground">
-          Loading presets...
+          Loading agents...
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {search ? "No presets match your search." : "No presets yet."}
+            {search ? "No agents match your search." : "No agents yet."}
           </p>
           {!search && (
             <Button
@@ -88,7 +88,7 @@ export function PersonasPage() {
               disabled={createPersona.isPending}
             >
               <Plus />
-              Create your first preset
+              Create your first agent
             </Button>
           )}
         </div>

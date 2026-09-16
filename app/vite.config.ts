@@ -40,7 +40,12 @@ export default defineConfig(({ command, mode }) => ({
     // In dev, Vite serves the frontend and proxies /api to the Go backend.
     // The target port matches the Go server default (8000) or $AYCORN_PORT if set.
     proxy: {
-      "/api": `http://localhost:${process.env.AYCORN_PORT ?? 8000}`,
+      "/api": {
+        target: `http://localhost:${process.env.AYCORN_PORT ?? 8000}`,
+        // Keep the browser's host so the backend's same-origin check also
+        // applies to requests forwarded by the development server.
+        changeOrigin: false,
+      },
     },
   },
 }));

@@ -20,6 +20,7 @@ export type AISettingsResponse = {
   };
 };
 export type AIRunRequest = {
+  conductor?: { phase: "planning" | "working" };
   key: string;
   intent: AIIntent;
   instruction: string;
@@ -30,6 +31,8 @@ export type AIRunRequest = {
   model: string;
   executable: string;
   engineVersion: string;
+  engine?: string;
+  agentId?: number;
   repoPath?: string;
   timeoutSeconds: number;
 };

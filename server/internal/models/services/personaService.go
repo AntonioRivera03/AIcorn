@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -16,14 +17,12 @@ type PersonaService struct {
 }
 
 func validatePersona(persona *models.Persona) error {
+	persona.Model = models.PersonaModel(strings.TrimSpace(string(persona.Model)))
 	if persona.Harness == "" {
-		persona.Harness = models.PersonaHarnessOpencode
-	}
-	if persona.Harness == "claude-code" {
-		persona.Harness = models.PersonaHarnessOpencode
+		persona.Harness = models.PersonaHarnessCodex
 	}
 	if persona.Model == "" {
-		persona.Model = models.PersonaModelMuseSpark12Contributor
+		persona.Model = models.PersonaModelDefault
 	}
 	if !models.IsValidPersonaHarness(persona.Harness) {
 		return ErrInvalidPersonaHarness

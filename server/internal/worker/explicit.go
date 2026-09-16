@@ -13,7 +13,17 @@ import (
 
 func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool, error) {
 	repo := w.JobService.JobRepo
-	ok, err := repo.MarkRunning(job.ID)
+	var ok bool
+	var err error
+	if job.Request != nil && job.Request.Conductor != nil {
+		if w.Conductor == nil {
+			_, err = repo.CancelAI(job.ID)
+			return true, err
+		}
+		ok, err = w.Conductor.BeginJob(job)
+	} else {
+		ok, err = repo.MarkRunning(job.ID)
+	}
 	if err != nil {
 		return true, err
 	}
@@ -69,6 +79,14 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if job.Request.Conductor != nil && w.Conductor != nil {
+					owned, err := w.Conductor.Repo.OwnsJob(job)
+					if err != nil || !owned {
+						_, _ = repo.CancelAI(job.ID)
+						cancel()
+						return
+					}
+				}
 				current, err := repo.FindOne(job.ID)
 				if err != nil || current.Status == "canceling" {
 					cancel()
@@ -98,7 +116,7 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 	if err = repo.Checkpoint(job.ID, "", "{}", artifacts); err != nil {
 		return finish(err)
 	}
-	if err = repo.SetProgress(job.ID, "Starting OpenCode"); err != nil {
+	if err = repo.SetProgress(job.ID, "Starting Codex"); err != nil {
 		return finish(err)
 	}
 	spec.OnProgress = func(progress, output string) error {

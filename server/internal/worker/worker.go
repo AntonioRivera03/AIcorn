@@ -3,15 +3,17 @@ package worker
 import (
 	"context"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
+	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"log"
 	"sync"
 	"time"
 )
 
-// Worker executes explicit requests sequentially and interrupts uncertain runs
-// on startup. It never changes task ownership or stage, or retries automatically.
+// Worker executes requests sequentially and interrupts uncertain runs on startup.
+// Only opt-in Conductor requests participate in automatic workflow transitions.
 type Worker struct {
+	Conductor  *services.ConductorService
 	JobService *services.AgentJobService
 	Harness    harness.Harness
 
@@ -127,7 +129,18 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 		}
 	}
 
-	job, err := w.JobService.ClaimNext()
+	if w.Conductor != nil {
+		if err := w.Conductor.Tick(ctx); err != nil {
+			return false, err
+		}
+	}
+	var job *models.AgentJob
+	var err error
+	if w.Conductor != nil {
+		job, err = w.Conductor.Repo.ClaimNext()
+	} else {
+		job, err = w.JobService.ClaimNext()
+	}
 	if err != nil {
 		return false, err
 	}

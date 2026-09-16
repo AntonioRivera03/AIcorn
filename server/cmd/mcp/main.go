@@ -78,6 +78,17 @@ func main() {
 		}
 		toolset.runTaskID = taskID
 	}
+	if raw, scoped := os.LookupEnv("AYCORN_CONDUCTOR_PROJECT"); scoped {
+		projectID, err := strconv.Atoi(raw)
+		if err != nil || projectID <= 0 || toolset.runTaskID <= 0 {
+			log.Fatal("invalid Conductor project scope")
+		}
+		task, err := taskRepo.FindOneWithProject(toolset.runTaskID)
+		if err != nil || task.ProjectID != projectID {
+			log.Fatal("Conductor task does not belong to project scope")
+		}
+		toolset.runProjectID = projectID
+	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)
 	toolset.register(srv)
 

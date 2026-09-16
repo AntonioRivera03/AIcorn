@@ -67,7 +67,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
                 void navigate({ to: "/personas" });
               }}
             >
-              <Settings2 /> AI settings and presets
+              <Settings2 /> AI settings and agents
             </CommandItem>
           </CommandGroup>
         </CommandList>

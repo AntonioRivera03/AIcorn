@@ -1,4 +1,5 @@
 import { AIProvider } from "@/features/ai/ai-provider";
+import { PreviewBanner } from "@/features/environments/preview-banner";
 import * as React from "react";
 import {
   Outlet,
@@ -60,6 +61,7 @@ function RootComponent() {
         <MobileSidebarClose />
         <AppSidebar variant="inset" />
         <SidebarInset>
+          <PreviewBanner />
           <Outlet />
         </SidebarInset>
       </AIProvider>
