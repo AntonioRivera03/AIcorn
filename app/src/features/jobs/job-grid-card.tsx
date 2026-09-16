@@ -127,7 +127,9 @@ export function JobGridCard({
       <div className="flex shrink-0 items-center justify-end gap-2">
         {job && (
           <Button
+            variant="ghost"
             size="icon-sm"
+            className="text-success hover:text-success"
             disabled={run.isPending || convert.isPending || !job.agentId}
             onClick={() => run.mutate()}
             aria-label={`Run ${name}`}
@@ -192,7 +194,7 @@ export function JobGridCard({
           </Button>
         )}
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
           onClick={() => edit({ kind: item.kind, id: job?.id ?? template!.id })}
           aria-label={`Edit ${name}`}
