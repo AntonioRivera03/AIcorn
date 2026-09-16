@@ -1,11 +1,8 @@
+import { TaskOwnershipNotice } from "@/features/ai/task-ownership";
 import { TaskGitHubLinks } from "@/features/task/links/task-github-links";
 import { TicketChat } from "@/features/chat/ticket-chat";
 import { TaskBranches } from "@/features/task/branches/task-branches";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import {
   Collapsible,
   CollapsibleContent,
@@ -174,35 +171,37 @@ export default function TaskEditorDrawer({
               </CollapsibleTrigger>
             </div>
             {!propertiesOpen && (
-                <div className="flex flex-wrap items-center gap-1.5 mx-3 sm:mx-6 pb-2">
+              <div className="flex flex-wrap items-center gap-1.5 mx-3 sm:mx-6 pb-2">
+                <Badge variant="secondary">
+                  <LandPlotIcon className="size-2" />
+                  {task.ChecklistName}
+                </Badge>
 
-                    <Badge variant="secondary">
-                        <LandPlotIcon className="size-2" />
-                        {task.ChecklistName}
-                    </Badge>
+                <Badge
+                  variant={task.Assignee !== "" ? "secondary" : "outline"}
+                  className={
+                    task.Assignee !== "" ? "" : "text-muted-foreground"
+                  }
+                >
+                  <User className="size-2" />
+                  {task.Assignee !== "" ? task.Assignee : "—"}
+                </Badge>
 
-                    <Badge
-                        variant={task.Assignee !== "" ? "secondary" : "outline"}
-                        className={task.Assignee !== "" ? "" : "text-muted-foreground"}
-                    >
-                        <User className="size-2" />
-                        {task.Assignee !== "" ? task.Assignee : "—"}
-                    </Badge>
+                <RelativePlannedDateBadge
+                  start={task.TimePlannedStart}
+                  end={task.TimePlannedEnd}
+                  overdue={
+                    task.TimePlannedStart !== null &&
+                    new Date(task.TimePlannedEnd ?? task.TimePlannedStart) <
+                      new Date() &&
+                    stage.Type !== "done"
+                  }
+                />
 
-                    <RelativePlannedDateBadge
-                        start={task.TimePlannedStart}
-                        end={task.TimePlannedEnd}
-                        overdue={
-                            task.TimePlannedStart !== null
-                            && new Date(task.TimePlannedEnd ?? task.TimePlannedStart) < new Date()
-                            && stage.Type !== "done"
-                        }
-                    />
+                <Separator orientation="vertical" className="h-4! sm:mx-2" />
 
-                    <Separator orientation="vertical" className="h-4! sm:mx-2" />
-
-                    <TaskRelationshipBadges taskId={task.ID} />
-                </div>
+                <TaskRelationshipBadges taskId={task.ID} />
+              </div>
             )}
             <CollapsibleContent className="border mx-3 sm:mx-6 pl-3 p-2 sm:p-5 rounded-lg overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up mb-2">
               <section className="flex flex-col gap-2">
@@ -230,19 +229,28 @@ export default function TaskEditorDrawer({
                   <DatePickerInput onChange={handleTaskChanges} />
                 </TaskProperty>
 
-                <Separator orientation="horizontal" className="my-2"/>
+                <Separator orientation="horizontal" className="my-2" />
 
                 <TaskRelationshipsCard />
-
               </section>
             </CollapsibleContent>
           </Collapsible>
 
-          {open && <div className="mx-3 sm:mx-6"><TaskGitHubLinks key={`links-${task.ID}`} taskId={task.ID} /><TaskBranches key={task.ID} taskId={task.ID} /></div>}
+          {open && (
+            <div className="mx-3 sm:mx-6">
+              <TaskOwnershipNotice projectId={Project.ID} taskId={task.ID} />
+              <TaskGitHubLinks key={`links-${task.ID}`} taskId={task.ID} />
+              <TaskBranches key={task.ID} taskId={task.ID} />
+            </div>
+          )}
 
-          {open && task.Type.ViewMode === "chat" ? <div className="m-3 sm:m-6"><TicketChat key={task.ID} taskId={task.ID} /></div> : open &&
-          (task.ID === 0 ||
-            (data !== undefined && !isFetching && !isPending)) ? (
+          {open && task.Type.ViewMode === "chat" ? (
+            <div className="m-3 sm:m-6">
+              <TicketChat key={task.ID} taskId={task.ID} />
+            </div>
+          ) : open &&
+            (task.ID === 0 ||
+              (data !== undefined && !isFetching && !isPending)) ? (
             <div data-vaul-no-drag>
               <RichEditor
                 key={`${task.ID}-${open}`}

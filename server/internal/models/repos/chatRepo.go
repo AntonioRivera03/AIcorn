@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/waseem-polus/aycorn/server/internal/models"
+	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	"strings"
 )
 
@@ -72,13 +73,15 @@ func (r *AgentJobRepo) EnqueueChat(task int, request models.AIRunRequest) (*mode
 	if latest != request.Chat.PreviousJob {
 		return nil, ErrChatConflict
 	}
-	// A chat never takes over a ticket still owned by the automatic controller.
-	var owned bool
-	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM conductor_task WHERE task=? AND state IN ('waiting','planning','queued','working'))", task).Scan(&owned); err != nil {
+	if err = taskownership.Check(tx, task, 0); err != nil {
 		return nil, err
 	}
-	if owned {
-		return nil, ErrActiveAIRun
+	var matches bool
+	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND c.project=?)", task, request.ProjectID).Scan(&matches); err != nil {
+		return nil, err
+	}
+	if !matches {
+		return nil, ErrChatConflict
 	}
 	raw, err := json.Marshal(request)
 	if err != nil {

@@ -9,6 +9,7 @@ func (app *app) routes() http.Handler {
 	}
 	if app.taskService != nil {
 		app.taskLinkRoutes(mux)
+		mux.HandleFunc("GET /api/task-ownership/project/{projectId}", app.projectTaskOwners)
 	}
 	if app.jobService != nil {
 		app.jobRoutes(mux)

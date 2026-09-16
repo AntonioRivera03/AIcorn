@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useTaskOwnership } from "@/features/ai/queries/use-task-ownership";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Copy, MessageSquare, Send, Square } from "lucide-react";
@@ -45,6 +46,8 @@ export function TicketChat({ taskId }: { taskId: number }) {
   const settings = useAISettings();
   const agents = usePersonasQuery();
   const { project } = useAIContext(taskId);
+  const ownership = useTaskOwnership(project?.ID);
+  const owner = ownership.data?.find((item) => item.taskId === taskId);
   const { cancel } = useAIMutations(taskId);
   const client = useQueryClient();
   const composerId = useId();
@@ -117,6 +120,9 @@ export function TicketChat({ taskId }: { taskId: number }) {
   const busy = !!active || send.isPending;
   const blocked =
     busy ||
+    !!owner ||
+    ownership.isPending ||
+    ownership.isError ||
     !message.trim() ||
     !settings.data?.engine.ready ||
     history.isPending ||
@@ -171,6 +177,17 @@ export function TicketChat({ taskId }: { taskId: number }) {
           </Button>
         )}
       </div>
+      {owner && !active && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {owner.name} is managing this task ({owner.state}). Wait for it to
+          finish or release the task before sending another agent.
+        </p>
+      )}
+      {ownership.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          {ownership.error.message}
+        </p>
+      )}
       {history.isPending ? (
         <p role="status" className="text-sm text-muted-foreground">
           Loading conversation…

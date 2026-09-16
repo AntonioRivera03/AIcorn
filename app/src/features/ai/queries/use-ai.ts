@@ -40,6 +40,7 @@ export const useAIContext = (taskId: number) => {
 export const useAIMutations = (taskId: number) => {
   const client = useQueryClient();
   const invalidate = () => {
+    void client.invalidateQueries({ queryKey: ["task-ownership"] });
     void client.invalidateQueries({ queryKey: ["agent-jobs"] });
     void client.invalidateQueries({ queryKey: ["task-branches", taskId] });
     void client.invalidateQueries({ queryKey: ["active-agent-jobs"] });

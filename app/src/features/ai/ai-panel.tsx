@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTaskOwnership } from "./queries/use-task-ownership";
 import { Sparkles, X, ArrowUpRight } from "lucide-react";
 import {
   Drawer,
@@ -65,6 +66,8 @@ export function AIPanel({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const settings = useAISettings();
   const context = useAIContext(task.id);
+  const ownership = useTaskOwnership(context.task.data?.ProjectID);
+  const owner = ownership.data?.find((item) => item.taskId === task.id);
   const history = useAgentJobs(task.id);
   const { data: presets = [] } = usePersonasQuery();
   const { start, cancel } = useAIMutations(task.id);
@@ -72,7 +75,9 @@ export function AIPanel({
   const active = isAgentWorking(jobs);
   const needsRepo =
     intent === "implement" || intent === "review" || useRepository;
-  const ready = settings.data?.engine.ready && (presetId !== "none" || !!settings.data.settings.model);
+  const ready =
+    settings.data?.engine.ready &&
+    (presetId !== "none" || !!settings.data.settings.model);
   const repoMissing =
     needsRepo &&
     !context.projects.isPending &&
@@ -84,6 +89,9 @@ export function AIPanel({
     (!needsRepo ||
       (!context.projects.isPending && !context.projects.isError)) &&
     !active &&
+    !owner &&
+    !ownership.isPending &&
+    !ownership.isError &&
     !start.isPending &&
     !context.task.isPending &&
     !context.task.isError &&
@@ -206,7 +214,8 @@ export function AIPanel({
               </label>
               {intent === "implement" && (
                 <p>
-                  Codex can edit files and run project commands and tests in a separate worktree. Command network access is disabled.
+                  Codex can edit files and run project commands and tests in a
+                  separate worktree. Command network access is disabled.
                 </p>
               )}
             </div>
@@ -273,9 +282,13 @@ export function AIPanel({
             )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                {active
-                  ? "One run is already active for this task"
-                  : "Ctrl/⌘ Enter to run"}
+                {ownership.isError
+                  ? ownership.error.message
+                  : owner
+                    ? `${owner.name} is managing this task (${owner.state})`
+                    : active
+                      ? "One run is already active for this task"
+                      : "Ctrl/⌘ Enter to run"}
               </span>
               <Button onClick={submit} disabled={!canRun}>
                 {start.isPending ? "Queuing…" : "Run"}

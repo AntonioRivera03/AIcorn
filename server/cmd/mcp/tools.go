@@ -190,63 +190,19 @@ type UpdateTaskInput struct {
 }
 
 func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, OkOutput, error) {
-	current, err := t.taskService.GetTask(in.TaskID)
-	if err != nil {
-		return nil, OkOutput{}, err
-	}
-
-	// Convert before writing anything: a malformed body should leave the task
-	// entirely untouched rather than half-applying the property changes.
-	body := ""
+	// Convert before locking so slow conversion never holds SQLite's writer lock.
+	patch := repos.AgentTaskPatch{Name: in.Name, Priority: in.Priority, Assignee: in.Assignee, ChecklistID: in.ChecklistID, TypeID: in.TypeID}
 	if in.Body != nil {
-		converted, err := t.bodyToBody(ctx, *in.Body)
+		body, err := t.bodyToBody(ctx, *in.Body)
 		if err != nil {
 			return nil, OkOutput{}, err
 		}
-		body = converted
+		patch.Body = &body
 	}
-
-	if in.Name != nil {
-		current.Name = *in.Name
+	if t.runTaskID > 0 {
+		return nil, OkOutput{}, errors.New("task runs cannot change ticket properties")
 	}
-	if in.Priority != nil {
-		current.Priority = *in.Priority
-	}
-	if in.Assignee != nil {
-		current.Assignee = *in.Assignee
-	}
-	if in.ChecklistID != nil {
-		if t.checklistService == nil || t.checklistService.ChecklistRepo == nil {
-			return nil, OkOutput{}, errors.New("checklist service not configured")
-		}
-		ch, err := t.checklistService.ChecklistRepo.FindOne(int64(*in.ChecklistID))
-		if err != nil {
-			return nil, OkOutput{}, err
-		}
-		current.Checklist = ch.ID
-	}
-	if in.TypeID != nil {
-		if t.taskTypeService == nil || t.taskTypeService.TaskTypeRepo == nil {
-			return nil, OkOutput{}, errors.New("task type service not configured")
-		}
-		tt, err := t.taskTypeService.TaskTypeRepo.FindOne(*in.TypeID)
-		if err != nil {
-			return nil, OkOutput{}, err
-		}
-		current.Type = *tt
-	}
-	ok, err := t.taskService.UpdateTaskProperties(&current.ChecklistTask)
-	if err != nil || !ok {
-		return nil, OkOutput{Ok: ok}, err
-	}
-
-	if in.Body != nil {
-		// Written through UpdateTaskBody, not the UpdateTask call above — same
-		// separation the app itself relies on (taskRepo.go's UpdateTask never
-		// touches the body column, precisely so a property-only edit can't
-		// clobber it).
-		ok, err = t.taskService.UpdateTaskBody(in.TaskID, body)
-	}
+	ok, err := t.taskService.TaskRepo.UpdateByAgent(in.TaskID, t.runProjectID, 0, patch)
 	return nil, OkOutput{Ok: ok}, err
 }
 
@@ -257,7 +213,13 @@ type MoveTaskStageInput struct {
 }
 
 func (t *toolset) moveTaskStage(ctx context.Context, req *mcp.CallToolRequest, in MoveTaskStageInput) (*mcp.CallToolResult, OkOutput, error) {
-	ok, err := t.taskService.TransitionStage(in.TaskID, in.FromStage, in.ToStage)
+	if t.runTaskID > 0 {
+		return nil, OkOutput{}, errors.New("task runs cannot move tickets")
+	}
+	ok, err := t.taskService.TaskRepo.MoveByAgent(in.TaskID, t.runProjectID, 0, in.FromStage, in.ToStage)
+	if err == nil && !ok {
+		err = services.ErrStageConflict
+	}
 	if errors.Is(err, services.ErrStageConflict) {
 		// Return this as a tool error with an actionable message, not a bare
 		// conflict — the calling model should re-read the task and retry, not give up.

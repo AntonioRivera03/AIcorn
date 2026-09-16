@@ -204,6 +204,7 @@ function DocumentEditor({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reloadOpen, setReloadOpen] = useState(false);
   const discarded = useRef(false);
+  const mounted = useRef(false);
   const reload = useMutation({
     mutationFn: () => request<ProjectDocument>(url),
     onSuccess: (saved) => {
@@ -237,6 +238,8 @@ function DocumentEditor({
     onError: (error: Error) => toast.error(error.message),
   });
   useEffect(() => {
+    mounted.current = true;
+    drafts.set(key, draft);
     onReady(draft);
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (draft.getSnapshot().dirty) {
@@ -246,11 +249,13 @@ function DocumentEditor({
     };
     window.addEventListener("beforeunload", beforeUnload);
     return () => {
+      mounted.current = false;
       onReady(null);
       window.removeEventListener("beforeunload", beforeUnload);
       if (!discarded.current)
         void draft.flush().then((saved) => {
-          if (saved && drafts.get(key) === draft) drafts.delete(key);
+          if (saved && !mounted.current && drafts.get(key) === draft)
+            drafts.delete(key);
         });
     };
     // Each editor is keyed to one document; callbacks don't own its lifetime.

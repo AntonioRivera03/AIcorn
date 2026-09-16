@@ -72,3 +72,32 @@ func Check(q Querier, task, job int) error {
 	}
 	return nil
 }
+
+// ListProject is shared by every UI in a project, avoiding a poll per task.
+func ListProject(db *sql.DB, project int) ([]Owner, error) {
+	var exists int
+	if err := db.QueryRow("SELECT id FROM project WHERE id=?", project).Scan(&exists); err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT ct.task,'conductor',COALESCE(ct.job,0),'Conductor',ct.state
+ FROM conductor_task ct JOIN task t ON t.id=ct.task JOIN checklist c ON c.id=t.checklist
+ WHERE c.project=? AND ct.state IN ('waiting','planning','queued','working')
+ UNION ALL
+ SELECT j.task,'agent',j.id,COALESCE(NULLIF(json_extract(j.requestJson,'$.presetName'),''),'Task agent'),j.status
+ FROM agent_job j JOIN task t ON t.id=j.task JOIN checklist c ON c.id=t.checklist
+ WHERE c.project=? AND j.status IN ('pending','claimed','running','canceling')
+ AND NOT EXISTS(SELECT 1 FROM conductor_task ct WHERE ct.task=j.task AND ct.state IN ('waiting','planning','queued','working'))`, project, project)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	owners := []Owner{}
+	for rows.Next() {
+		var owner Owner
+		if err = rows.Scan(&owner.TaskID, &owner.Kind, &owner.JobID, &owner.Name, &owner.State); err != nil {
+			return nil, err
+		}
+		owners = append(owners, owner)
+	}
+	return owners, rows.Err()
+}
