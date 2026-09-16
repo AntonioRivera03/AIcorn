@@ -1,4 +1,5 @@
 import { ListView } from "@/components/project/views/listView/list-view";
+import { DocumentsView } from "@/features/documents/documents-view";
 import { ProjectContentHeader } from "@/components/project/project-details-content-header";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
@@ -19,6 +20,7 @@ import {
   CalendarIcon,
   LayoutDashboardIcon,
   Rows3Icon,
+  FileTextIcon,
 } from "lucide-react";
 
 export function ProjectDetails({
@@ -84,9 +86,9 @@ export function ProjectDetails({
       <div className="flex grow flex-col gap-4 overflow-visible min-h-0">
         <CalendarProvider events={[]} users={[]} view="month">
           <DndProvider>
-            <Tabs value={view} onValueChange={setView} className="h-full">
+            <Tabs value={view} onValueChange={(value) => { selection.clearSelection(); setView(value); }} className="h-full">
               <div className="flex flex-wrap items-center justify-between gap-3">
-              <TabsList>
+              <TabsList className="max-w-full overflow-x-auto">
                 <TabsTrigger value="list">
                   <Rows3Icon />
                   List
@@ -103,8 +105,9 @@ export function ProjectDetails({
                   <CalendarIcon />
                   Week
                 </TabsTrigger>
+                <TabsTrigger value="documents"><FileTextIcon />Documents</TabsTrigger>
               </TabsList>
-              <ConductorControls projectId={projectId} only={conductorOnly} onOnlyChange={(value) => { setConductorOnly(value); selection.clearSelection(); }} />
+              {view !== "documents" && <ConductorControls projectId={projectId} only={conductorOnly} onOnlyChange={(value) => { setConductorOnly(value); selection.clearSelection(); }} />}
               </div>
 
               <TabsContent
@@ -131,6 +134,7 @@ export function ProjectDetails({
               >
                 <WeekView setTaskDrawerOpen={setNewTaskOpen} />
               </TabsContent>
+              <TabsContent value="documents" className="flex min-h-0 flex-1"><DocumentsView key={projectId} projectId={projectId} /></TabsContent>
             </Tabs>
           </DndProvider>
         </CalendarProvider>

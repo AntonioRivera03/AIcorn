@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/waseem-polus/aycorn/server/internal/environments"
 	"github.com/waseem-polus/aycorn/server/internal/jobs"
+	"github.com/waseem-polus/aycorn/server/internal/knowledge"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"io"
 	"log"
@@ -55,7 +56,7 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidPersona),
 		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, repos.ErrChatType), errors.Is(err, jobs.ErrInvalid), errors.Is(err, worktree.ErrBranchUnavailable),
+	case errors.Is(err, knowledge.ErrInvalid), errors.Is(err, repos.ErrChatType), errors.Is(err, jobs.ErrInvalid), errors.Is(err, worktree.ErrBranchUnavailable),
 		errors.Is(err, environments.ErrInvalid),
 		errors.Is(err, repos.ErrConductorConfig),
 		errors.Is(err, services.ErrInvalidAIRun),
@@ -77,7 +78,7 @@ func httpStatusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
+	case errors.Is(err, knowledge.ErrConflict), errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
 		errors.Is(err, environments.ErrConflict),
 		errors.Is(err, repos.ErrConductorConflict),
 		errors.Is(err, repos.ErrConductorPaused),

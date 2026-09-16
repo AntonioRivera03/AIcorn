@@ -2,7 +2,7 @@ import type { Value } from "platejs";
 
 export const PRIORITIES = ["Urgent", "High", "Medium", "Low"] as const;
 export const STAGE_TYPES = ["open", "todo", "doing", "done"] as const;
-export const PROJECT_VIEWS = ["list", "kanban", "month", "week"] as const;
+export const PROJECT_VIEWS = ["list", "kanban", "month", "week", "documents"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 export type StageType = (typeof STAGE_TYPES)[number];

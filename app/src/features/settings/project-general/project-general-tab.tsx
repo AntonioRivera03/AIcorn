@@ -24,6 +24,7 @@ const VIEW_LABELS: Record<string, string> = {
   kanban: "Kanban",
   month: "Month",
   week: "Week",
+  documents: "Documents",
 };
 
 export function ProjectGeneralTab({ projectId }: { projectId: number }) {
