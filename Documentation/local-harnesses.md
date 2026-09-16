@@ -6,7 +6,7 @@ The implementation uses the same separation as [T3 Code](https://github.com/ping
 
 ## Codex sessions
 
-Each Aycorn run creates a persistent, named Codex conversation. The run records its native conversation and turn IDs before execution proceeds. Run cards offer a `codex resume <id>` command; conversations with messages appear in Codex's normal local conversation listing. Retry creates a new run and conversation, preserving the previous attempt. After an interruption, Aycorn never silently replays a possibly executed turn.
+Each ordinary Aycorn run creates a persistent, named Codex conversation. [Ticket chats](ticket-chats.md) resume their conversation for follow-up messages. The run records its native conversation and turn IDs before execution proceeds. Run cards offer a `codex resume <id>` command; conversations with messages appear in Codex's normal local conversation listing. Retrying an ordinary run creates a new conversation, preserving the previous attempt. After an interruption, Aycorn never silently replays a possibly executed turn.
 
 The adapter initializes the JSON-RPC connection, creates the thread, injects developer context separately from ticket data, starts a turn and consumes notifications. Only completion of the root turn completes the run. Child-agent notifications cannot overwrite the parent's final handoff. Partial responses survive failure, cancellation and timeout. Cancellation terminates the app-server process group and its children. Interactive requests stop the unattended run with a message to continue in Codex; they are never automatically approved.
 
@@ -38,4 +38,4 @@ Run `go test -race ./internal/harness ./internal/worker ./cmd/mcp ./cmd/web ./in
 
 The opt-in `TestInstalledCodexProtocol` creates and reads an empty persistent session in a temporary `CODEX_HOME` without a model call. Set `AYCORN_CODEX_INTEGRATION` to the CLI path and `AYCORN_MCP_INTEGRATION` to the built Aycorn MCP binary.
 
-`TestInstalledCodexTurn` additionally requires `AYCORN_CODEX_LIVE=1`. It uses the current local login for one small real turn, a disposable ticket database and work directory, verifies the completed conversation is listed, then archives only its own test conversation.
+`TestInstalledCodexTurn` additionally requires `AYCORN_CODEX_LIVE=1`. It uses the current local login for two small real turns, a disposable ticket database and work directory, verifies subagent delegation, conversation resume and native listing, then archives only its own test conversation.

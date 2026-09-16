@@ -99,7 +99,15 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 			ID string `json:"id"`
 		} `json:"thread"`
 	}
-	if err = client.call(ctx, "thread/start", map[string]any{"cwd": spec.WorkDir, "model": r.Model, "modelProvider": "openai", "approvalPolicy": "never", "sandbox": sandbox, "ephemeral": false, "developerInstructions": developer, "config": config}, &opened); err != nil {
+	method := "thread/start"
+	threadParams := map[string]any{"cwd": spec.WorkDir, "model": r.Model, "modelProvider": "openai", "approvalPolicy": "never", "sandbox": sandbox, "ephemeral": false, "developerInstructions": developer, "config": config}
+	if r.Chat != nil && r.Chat.SessionID != "" {
+		method = "thread/resume"
+		delete(threadParams, "ephemeral")
+		threadParams["threadId"] = r.Chat.SessionID
+		threadParams["excludeTurns"] = true
+	}
+	if err = client.call(ctx, method, threadParams, &opened); err != nil {
 		return result, err
 	}
 	if opened.Thread.ID == "" {

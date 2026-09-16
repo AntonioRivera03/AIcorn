@@ -9,7 +9,19 @@ type AgentSnapshot struct {
 	Instructions string `json:"instructions"`
 }
 
+// ChatTurn is resolved only by the server from this ticket's prior run artifacts.
+// Client JSON never supplies a session ID or working directory.
+type ChatTurn struct {
+	ClientKey   string `json:"clientKey"`
+	PreviousJob int    `json:"previousJob"`
+	SessionID   string `json:"sessionId,omitempty"`
+	Workspace   string `json:"workspace,omitempty"`
+	Branch      string `json:"branch,omitempty"`
+	BaseCommit  string `json:"baseCommit,omitempty"`
+}
+
 type AIRunRequest struct {
+	Chat           *ChatTurn     `json:"chat,omitempty"`
 	Engine         string        `json:"engine"`
 	AgentID        int           `json:"agentId,omitempty"`
 	Conductor      *ConductorRun `json:"conductor,omitempty"`
@@ -35,6 +47,8 @@ type AISettings struct {
 }
 
 type AIRunArtifacts struct {
+	TurnDiff   string   `json:"turnDiff,omitempty"`
+	TurnFiles  []string `json:"turnFiles,omitempty"`
 	Provider   string   `json:"provider,omitempty"`
 	SessionID  string   `json:"sessionId,omitempty"`
 	TurnID     string   `json:"turnId,omitempty"`

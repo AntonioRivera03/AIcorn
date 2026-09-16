@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,5 +59,66 @@ func TestCaptureIncludesCommitsAndUntrackedFilesWithoutChangingIndex(t *testing.
 	}
 	if raw, err := os.ReadFile(filepath.Join(w.Path, "new.txt")); err != nil || string(raw) != "untracked content\n" {
 		t.Fatal("collision damaged existing workspace")
+	}
+}
+
+func TestChatWorktreeResumeAndTurnSnapshot(t *testing.T) {
+	root, w, _ := branchFixture(t)
+	ctx := context.Background()
+	branchFile(t, w.Path, "first.txt", "first\n")
+	branchGit(t, w.Path, "add", "first.txt")
+	before := branchGit(t, w.Path, "diff", "--cached")
+	base, err := w.SnapshotTree(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	branchFile(t, w.Path, "second.txt", "second\n")
+	patch, files, err := w.Capture(ctx, base)
+	if err != nil || len(files) != 1 || files[0] != "second.txt" || strings.Contains(patch, "first.txt") {
+		t.Fatalf("turn patch: %v %s %v", files, patch, err)
+	}
+	if branchGit(t, w.Path, "diff", "--cached") != before {
+		t.Fatal("snapshot changed staging")
+	}
+	if resumed, err := ResumeRun(ctx, root, w.Path, w.Branch); err != nil || resumed.Path != w.Path {
+		t.Fatalf("resume: %+v %v", resumed, err)
+	}
+	if _, err := ResumeRun(ctx, root, root, w.Branch); err == nil {
+		t.Fatal("accepted mismatched path")
+	}
+	if _, err := ResumeRun(ctx, root, filepath.Join(root, "missing"), w.Branch); err == nil {
+		t.Fatal("accepted missing checkout")
+	}
+}
+
+func TestActiveChatWorktreeBlocksMergeAndPreviewSnapshot(t *testing.T) {
+	root, w, base := branchFixture(t)
+	ctx := context.Background()
+	branchFile(t, w.Path, "change.txt", "chat change\n")
+	preview := previewBranch(t, root, w, "main")
+	release, err := ReserveRun(root, w.Branch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if other, err := ReserveRun(root, w.Branch); !errors.Is(err, ErrMergeBlocked) {
+		if other != nil {
+			other()
+		}
+		t.Fatalf("second reservation: %v", err)
+	}
+	if _, err := MergeBranch(ctx, root, w.Branch, "main", preview.Token, 1, 1); !errors.Is(err, ErrMergeBlocked) {
+		t.Fatalf("merged active chat: %v", err)
+	}
+	dest := filepath.Join(t.TempDir(), "source")
+	if _, err := SnapshotSource(ctx, root, w.Branch, base, true, dest); !errors.Is(err, ErrMergeBlocked) {
+		t.Fatalf("snapshotted active chat: %v", err)
+	}
+	release()
+	if _, err := SnapshotSource(ctx, root, w.Branch, base, true, dest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MergeBranch(ctx, root, w.Branch, "main", preview.Token, 1, 1); err != nil {
+		t.Fatal(err)
 	}
 }

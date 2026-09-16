@@ -71,3 +71,21 @@ func (app *app) cancelAIRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, true)
 }
+
+func (app *app) startChatTurn(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid task", 400)
+		return
+	}
+	var input services.ChatInput
+	if !decodeJSONInput(w, r, &input) {
+		return
+	}
+	job, err := app.aiService.StartChat(r.Context(), id, input)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, 201, job)
+}

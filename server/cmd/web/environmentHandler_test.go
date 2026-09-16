@@ -49,7 +49,7 @@ func TestEnvironmentHTTPAndPreviewGuard(t *testing.T) {
 		t.Fatal("preview origin can access main app")
 	}
 	t.Setenv("AYCORN_PREVIEW", "1")
-	for _, path := range []string{"/api/ai/tasks/1/runs", "/api/task/1/request-agent", "/api/project/1/conductor/bulk", "/api/environments/project/1", "/api/environment/1/stop"} {
+	for _, path := range []string{"/api/ai/tasks/1/runs", "/api/ai/tasks/1/chat", "/api/task/1/request-agent", "/api/project/1/conductor/bulk", "/api/environments/project/1", "/api/environment/1/stop"} {
 		call("POST", path, `{}`, 403)
 	}
 	call("GET", "/api/ai/tasks/1/branches", "", 403)

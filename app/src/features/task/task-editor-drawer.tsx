@@ -1,3 +1,4 @@
+import { TicketChat } from "@/features/chat/ticket-chat";
 import { TaskBranches } from "@/features/task/branches/task-branches";
 import {
   Drawer,
@@ -109,7 +110,7 @@ export default function TaskEditorDrawer({
     nameRef.current?.commit();
 
     const editor = editorRef.current;
-    if (!editor || task.ID === 0) return;
+    if (!editor || task.ID === 0 || task.Type.ViewMode === "chat") return;
     // Compare against the editor's own baseline rather than the fetched body:
     // the plugins normalise on mount (an empty body gains a trailing
     // paragraph), so comparing to the raw fetched value would write on every
@@ -145,7 +146,7 @@ export default function TaskEditorDrawer({
           setOpen={setOpen}
           onCopyAsMarkdown={handleCopyAsMarkdown}
           onCopyAsPlainText={handleCopyAsPlainText}
-          isEditorReady={editorReady}
+          isEditorReady={editorReady && task.Type.ViewMode !== "chat"}
           taskStage={stage}
         />
         <div
@@ -238,7 +239,7 @@ export default function TaskEditorDrawer({
 
           {open && <div className="mx-3 sm:mx-6"><TaskBranches key={task.ID} taskId={task.ID} /></div>}
 
-          {open &&
+          {open && task.Type.ViewMode === "chat" ? <div className="m-3 sm:m-6"><TicketChat key={task.ID} taskId={task.ID} /></div> : open &&
           (task.ID === 0 ||
             (data !== undefined && !isFetching && !isPending)) ? (
             <div data-vaul-no-drag>

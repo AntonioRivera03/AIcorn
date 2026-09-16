@@ -116,7 +116,7 @@ export function TaskEditorHeader({
           {taskStage && (
             <WorkflowStageChip className="rounded-full" stage={taskStage} />
           )}
-          <AskAIButton taskId={task.ID} taskName={task.Name} />
+          {task.Type.ViewMode !== "chat" && <AskAIButton taskId={task.ID} taskName={task.Name} />}
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -138,7 +138,7 @@ export function TaskEditorHeader({
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
+                  <DropdownMenuSubTrigger disabled={task.Type.ViewMode === "chat"}>
                     <ClipboardIcon className="text-muted-foreground" />
                     Copy as
                   </DropdownMenuSubTrigger>
@@ -159,7 +159,7 @@ export function TaskEditorHeader({
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={() => openAI({ id: task.ID, name: task.Name })}
-                  disabled={task.ID === 0}
+                  disabled={task.ID === 0 || task.Type.ViewMode === "chat"}
                 >
                   <Bot className="size-4" />
                   Ask AI

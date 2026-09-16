@@ -18,11 +18,21 @@ func (r *AgentJobRepo) TaskBranches(taskID int) ([]models.TaskBranch, error) {
 	}
 	defer rows.Close()
 	branches := []models.TaskBranch{}
+	seen := map[string]int{}
 	for rows.Next() {
 		var b models.TaskBranch
 		if err := rows.Scan(&b.JobID, &b.TaskID, &b.Status, &b.Intent, &b.RepoPath, &b.Branch, &b.Workspace, &b.BaseCommit, &b.CreatedAt); err != nil {
 			return nil, err
 		}
+		key := b.RepoPath + "\x00" + b.Branch
+		if index, exists := seen[key]; exists {
+			// Keep one stable branch identity for existing preview URLs/history,
+			// while showing the most recent turn's status and workspace metadata.
+			branches[index].JobID = b.JobID
+			branches[index].CreatedAt = b.CreatedAt
+			continue
+		}
+		seen[key] = len(branches)
 		b.MergedInto = []string{}
 		branches = append(branches, b)
 	}
@@ -31,8 +41,8 @@ func (r *AgentJobRepo) TaskBranches(taskID int) ([]models.TaskBranch, error) {
 
 func (r *AgentJobRepo) BranchHasActiveRun(root, branch string) (bool, error) {
 	var active bool
-	err := r.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM agent_job j JOIN agent_run a ON a.job=j.id
+	err := r.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM agent_job j LEFT JOIN agent_run a ON a.job=j.id
  WHERE j.status IN ('pending','claimed','running','canceling')
- AND json_extract(j.requestJson,'$.repoPath')=? AND json_extract(a.artifactJson,'$.branch')=?)`, root, branch).Scan(&active)
+ AND json_extract(j.requestJson,'$.repoPath')=? AND (json_extract(a.artifactJson,'$.branch')=? OR json_extract(j.requestJson,'$.chat.branch')=?))`, root, branch, branch).Scan(&active)
 	return active, err
 }

@@ -21,6 +21,7 @@ export type AISettingsResponse = {
   };
 };
 export type AIRunRequest = {
+  chat?: { clientKey: string; previousJob: number; sessionId?: string };
   conductor?: { phase: "planning" | "working" };
   key: string;
   intent: AIIntent;
@@ -38,6 +39,8 @@ export type AIRunRequest = {
   timeoutSeconds: number;
 };
 export type AIArtifacts = {
+  turnDiff?: string;
+  turnFiles?: string[];
 	provider?: string;
 	sessionId?: string;
 	turnId?: string;

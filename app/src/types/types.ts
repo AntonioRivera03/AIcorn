@@ -16,6 +16,7 @@ export type TaskTypeCategory = {
 };
 
 export type TaskType = {
+  ViewMode?: "document" | "chat";
   ID: number;
   Name: string;
   Description: string;

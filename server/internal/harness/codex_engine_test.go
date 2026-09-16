@@ -38,8 +38,14 @@ func TestAppServerPeer(t *testing.T) {
 		switch m.Method {
 		case "initialized":
 			continue
-		case "thread/start":
-			if m.Params["ephemeral"] != false || m.Params["modelProvider"] != "openai" {
+		case "thread/start", "thread/resume":
+			if m.Method == "thread/start" && (mode == "resume" || m.Params["ephemeral"] != false) {
+				os.Exit(3)
+			}
+			if m.Method == "thread/resume" && (m.Params["threadId"] != "thread-root" || m.Params["excludeTurns"] != true || m.Params["ephemeral"] != nil) {
+				os.Exit(3)
+			}
+			if m.Params["modelProvider"] != "openai" {
 				os.Exit(3)
 			}
 			result = map[string]any{"thread": map[string]string{"id": "thread-root"}}
@@ -188,6 +194,27 @@ func TestCodexRejectsIncompatibleRequests(t *testing.T) {
 	}
 	if _, err := (&Registry{}).Run(context.Background(), RunSpec{Request: &models.AIRunRequest{Engine: "opencode"}}); err == nil {
 		t.Fatal("OpenCode must be disabled")
+	}
+}
+
+func TestCodexResumesChatWithCurrentContextAndScope(t *testing.T) {
+	path := fakeAppServer(t, "resume")
+	req := testRequest(path)
+	req.Chat = &models.ChatTurn{SessionID: "thread-root"}
+	result, err := (&Codex{FleetDir: t.TempDir()}).Run(context.Background(), RunSpec{Request: req, TaskID: 42, WorkDir: t.TempDir()})
+	if err != nil || result.SessionID != "thread-root" || result.Output != "final answer" {
+		t.Fatalf("resume: %+v %v", result, err)
+	}
+	raw, err := os.ReadFile(os.Getenv("TEST_PEER_RECORD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]any
+	if err = json.Unmarshal(raw, &params); err != nil {
+		t.Fatal(err)
+	}
+	if params["sandbox"] != "read-only" || !strings.Contains(params["developerInstructions"].(string), "human-led ticket chat") {
+		t.Fatalf("lost chat contract: %s", raw)
 	}
 }
 func makeFakeScript(t *testing.T, body string) string {

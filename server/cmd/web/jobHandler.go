@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -40,20 +38,6 @@ func jobRouteIDs(w http.ResponseWriter, r *http.Request) (project, id int, ok bo
 	}
 	return project, id, true
 }
-func decodeJobInput(w http.ResponseWriter, r *http.Request, value any) bool {
-	defer r.Body.Close()
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 400000))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(value); err != nil {
-		http.Error(w, "invalid request", 400)
-		return false
-	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		http.Error(w, "expected one request", 400)
-		return false
-	}
-	return true
-}
 func (app *app) templateList(w http.ResponseWriter, r *http.Request) {
 	project, _, ok := jobRouteIDs(w, r)
 	if !ok {
@@ -89,7 +73,7 @@ func (app *app) templateDetail(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 	case http.MethodPut:
 		var t jobs.Template
-		if !decodeJobInput(w, r, &t) {
+		if !decodeJSONInput(w, r, &t) {
 			return
 		}
 		saved, err := app.jobService.UpdateTemplate(project, id, t)
@@ -157,7 +141,7 @@ func (app *app) scheduledJobDetail(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 	case http.MethodPut:
 		var j jobs.Job
-		if !decodeJobInput(w, r, &j) {
+		if !decodeJSONInput(w, r, &j) {
 			return
 		}
 		saved, err := app.jobService.UpdateJob(r.Context(), project, id, j)
@@ -195,7 +179,7 @@ func (app *app) fireJob(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Key string `json:"key"`
 	}
-	if !decodeJobInput(w, r, &input) {
+	if !decodeJSONInput(w, r, &input) {
 		return
 	}
 	task, err := app.jobService.Fire(r.Context(), project, id, "manual", input.Key)
