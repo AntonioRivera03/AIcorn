@@ -71,6 +71,15 @@ export function AIRunCard({
       className="rounded-xl border border-border bg-card p-4"
       aria-label={`AI run ${job.id}`}
     >
+      {artifacts?.sessionId && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Codex conversation</span>
+          <code className="break-all">{artifacts.sessionId}</code>
+          <Button variant="ghost" size="sm" onClick={() => void copy(`codex resume ${artifacts.sessionId}`)}>
+            <Copy className="size-3" /> Copy resume command
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Badge
           variant={job.status === "failed" ? "destructive" : "secondary"}

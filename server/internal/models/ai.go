@@ -35,6 +35,9 @@ type AISettings struct {
 }
 
 type AIRunArtifacts struct {
+	Provider   string   `json:"provider,omitempty"`
+	SessionID  string   `json:"sessionId,omitempty"`
+	TurnID     string   `json:"turnId,omitempty"`
 	Workspace  string   `json:"workspace,omitempty"`
 	Branch     string   `json:"branch,omitempty"`
 	BaseCommit string   `json:"baseCommit,omitempty"`

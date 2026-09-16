@@ -9,6 +9,7 @@ import (
 type RunSpec struct {
 	Request    *models.AIRunRequest
 	OnProgress func(string, string) error
+	OnSession  func(string, string) error
 	JobID      int
 	TaskID     int
 	WorkDir    string
@@ -20,6 +21,8 @@ type RunResult struct {
 	Output    string
 	ExitCode  int
 	UsageJson string
+	SessionID string
+	TurnID    string
 }
 
 type Harness interface {

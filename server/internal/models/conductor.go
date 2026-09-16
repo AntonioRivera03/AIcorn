@@ -36,10 +36,11 @@ type ConductorTask struct {
 
 // ConductorRun freezes the stage contract and model choices for one task cycle.
 type ConductorRun struct {
-	TaskAgent  *AgentSnapshot    `json:"taskAgent,omitempty"`
-	Phase      string            `json:"phase"`
-	Settings   ConductorSettings `json:"settings"`
-	SourceBody string            `json:"sourceBody"`
+	ConductorAgent *AgentSnapshot    `json:"conductorAgent,omitempty"`
+	TaskAgent      *AgentSnapshot    `json:"taskAgent,omitempty"`
+	Phase          string            `json:"phase"`
+	Settings       ConductorSettings `json:"settings"`
+	SourceBody     string            `json:"sourceBody"`
 }
 
 type ConductorDecision struct {

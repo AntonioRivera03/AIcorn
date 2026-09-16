@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"net/http"
@@ -14,7 +15,7 @@ func (app *app) getAISettings(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.Health(r.Context(), settings.Executable)})
+	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.Health(r.Context(), settings.Executable), "providers": harness.Providers()})
 }
 func (app *app) putAISettings(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()

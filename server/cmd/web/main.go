@@ -257,7 +257,7 @@ func main() {
 	}
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
 	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
-	engine := &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}
+	engine := &harness.Registry{Codex: &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}}
 	w := worker.New(agentJobService, engine)
 	w.Conductor = conductorService
 	if !previewMode() {

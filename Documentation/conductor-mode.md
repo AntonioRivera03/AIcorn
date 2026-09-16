@@ -1,5 +1,7 @@
 # Conductor mode
 
+The local app-server integration and agent fleet are documented in [Local harnesses](local-harnesses.md). Conductor now stays the root agent throughout a cycle; the selected task agent configures its coder subagent.
+
 Conductor manages selected tasks on the project's existing board. The List and Kanban views share an animated orange frame and a **CONDUCTOR MANAGING** label. A Conductor-only filter provides a focused view of the same tasks, without copying them to another board or changing their checklist.
 
 ## Using it

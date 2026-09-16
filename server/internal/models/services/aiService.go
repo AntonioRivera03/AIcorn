@@ -20,6 +20,7 @@ var ErrInvalidAIRun = errors.New("invalid AI request")
 var ErrAISetup = errors.New("AI setup needs attention")
 
 type AIRunInput struct {
+	Engine        string                `json:"engine,omitempty"`
 	Agent         *models.AgentSnapshot `json:"-"` // Frozen custom agent for a Conductor cycle.
 	Intent        string                `json:"intent"`
 	Instruction   string                `json:"instruction"`
@@ -73,6 +74,9 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 // Prepare resolves an immutable request without enqueueing it. Conductor uses
 // this so its state transition and queue insertion can share one transaction.
 func (s *AIService) Prepare(ctx context.Context, taskID int, in AIRunInput) (*models.AIRunRequest, error) {
+	if in.Engine != "" && in.Engine != "codex" {
+		return nil, fmt.Errorf("%w: %s is unavailable; select Codex", ErrInvalidAIRun, in.Engine)
+	}
 	if in.Intent == "" {
 		in.Intent = "ask"
 	}

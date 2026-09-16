@@ -3,3 +3,19 @@ command = "/home/hal/Projects/AIcorn/server/bin/aycorn-mcp"
 
 [mcp_servers.aycorn.env]
 AYCORN_DB = "/home/hal/.config/aycorn/app.db"
+
+[agents.conductor]
+description = "Aycorn conductor; ticket lifecycle belongs to Conductor"
+config_file = "../server/internal/harness/fleet/conductor.toml"
+
+[agents.planner]
+description = "Aycorn planner; ticket lifecycle belongs to Conductor"
+config_file = "../server/internal/harness/fleet/planner.toml"
+
+[agents.researcher]
+description = "Aycorn researcher; ticket lifecycle belongs to Conductor"
+config_file = "../server/internal/harness/fleet/researcher.toml"
+
+[agents.coder]
+description = "Aycorn coder; ticket lifecycle belongs to Conductor"
+config_file = "../server/internal/harness/fleet/coder.toml"
