@@ -93,6 +93,27 @@ func (s *AIService) Prepare(ctx context.Context, taskID int, in AIRunInput) (*mo
 	if err != nil {
 		return nil, err
 	}
+	return s.PrepareSnapshot(ctx, task, in)
+}
+
+// PrepareSnapshot resolves a template before its task is inserted, allowing a
+// scheduler to commit the new task and its queued run in one transaction.
+func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithProject, in AIRunInput) (*models.AIRunRequest, error) {
+	if in.Engine != "" && in.Engine != "codex" {
+		return nil, ErrInvalidAIRun
+	}
+	if in.Intent == "" {
+		in.Intent = "ask"
+	}
+	switch in.Intent {
+	case "ask", "plan", "implement", "review":
+	default:
+		return nil, ErrInvalidAIRun
+	}
+	in.Instruction = strings.TrimSpace(in.Instruction)
+	if task == nil || len(in.Instruction) > 32000 || in.PresetID < 0 {
+		return nil, ErrInvalidAIRun
+	}
 	settings, err := s.Jobs.AISettings()
 	if err != nil {
 		return nil, err

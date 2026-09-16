@@ -45,7 +45,7 @@ func (r *ConductorRepo) ClaimNext() (*models.AgentJob, error) {
 	var job models.AgentJob
 	err := scanAgentJob(r.DB.QueryRow(`UPDATE agent_job SET status='claimed',claimedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now'),attempts=attempts+1
  WHERE id=(SELECT j.id FROM agent_job j WHERE j.status='pending' AND
- (json_type(j.requestJson,'$.conductor') IS NULL OR EXISTS(SELECT 1 FROM conductor_task ct JOIN conductor_project cp ON cp.project=ct.project WHERE ct.job=j.id AND cp.enabled=1 AND ct.state IN ('planning','queued')))
+ (json_type(j.requestJson,'$.conductor') IS NULL OR EXISTS(SELECT 1 FROM conductor_task ct JOIN conductor_project cp ON cp.project=ct.project WHERE ct.job=j.id AND (cp.enabled=1 OR json_extract(j.requestJson,'$.conductor.independent')=1) AND ct.state IN ('planning','queued')))
  ORDER BY j.createdAt,j.id LIMIT 1) RETURNING `+agentJobColumns), &job)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -188,7 +188,7 @@ func (r *ConductorRepo) Manage(project int, ids []int, action string) (models.Bu
 	} else if action == "send" || action == "recheck" {
 		conflict := "DO NOTHING"
 		if action == "recheck" {
-			conflict = `DO UPDATE SET state='waiting',job=NULL,expectedStage=excluded.expectedStage,message='',updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE conductor_task.state IN ('needs_context','failed','held')`
+			conflict = `DO UPDATE SET state='waiting',expectedStage=excluded.expectedStage,message='',updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE conductor_task.state IN ('needs_context','failed','held')`
 		}
 		res, err = tx.Exec(`INSERT INTO conductor_task(task,project,expectedStage)
  SELECT t.id,c.project,t.stage FROM task t JOIN checklist c ON c.id=t.checklist JOIN stage s ON s.id=t.stage
@@ -236,7 +236,7 @@ func (r *ConductorRepo) Advance(t models.ConductorTask, current *models.TaskWith
 		if err := tx.QueryRow(`SELECT enabled FROM conductor_project WHERE project=?`, t.ProjectID).Scan(&enabled); err != nil {
 			return err
 		}
-		if !enabled {
+		if !enabled && !request.Conductor.Independent {
 			return ErrConductorPaused
 		}
 	}
@@ -319,7 +319,7 @@ func (r *ConductorRepo) BeginJob(job *models.AgentJob) (bool, error) {
 	if body != c.SourceBody || name != job.Request.TaskName {
 		return false, fmt.Errorf("%w: task content changed before the agent started; recheck to use the latest context", ErrConductorConflict)
 	}
-	if !enabled {
+	if !enabled && !c.Independent {
 		_, err = tx.Exec(`UPDATE agent_job SET status='pending',claimedAt=NULL,attempts=MAX(0,attempts-1) WHERE id=? AND status='claimed'`, job.ID)
 		if err != nil {
 			return false, err

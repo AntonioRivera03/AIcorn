@@ -4,6 +4,9 @@ import "net/http"
 
 func (app *app) routes() http.Handler {
 	mux := http.NewServeMux()
+	if app.jobService != nil {
+		app.jobRoutes(mux)
+	}
 	mux.HandleFunc("GET /api/health/ready", app.readiness)
 	mux.HandleFunc("GET /api/preview", app.getPreviewInfo)
 	if app.environmentService != nil {

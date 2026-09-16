@@ -42,7 +42,8 @@ func (app *app) readiness(w http.ResponseWriter, r *http.Request) {
 func previewGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if previewMode() && (strings.HasPrefix(path, "/api/ai/") || strings.HasPrefix(path, "/api/environment") || strings.Contains(path, "/environments") || strings.HasSuffix(path, "/request-agent") || (r.Method != "GET" && strings.Contains(path, "/conductor"))) {
+		jobWrite := r.Method != http.MethodGet && (strings.Contains(path, "/automation/jobs") || (strings.Contains(path, "/automation/templates/") && strings.HasSuffix(path, "/job")))
+		if previewMode() && (strings.HasPrefix(path, "/api/ai/") || jobWrite || strings.HasPrefix(path, "/api/environment") || strings.Contains(path, "/environments") || strings.HasSuffix(path, "/request-agent") || (r.Method != "GET" && strings.Contains(path, "/conductor"))) {
 			http.Error(w, "AI execution, repository operations, and environment management are disabled inside application previews.", http.StatusForbidden)
 			return
 		}

@@ -36,6 +36,7 @@ type ConductorTask struct {
 
 // ConductorRun freezes the stage contract and model choices for one task cycle.
 type ConductorRun struct {
+	Independent    bool              `json:"independent,omitempty"` // Scheduled/manual Jobs ignore the board toggle.
 	ConductorAgent *AgentSnapshot    `json:"conductorAgent,omitempty"`
 	TaskAgent      *AgentSnapshot    `json:"taskAgent,omitempty"`
 	Phase          string            `json:"phase"`

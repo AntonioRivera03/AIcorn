@@ -209,21 +209,43 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		return err
 	}
 	if t.State == "waiting" {
-		if !settings.Enabled {
+		// Rechecking a Job keeps its independently runnable, frozen fleet contract.
+		// Ordinary board rechecks continue to use current project settings.
+		var inherited *models.ConductorRun
+		if t.JobID > 0 {
+			previous, err := s.AI.Jobs.FindOne(t.JobID)
+			if err != nil {
+				return err
+			}
+			if previous.Request != nil && previous.Request.Conductor != nil && previous.Request.Conductor.Independent {
+				inherited = previous.Request.Conductor
+				settings = inherited.Settings
+			}
+		}
+		if !settings.Enabled && inherited == nil {
 			return repos.ErrConductorPaused
 		}
 		if err = s.Repo.ValidateStages(t.ProjectID, settings); err != nil {
 			return err
 		}
-		req, err := s.AI.Prepare(ctx, t.TaskID, AIRunInput{Intent: "plan", UseRepository: settings.UseRepository, PresetID: settings.ConductorAgentID, Instruction: settings.PlanningPrompt})
+		input := AIRunInput{Intent: "plan", UseRepository: settings.UseRepository, PresetID: settings.ConductorAgentID, Instruction: settings.PlanningPrompt}
+		if inherited != nil {
+			input.Agent = inherited.ConductorAgent
+		}
+		req, err := s.AI.Prepare(ctx, t.TaskID, input)
 		if err != nil {
 			return err
 		}
-		taskAgent, err := s.AI.ResolveAgent(ctx, settings.TaskAgentID)
+		var taskAgent *models.AgentSnapshot
+		if inherited != nil {
+			taskAgent = inherited.TaskAgent
+		} else {
+			taskAgent, err = s.AI.ResolveAgent(ctx, settings.TaskAgentID)
+		}
 		if err != nil {
 			return err
 		}
-		req.Conductor = &models.ConductorRun{Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent, ConductorAgent: &models.AgentSnapshot{ID: req.AgentID, Name: req.PresetName, Model: req.Model, Instructions: req.SystemPrompt}}
+		req.Conductor = &models.ConductorRun{Independent: inherited != nil, Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent, ConductorAgent: &models.AgentSnapshot{ID: req.AgentID, Name: req.PresetName, Model: req.Model, Instructions: req.SystemPrompt}}
 		return s.Repo.Advance(t, task, task.Body, settings.PlanningStage, "planning", "Conductor is checking the task", req, settings)
 	}
 	if t.JobID == 0 {
@@ -237,6 +259,9 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		return errors.New("Conductor's run contract is missing")
 	}
 	contract := job.Request.Conductor
+	if contract.Independent {
+		settings.Enabled = true
+	}
 	if err = s.Repo.ValidateStages(t.ProjectID, contract.Settings); err != nil {
 		if _, cancelErr := s.AI.Jobs.CancelAI(job.ID); cancelErr != nil {
 			return cancelErr
@@ -302,7 +327,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 				return err
 			}
 			req.TaskBody = converted[0]
-			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body, ConductorAgent: contract.ConductorAgent, TaskAgent: contract.TaskAgent}
+			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body, ConductorAgent: contract.ConductorAgent, TaskAgent: contract.TaskAgent, Independent: contract.Independent}
 		}
 		return s.Repo.Advance(t, task, body, task.Stage, state, message, req, contract.Settings)
 	}

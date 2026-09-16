@@ -18,6 +18,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
 	"github.com/waseem-polus/aycorn/server/internal/environments"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
+	"github.com/waseem-polus/aycorn/server/internal/jobs"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/worker"
@@ -85,6 +86,7 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 }
 
 type app struct {
+	jobService           *jobs.Service
 	environmentService   *environments.Service
 	conductorService     *services.ConductorService
 	aiService            *services.AIService
@@ -266,8 +268,17 @@ func main() {
 		}
 	}
 	defer w.Stop()
+	jobService := &jobs.Service{DB: db, AI: aiService, Conductor: conductorService}
+	schedulerDone := make(chan struct{})
+	if previewMode() {
+		close(schedulerDone)
+	} else {
+		go func() { defer close(schedulerDone); jobService.Run(workerCtx, 15*time.Second) }()
+	}
+	defer func() { stopWorker(); <-schedulerDone }()
 
 	app := app{
+		jobService:           jobService,
 		conductorService:     conductorService,
 		aiService:            aiService,
 		projectRepo:          projectRepo,
@@ -332,6 +343,7 @@ func main() {
 	}
 
 	stopWorker()
+	<-schedulerDone
 	w.Stop()
 	if app.environmentService != nil {
 		app.environmentService.Wait()
