@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 		tools = append(tools, "list_task_links", "add_task_link", "remove_task_link")
 	}
 	if spec.Request.Conductor != nil {
-		tools = append(tools, "search_tasks")
+		tools = append(tools, "search_tasks", "project_context", "read_project_document")
 		env["AYCORN_CONDUCTOR_PROJECT"] = fmt.Sprint(spec.Request.ProjectID)
 	}
 	if c := spec.Request.ProjectChat; c != nil {
@@ -43,6 +44,18 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 	for _, name := range tools {
 		config["mcp_servers.aycorn.tools."+name+".approval_mode"] = "approve"
 	}
+	return config
+}
+
+// The root session and its native children share the same scoped MCP server.
+// Register executable agent profiles, not just role names in the prompt.
+func (h *Codex) agentConfig(spec RunSpec, fleetPath string) map[string]any {
+	config := h.sessionConfig(spec)
+	for _, role := range fleet.All() {
+		config["agents."+role.Role+".config_file"] = filepath.Join(fleetPath, role.Role+".toml")
+		config["agents."+role.Role+".description"] = role.Description
+	}
+	config["skills.config"] = []map[string]any{{"path": filepath.Join(fleetPath, fleet.WorkflowPath), "enabled": true}}
 	return config
 }
 
@@ -99,11 +112,7 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 	if err != nil {
 		return result, fmt.Errorf("install agent fleet: %w", err)
 	}
-	config := h.sessionConfig(spec)
-	for _, role := range fleetRoles {
-		config["agents."+role+".config_file"] = filepath.Join(fleetPath, role+".toml")
-		config["agents."+role+".description"] = "Aycorn " + role + "; follows the injected ticket workflow contract"
-	}
+	config := h.agentConfig(spec, fleetPath)
 	sandbox := "read-only"
 	if r.Intent == "implement" && r.RepoPath != "" {
 		sandbox = "workspace-write"

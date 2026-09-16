@@ -70,9 +70,11 @@ func (toolset *toolset) register(server *mcp.Server) {
 		mcp.AddTool(server, mcptools.Tool(mcptools.AddTaskLink), toolset.addTaskLink)
 		mcp.AddTool(server, mcptools.Tool(mcptools.RemoveTaskLink), toolset.removeTaskLink)
 	}
-	if toolset.runChatTurnID > 0 {
+	if toolset.runProjectID > 0 {
 		mcp.AddTool(server, mcptools.Tool(mcptools.ProjectContext), toolset.projectContext)
 		mcp.AddTool(server, mcptools.Tool(mcptools.ReadProjectDocument), toolset.readProjectDocument)
+	}
+	if toolset.runChatTurnID > 0 {
 		mcp.AddTool(server, mcptools.Tool(mcptools.RequestTaskWork), toolset.requestTaskWork)
 		mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)
 		mcp.AddTool(server, mcptools.Tool(mcptools.SearchTasks), toolset.searchTasks)

@@ -12,8 +12,6 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models"
 )
 
-var fleetRoles = []string{"conductor", "planner", "researcher", "coder", "reviewer", "chatter"}
-
 // Agent files are bundled with the server, so a task in any repository receives
 // the same fleet. Versioned paths survive restarts and native Codex resume.
 func (h *Codex) installFleet(spec RunSpec) (string, error) {

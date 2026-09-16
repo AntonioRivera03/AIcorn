@@ -37,12 +37,7 @@ func TestInstalledCodexProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := h.sessionConfig(spec)
-	// The smoke test has an empty task DB: server startup is enough, no tool call.
-	for _, role := range fleetRoles {
-		config["agents."+role+".config_file"] = filepath.Join(dir, role+".toml")
-		config["agents."+role+".description"] = "Aycorn " + role
-	}
+	config := h.agentConfig(spec, dir)
 	open := func() *rpcClient {
 		client, err := startRPC(ctx, executable, []string{"app-server", "--listen", "stdio://"}, codexEnvironment(root), root, func(rpcMessage) {})
 		if err != nil {

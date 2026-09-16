@@ -12,11 +12,33 @@ import (
 )
 
 func (t *toolset) projectContext(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, map[string]any, error) {
-	if err := taskownership.CheckChat(t.taskService.TaskRepo.DB, t.runProjectID, t.runChatTurnID); err != nil {
+	if err := t.checkProjectReadScope(); err != nil {
 		return nil, nil, err
 	}
 	value, err := (projectchat.Store{DB: t.taskService.TaskRepo.DB}).Context(t.runProjectID)
 	return nil, value, err
+}
+
+// Both Chatter and Conductor can inspect their project. Recheck the binding on
+// each call so moving the assigned task cannot leave stale cross-project access.
+func (t *toolset) checkProjectReadScope() error {
+	if t.runProjectID <= 0 {
+		return fmt.Errorf("project context requires a scoped agent run")
+	}
+	if t.runChatTurnID > 0 {
+		return taskownership.CheckChat(t.taskService.TaskRepo.DB, t.runProjectID, t.runChatTurnID)
+	}
+	if t.runTaskID <= 0 {
+		return fmt.Errorf("project context requires an assigned task")
+	}
+	task, err := t.taskService.GetTask(t.runTaskID)
+	if err != nil {
+		return err
+	}
+	if task.ProjectID != t.runProjectID {
+		return fmt.Errorf("assigned task is outside this project")
+	}
+	return nil
 }
 
 type ReadDocumentInput struct {
@@ -24,6 +46,9 @@ type ReadDocumentInput struct {
 }
 
 func (t *toolset) readProjectDocument(ctx context.Context, req *mcp.CallToolRequest, in ReadDocumentInput) (*mcp.CallToolResult, map[string]any, error) {
+	if err := t.checkProjectReadScope(); err != nil {
+		return nil, nil, err
+	}
 	d, err := (&knowledge.Store{DB: t.taskService.TaskRepo.DB, ProjectScope: t.runProjectID}).Document(t.runProjectID, in.DocumentID)
 	if err != nil {
 		return nil, nil, err

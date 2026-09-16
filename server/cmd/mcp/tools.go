@@ -14,7 +14,7 @@ import (
 type SearchTasksInput struct {
 	Query      string   `json:"query,omitempty" jsonschema:"free-text search over the task name"`
 	ProjectIDs []int    `json:"projectIds,omitempty"`
-	StageIDs   []int    `json:"stageIds,omitempty" jsonschema:"stage ids — call list_workflow_stages for valid ids"`
+	StageIDs   []int    `json:"stageIds,omitempty" jsonschema:"stage ids — use project_context in scoped runs or list_workflow_stages in interactive sessions"`
 	Priorities []string `json:"priorities,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
 	Assignees  []string `json:"assignees,omitempty"`
 	Limit      int      `json:"limit,omitempty" jsonschema:"default 25, max 100"`

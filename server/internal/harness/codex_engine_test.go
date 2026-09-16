@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 )
 
@@ -173,11 +174,42 @@ func TestCodexContextAndScope(t *testing.T) {
 			if config["agents.enabled"] != true {
 				t.Fatal("subagents disabled")
 			}
+			if config["agents.max_concurrent_threads_per_session"] != float64(4) || config["mcp_servers.aycorn.required"] != true || config["mcp_servers.aycorn.command"] != "/bin/mcp" {
+				t.Fatal("missing native orchestration or MCP configuration", config)
+			}
+			for _, role := range fleet.All() {
+				path, ok := config["agents."+role.Role+".config_file"].(string)
+				if !ok || !filepath.IsAbs(path) {
+					t.Fatalf("missing executable profile for %s", role.Role)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || !strings.Contains(string(body), "developer_instructions = ") {
+					t.Fatalf("profile %s unavailable: %v", role.Role, err)
+				}
+			}
+			for _, name := range []string{"read_task", "search_tasks", "project_context", "read_project_document"} {
+				exposed := false
+				for _, tool := range config["mcp_servers.aycorn.enabled_tools"].([]any) {
+					exposed = exposed || tool == name
+				}
+				if !exposed || config["mcp_servers.aycorn.tools."+name+".approval_mode"] != "approve" {
+					t.Fatal("MCP tool unavailable", name)
+				}
+			}
+			skills := config["skills.config"].([]any)
+			skill := skills[0].(map[string]any)
+			if _, err := os.Stat(skill["path"].(string)); err != nil || skill["enabled"] != true {
+				t.Fatal("root workflow skill unavailable", skill, err)
+			}
 			env := config["mcp_servers.aycorn.env"].(map[string]any)
 			if env["AYCORN_RUN_TASK"] != "42" || env["AYCORN_CONDUCTOR_PROJECT"] != "7" {
 				t.Fatal(env)
 			}
 			developer := params["developerInstructions"].(string)
+			conductor, _ := fleet.Lookup("conductor")
+			if !strings.Contains(developer, conductor.Instructions()) {
+				t.Fatal("root did not load the complete Conductor profile")
+			}
 			if strings.Contains(developer, "custom instructions") {
 				t.Fatal("custom prompt replaced fixed Conductor")
 			}

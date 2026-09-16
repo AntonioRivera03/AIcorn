@@ -60,6 +60,12 @@ func TestChatterScopedMutationsRespectOwnersAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Exec("UPDATE project_chat_turn SET status='canceling' WHERE id=1")
+	if _, _, err = ts.projectContext(ctx, nil, NoInput{}); !errors.Is(err, taskownership.ErrNotOwner) {
+		t.Fatal("canceled chat retained project context", err)
+	}
+	if _, _, err = ts.readProjectDocument(ctx, nil, ReadDocumentInput{DocumentID: 1}); !errors.Is(err, taskownership.ErrNotOwner) {
+		t.Fatal("canceled chat retained documents", err)
+	}
 	if _, _, err = ts.updateTask(ctx, nil, UpdateTaskInput{TaskID: 1, Name: &title}); !errors.Is(err, taskownership.ErrNotOwner) {
 		t.Fatal(err)
 	}

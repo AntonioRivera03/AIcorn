@@ -12,6 +12,24 @@ The catalog and canonical Markdown live in `server/internal/harness/fleet/`. The
 
 The checked-in `.codex/agents/` TOML and Markdown files mirror the catalog for interactive work in this repository. `.codex/config.toml` registers them. Research uses the existing `research.toml` filename and the runtime role name `researcher`.
 
+## Executable orchestration and MCP context
+
+Conductor runs as the root Codex app-server agent. The harness enables native multi-agent tools, registers each role's absolute TOML configuration path and description, and explicitly loads the workflow skill for the root. The standalone Conductor profile also enables subagent tools. Planner/Research handle planning and investigation; Coder implements; a separate Reviewer checks the result. The fixed instructions specify delegation inputs, file ownership, follow-up and waiting behavior, review correction loops, failure handling, and the phase-specific structured handoff. Only the root result can finish the Aycorn job.
+
+The required `aycorn` MCP server receives the current task, project, and job scope from the harness. Subagents inherit that connection and scope. Conductor and its children can call `read_task`, `search_tasks`, `project_context`, and `read_project_document`. Project context includes actual stages, settings, task owners, and document metadata; document reads include written notes and file metadata, not binary attachment contents or OCR. Cross-project document reads are rejected, and context access is rechecked if the assigned task moves to another project. The controller continues to own ticket transitions; these context tools do not add ticket-write or task-dispatch permissions.
+
+An opt-in live regression runs both Conductor phases against a disposable database and workspace. It asserts native child histories for the registered Planner, Research, Coder and Reviewer profiles, successful inherited MCP calls, a file matching a token available only in a project document, and no agent-initiated stage changes:
+
+```sh
+cd server
+AYCORN_CONDUCTOR_LIVE=1 \
+AYCORN_CODEX_INTEGRATION="$(command -v codex)" \
+AYCORN_MCP_INTEGRATION="$PWD/bin/aycorn-mcp" \
+go test ./internal/harness -run '^TestInstalledConductorDelegationAndMCP$' -count=1 -v
+```
+
+This uses the local Codex login for real model turns and archives its disposable conversations. Build the MCP executable first with `make build-mcp` from the repository root.
+
 After changing canonical instructions, run:
 
 ```sh

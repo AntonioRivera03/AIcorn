@@ -46,7 +46,7 @@ var descriptions = map[Name]string{
 	ProjectContext:      "Read this project’s actual workflow, stages, checklists, task types, Conductor settings, active task owners, and document metadata.",
 	ReadProjectDocument: "Read a project document’s written notes and original-file metadata. Binary file contents are not included.",
 	RequestTaskWork:     "Queue a task agent to work on a free task in this project. Implement/review requires a linked repository. Active owners block dispatch; queued does not mean completed.",
-	SearchTasks:         "Search and filter tasks across all projects. Task bodies are returned as markdown. Call list_workflow_stages first if filtering by stage.",
+	SearchTasks:         "Search and filter accessible tasks. Agent runs are limited to their assigned project. Bodies are returned as markdown. Discover stage IDs through project_context in scoped runs, or list_workflow_stages in interactive sessions.",
 	ReadTask:            "Read a single task's full details by id. The body is returned as markdown.",
 	ListProjects:        "List all projects.",
 	ListWorkflowStages:  "List all workflow stages. Use this to learn valid stage ids before calling search_tasks, create_task, or move_task_stage.",

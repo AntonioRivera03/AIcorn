@@ -64,6 +64,9 @@ func (d Definition) Config(model, skillPath string) []byte {
 	if d.ReadOnly {
 		config += "sandbox_mode = \"read-only\"\n"
 	}
+	if d.Role == "conductor" {
+		config += "\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 4\n"
+	}
 	config += "\n[[skills.config]]\npath = " + strconv.Quote(skillPath) + "\nenabled = true\n"
 	return []byte(config)
 }

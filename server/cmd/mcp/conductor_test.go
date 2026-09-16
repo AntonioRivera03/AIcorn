@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/google/jsonschema-go/jsonschema"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -27,9 +28,10 @@ func TestConductorMCPReadsOnlyItsProject(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO workflow(id,name) VALUES(1,'Workflow')`,
 		`INSERT INTO stage(id,workflow,name,type,color,icon,position) VALUES(1,1,'Open','open','gray','circle',1)`,
-		`INSERT INTO project(id,workflow,name) VALUES(1,1,'Mine'),(2,1,'Other')`,
-		`INSERT INTO checklist(id,project,name) VALUES(1,1,'Mine'),(2,2,'Other')`,
+		`INSERT INTO project(id,workflow,name,pinned) VALUES(1,1,'Mine',0),(2,1,'Other',0)`,
+		`INSERT INTO checklist(id,project,name,isDefault) VALUES(1,1,'Mine',0),(2,2,'Other',0)`,
 		`INSERT INTO task(id,checklist,stage,type,name,priority,body) VALUES(1,1,1,1,'Mine','Medium',''),(2,1,1,1,'Related','Medium',''),(3,2,1,1,'Other','Medium','')`,
+		`INSERT INTO project_document(id,project,title,body) VALUES(1,1,'Requirements','[{"type":"p","children":[{"text":"Use a purple acorn."}]}]'),(2,2,'Private','[]')`,
 	} {
 		if _, err = db.Exec(q); err != nil {
 			t.Fatal(err)
@@ -70,7 +72,7 @@ func TestConductorMCPReadsOnlyItsProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != 2 {
+	if len(list.Tools) != 4 {
 		t.Fatal("unexpected tools exposed")
 	}
 	for _, tool := range list.Tools {
@@ -81,9 +83,13 @@ func TestConductorMCPReadsOnlyItsProject(t *testing.T) {
 		if tool.Name == "read_task" {
 			arguments["taskId"] = 2
 		}
+		if tool.Name == "read_project_document" {
+			arguments["documentId"] = 1
+		}
 		result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: tool.Name, Arguments: arguments})
 		if err != nil || result.IsError {
-			t.Fatalf("MCP call: %+v %v", result, err)
+			raw, _ := json.Marshal(result)
+			t.Fatalf("MCP %s call: %s %v", tool.Name, raw, err)
 		}
 		raw, _ := json.Marshal(tool.OutputSchema)
 		var schema jsonschema.Schema
@@ -103,8 +109,26 @@ func TestConductorMCPReadsOnlyItsProject(t *testing.T) {
 			t.Fatalf("output violates declared MCP schema: %v", err)
 		}
 
-		if tool.Name != "read_task" && tool.Name != "search_tasks" {
+		if tool.Name == "project_context" && (!strings.Contains(string(raw), "Requirements") || strings.Contains(string(raw), "Private")) {
+			t.Fatalf("wrong project context: %s", raw)
+		}
+		if tool.Name == "read_project_document" && !strings.Contains(string(raw), "purple acorn") {
+			t.Fatalf("document notes not returned: %s", raw)
+		}
+		if tool.Name != "read_task" && tool.Name != "search_tasks" && tool.Name != "project_context" && tool.Name != "read_project_document" {
 			t.Fatalf("write tool exposed: %s", tool.Name)
 		}
+	}
+	if _, _, err = tools.readProjectDocument(ctx, nil, ReadDocumentInput{DocumentID: 2}); err == nil {
+		t.Fatal("read another project's document")
+	}
+	if _, err = db.Exec("UPDATE task SET checklist=2 WHERE id=1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = tools.projectContext(ctx, nil, NoInput{}); err == nil {
+		t.Fatal("stale task binding retained project context access")
+	}
+	if _, _, err = tools.readProjectDocument(ctx, nil, ReadDocumentInput{DocumentID: 1}); err == nil {
+		t.Fatal("stale task binding retained document access")
 	}
 }
