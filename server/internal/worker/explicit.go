@@ -60,6 +60,11 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 		if err := repo.FinishAI(job.ID, status, message, result.Output, result.UsageJson, result.ExitCode, artifacts); err != nil {
 			return true, err
 		}
+		if w.Conductor != nil && job.Request != nil && job.Request.Conductor != nil {
+			if err := w.Conductor.Tick(parent); err != nil {
+				return true, err
+			}
+		}
 		return true, nil
 	}
 	if job.Request == nil {

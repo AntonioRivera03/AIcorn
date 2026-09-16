@@ -89,3 +89,21 @@ func (app *app) startChatTurn(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, job)
 }
+
+func (app *app) taskSessionMessage(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid task", 400)
+		return
+	}
+	var input services.TaskMessageInput
+	if !decodeJSONInput(w, r, &input) {
+		return
+	}
+	result, err := app.aiService.TaskMessage(r.Context(), id, input)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}

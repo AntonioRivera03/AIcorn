@@ -39,6 +39,8 @@ func TestAppServerPeer(t *testing.T) {
 		switch m.Method {
 		case "initialized":
 			continue
+		case "config/read":
+			result = map[string]any{"config": map[string]any{"mcp_servers": map[string]any{"unrelated": map[string]any{}}, "apps": map[string]any{"explicit-app": map[string]any{"enabled": true}}}}
 		case "thread/start", "thread/resume":
 			if m.Method == "thread/start" && (mode == "resume" || m.Params["ephemeral"] != false) {
 				os.Exit(3)
@@ -171,10 +173,15 @@ func TestCodexContextAndScope(t *testing.T) {
 				t.Fatal(params)
 			}
 			config := params["config"].(map[string]any)
-			if config["agents.enabled"] != true {
-				t.Fatal("subagents disabled")
+			if config["agents.enabled"] != false {
+				t.Fatal("native subagents must be disabled")
 			}
-			if config["agents.max_concurrent_threads_per_session"] != float64(4) || config["mcp_servers.aycorn.required"] != true || config["mcp_servers.aycorn.command"] != "/bin/mcp" {
+			for _, key := range []string{"mcp_servers.unrelated.enabled", "apps._default.enabled", "apps.explicit-app.enabled"} {
+				if config[key] != false {
+					t.Fatal("inherited tool access retained", key)
+				}
+			}
+			if config["mcp_servers.aycorn.required"] != true || config["mcp_servers.aycorn.command"] != "/bin/mcp" {
 				t.Fatal("missing native orchestration or MCP configuration", config)
 			}
 			for _, role := range fleet.All() {
@@ -206,18 +213,15 @@ func TestCodexContextAndScope(t *testing.T) {
 				t.Fatal(env)
 			}
 			developer := params["developerInstructions"].(string)
-			conductor, _ := fleet.Lookup("conductor")
-			if !strings.Contains(developer, conductor.Instructions()) {
-				t.Fatal("root did not load the complete Conductor profile")
-			}
 			if strings.Contains(developer, "custom instructions") {
-				t.Fatal("custom prompt replaced fixed Conductor")
+				t.Fatal("legacy prompt escaped fixed task role")
 			}
-			for _, want := range []string{"default project orchestrator", "planning=11, doing=12, review=13", "Only you manage the ticket"} {
+			for _, want := range []string{"independent task agent", "working stage 12", "review stage 13", "Do not move tasks or spawn subagents"} {
 				if !strings.Contains(developer, want) {
-					t.Fatal(developer)
+					t.Fatal("missing task contract", want)
 				}
 			}
+
 		})
 	}
 }

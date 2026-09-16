@@ -300,7 +300,7 @@ func jobCompletes(t *testing.T, scheduled bool) {
 		if err := spec.OnSession("test-session", "test-turn"); err != nil {
 			t.Fatal(err)
 		}
-		if !spec.Request.Conductor.Independent || spec.Request.Conductor.TaskAgent.ID != 11 || spec.Request.Model != "gpt-6-astra" {
+		if !spec.Request.Conductor.Independent || spec.Request.Conductor.TaskAgent.ID != 11 || spec.Request.Model != "gpt-5.6-sol" {
 			t.Fatalf("wrong contract: %+v", spec.Request)
 		}
 		task, _ := s.AI.Tasks.FindOneWithProject(taskID)
@@ -328,7 +328,7 @@ func jobCompletes(t *testing.T, scheduled bool) {
 	}
 	states, _ := s.Conductor.Repo.Tasks(1)
 	task, _ := s.AI.Tasks.FindOneWithProject(taskID)
-	if len(states) != 1 || states[0].State != "completed" || task.Stage != 4 || !strings.Contains(task.Body, "Audit ready for review") || calls != 2 {
+	if len(states) != 1 || states[0].State != "completed" || task.Stage != 4 || !strings.Contains(task.Body, "Audit ready for review") || calls != 1 {
 		t.Fatalf("bad completion: %+v %+v calls=%d", states, task, calls)
 	}
 	settings, _, _ = s.Conductor.Repo.Settings(1)
@@ -415,15 +415,13 @@ func TestIndependentRecheckKeepsAgentAndPrompt(t *testing.T) {
 		if !spec.Request.Conductor.Independent || spec.Request.Conductor.TaskAgent.ID != 11 {
 			t.Fatal("lost independent contract")
 		}
-		if spec.Request.Conductor.Phase == "planning" {
-			if !strings.Contains(spec.Request.Instruction, "Report concrete findings") {
-				t.Fatal("lost job prompt")
-			}
-			if calls == 1 {
-				return harness.RunResult{Output: `{"ready":false,"context":"Need context","missingContext":"Which repo?"}`}, nil
-			}
-			return harness.RunResult{Output: `{"ready":true,"context":"Ready with supplied context","missingContext":""}`}, nil
+		if !strings.Contains(spec.Request.Instruction, "Report concrete findings") {
+			t.Fatal("lost job prompt")
 		}
+		if calls == 1 {
+			return harness.RunResult{Output: `{"completed":false,"summary":"Need context","blocker":"Which repo?"}`}, nil
+		}
+
 		return harness.RunResult{Output: `{"completed":true,"summary":"Finished after recheck","blocker":""}`}, nil
 	})
 	w := worker.New(&services.AgentJobService{JobRepo: s.AI.Jobs, RunRepo: s.Conductor.Runs}, h)
@@ -450,7 +448,7 @@ func TestIndependentRecheckKeepsAgentAndPrompt(t *testing.T) {
 		}
 	}
 	state, _ = s.Runs(1, j.ID)
-	if len(state) != 1 || state[0].State != "completed" || calls != 3 {
+	if len(state) != 1 || state[0].State != "completed" || calls != 2 {
 		t.Fatalf("%+v calls=%d", state, calls)
 	}
 }

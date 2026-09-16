@@ -69,6 +69,7 @@ func TestInstalledCodexProtocol(t *testing.T) {
 		client.close()
 		t.Fatal("session not persisted", started)
 	}
+
 	err = client.call(ctx, "thread/name/set", map[string]string{"threadId": started.Thread.ID, "name": "Aycorn protocol verification"}, nil)
 	client.close()
 	if err != nil {
@@ -119,7 +120,7 @@ func TestInstalledCodexTurn(t *testing.T) {
 	req.TimeoutSeconds = 120
 	req.TaskName = "Protocol verification"
 	req.ProjectID = 1
-	req.Instruction = "Delegate exactly one bounded task to the custom planner agent: read task 1 through Aycorn MCP and report its title. Wait for that agent, then reply exactly AYCORN_HARNESS_OK. Do not edit files."
+	req.Instruction = "Read task 1 through Aycorn MCP, then reply exactly AYCORN_HARNESS_OK. Work directly without delegation. Do not edit files."
 	h := &Codex{MCPExecutable: mcp, DBPath: dbPath, FleetDir: filepath.Join(root, "fleet")}
 	result, err := h.Run(context.Background(), RunSpec{Request: req, TaskID: 1, WorkDir: root})
 	if err != nil {
@@ -166,8 +167,8 @@ func TestInstalledCodexTurn(t *testing.T) {
 	if err = client.call(ctx, "thread/read", map[string]any{"threadId": result.SessionID, "includeTurns": true}, &history); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(history), "collabAgentToolCall") && !strings.Contains(string(history), "subAgentActivity") {
-		t.Fatal("run did not exercise subagent delegation")
+	if strings.Contains(string(history), "collabAgentToolCall") || strings.Contains(string(history), "subAgentActivity") {
+		t.Fatal("independent session spawned a subagent")
 	}
 	// Archive only the disposable conversation created by this test.
 	if err = client.call(ctx, "thread/archive", map[string]string{"threadId": result.SessionID}, nil); err != nil {

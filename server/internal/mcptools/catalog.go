@@ -5,6 +5,9 @@ import "github.com/modelcontextprotocol/go-sdk/mcp"
 type Name string
 
 const (
+	ListConductorTasks  Name = "list_conductor_tasks"
+	StartConductorTask  Name = "start_conductor_task"
+	DeferConductorTask  Name = "defer_conductor_task"
 	ProjectContext      Name = "project_context"
 	ReadProjectDocument Name = "read_project_document"
 	RequestTaskWork     Name = "request_task_work"
@@ -43,6 +46,9 @@ var orderedNames = [...]Name{
 }
 
 var descriptions = map[Name]string{
+	ListConductorTasks:  "List tasks explicitly given to Conductor in this project, including current state, task context and job IDs. Only waiting tasks may start.",
+	StartConductorTask:  "Start an independent persistent task session by projectId and taskId, choosing coder, researcher, reviewer, or planner. Server code validates ownership and dependencies, moves the task to its configured In progress stage, and queues its session. Does not wait for completion. Repeated calls return the existing active job.",
+	DeferConductorTask:  "Record a specific blocker for a waiting managed task. It will await explicit recheck instead of repeatedly running.",
 	ProjectContext:      "Read this project’s actual workflow, stages, checklists, task types, Conductor settings, active task owners, and document metadata.",
 	ReadProjectDocument: "Read a project document’s written notes and original-file metadata. Binary file contents are not included.",
 	RequestTaskWork:     "Queue a task agent to work on a free task in this project. Implement/review requires a linked repository. Active owners block dispatch; queued does not mean completed.",
@@ -72,7 +78,7 @@ func Tool(name Name) *mcp.Tool {
 	tool := definition(name)
 	result := &mcp.Tool{Name: tool.Name, Description: tool.Description}
 	switch name {
-	case ProjectContext, ReadProjectDocument, SearchTasks, ReadTask, ListProjects, ListWorkflowStages, ListChecklists, ListTaskTypes, ListTaskLinks:
+	case ListConductorTasks, ProjectContext, ReadProjectDocument, SearchTasks, ReadTask, ListProjects, ListWorkflowStages, ListChecklists, ListTaskTypes, ListTaskLinks:
 		closedWorld := false
 		result.Annotations = &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
 	}

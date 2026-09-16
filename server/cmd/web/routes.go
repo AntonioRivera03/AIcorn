@@ -144,6 +144,7 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("PUT /api/ai/settings", app.putAISettings)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/runs", app.startAIRun)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/chat", app.startChatTurn)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/session/messages", app.taskSessionMessage)
 	mux.HandleFunc("POST /api/ai/runs/{jobId}/cancel", app.cancelAIRun)
 	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches", app.getTaskBranches)
 	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches/{jobId}/merge", app.previewTaskMerge)

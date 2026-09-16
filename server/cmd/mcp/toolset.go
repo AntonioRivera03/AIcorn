@@ -20,6 +20,8 @@ func parseRFC3339(value string) (*time.Time, error) {
 }
 
 type toolset struct {
+	runDispatchID    int
+	conductorService *services.ConductorService
 	runProjectID     int
 	runTaskID        int
 	runJobID         int
@@ -65,6 +67,14 @@ func (toolset *toolset) bodyToBody(ctx context.Context, markdownBody string) (st
 }
 
 func (toolset *toolset) register(server *mcp.Server) {
+	if toolset.runDispatchID > 0 {
+		mcp.AddTool(server, mcptools.Tool(mcptools.ListConductorTasks), toolset.listConductorTasks)
+		mcp.AddTool(server, mcptools.Tool(mcptools.StartConductorTask), toolset.startConductorTask)
+		mcp.AddTool(server, mcptools.Tool(mcptools.DeferConductorTask), toolset.deferConductorTask)
+		mcp.AddTool(server, mcptools.Tool(mcptools.ProjectContext), toolset.projectContext)
+		mcp.AddTool(server, mcptools.Tool(mcptools.ReadProjectDocument), toolset.readProjectDocument)
+		return
+	}
 	if toolset.runTaskID == 0 || toolset.runJobID > 0 {
 		mcp.AddTool(server, mcptools.Tool(mcptools.ListTaskLinks), toolset.listTaskLinks)
 		mcp.AddTool(server, mcptools.Tool(mcptools.AddTaskLink), toolset.addTaskLink)

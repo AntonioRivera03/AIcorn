@@ -63,7 +63,7 @@ func (r *AgentJobRepo) EnqueueChat(task int, request models.AIRunRequest) (*mode
 	if err = tx.QueryRow("SELECT tt.viewMode FROM task t JOIN task_type tt ON tt.id=t.type WHERE t.id=?", task).Scan(&mode); err != nil {
 		return nil, err
 	}
-	if mode != "chat" {
+	if mode != "chat" && request.TaskSession == nil {
 		return nil, ErrChatType
 	}
 	var latest int
@@ -83,6 +83,26 @@ func (r *AgentJobRepo) EnqueueChat(task int, request models.AIRunRequest) (*mode
 	if !matches {
 		return nil, ErrChatConflict
 	}
+	if session := request.TaskSession; session != nil {
+		var stage int
+		if err = tx.QueryRow("SELECT stage FROM task WHERE id=?", task).Scan(&stage); err != nil {
+			return nil, err
+		}
+		if stage != session.ExpectedStage {
+			return nil, ErrChatConflict
+		}
+		if session.Mode == "work" && session.Settings != nil {
+			if err = validateConductorStages(tx, request.ProjectID, *session.Settings); err != nil {
+				return nil, err
+			}
+			if err = validateConductorBlockers(tx, task); err != nil {
+				return nil, err
+			}
+			if _, err = tx.Exec("UPDATE task SET stage=?,assignee=? WHERE id=?", session.Settings.WorkingStage, "AI · "+request.PresetName, task); err != nil {
+				return nil, err
+			}
+		}
+	}
 	raw, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
@@ -93,6 +113,13 @@ func (r *AgentJobRepo) EnqueueChat(task int, request models.AIRunRequest) (*mode
 			return nil, ErrActiveAIRun
 		}
 		return nil, err
+	}
+	if session := request.TaskSession; session != nil && session.Mode == "work" && session.Settings != nil {
+		_, err = tx.Exec(`INSERT INTO conductor_task(task,project,state,job,expectedStage,message) VALUES(?,?,'queued',?,?,'Task session queued')
+            ON CONFLICT(task) DO UPDATE SET state='queued',job=excluded.job,expectedStage=excluded.expectedStage,message=excluded.message,updatedAt=strftime('%Y-%m-%dT%H:%M:%fZ','now')`, task, request.ProjectID, j.ID, session.Settings.WorkingStage)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &j, tx.Commit()
 }

@@ -12,7 +12,7 @@ import (
 
 var ErrConductorConflict = errors.New("Conductor state changed; refresh and try again")
 var ErrConductorPaused = errors.New("Conductor is paused")
-var ErrConductorConfig = errors.New("Conductor needs three distinct, non-done stages from this project's workflow")
+var ErrConductorConfig = errors.New("Conductor needs distinct In progress and review stages from this project's workflow; neither can be Done")
 var ErrConductorBlocked = errors.New("An unresolved blocking task must be completed before this task can start; resolve it, then recheck")
 
 type ConductorRepo struct{ DB *sql.DB }
@@ -108,14 +108,14 @@ func (r *ConductorRepo) SaveSettings(project int, s models.ConductorSettings, pr
 type conductorQuerier interface{ QueryRow(string, ...any) *sql.Row }
 
 func validateConductorStages(q conductorQuerier, project int, s models.ConductorSettings) error {
-	if s.PlanningStage <= 0 || s.WorkingStage <= 0 || s.CompletionStage <= 0 || s.PlanningStage == s.WorkingStage || s.PlanningStage == s.CompletionStage || s.WorkingStage == s.CompletionStage {
+	if s.WorkingStage <= 0 || s.CompletionStage <= 0 || s.WorkingStage == s.CompletionStage {
 		return ErrConductorConfig
 	}
 	var count int
-	if err := q.QueryRow(`SELECT COUNT(*) FROM stage s JOIN project p ON p.workflow=s.workflow WHERE p.id=? AND s.id IN (?,?,?) AND s.type<>'done'`, project, s.PlanningStage, s.WorkingStage, s.CompletionStage).Scan(&count); err != nil {
+	if err := q.QueryRow(`SELECT COUNT(*) FROM stage s JOIN project p ON p.workflow=s.workflow WHERE p.id=? AND s.id IN (?,?) AND s.type<>'done'`, project, s.WorkingStage, s.CompletionStage).Scan(&count); err != nil {
 		return err
 	}
-	if count != 3 {
+	if count != 2 {
 		return ErrConductorConfig
 	}
 	return nil
@@ -137,7 +137,7 @@ func (r *ConductorRepo) ValidateStages(project int, s models.ConductorSettings) 
 	return validateConductorStages(r.DB, project, s)
 }
 
-const conductorColumns = `task,project,state,COALESCE(job,0),expectedStage,message,updatedAt`
+const conductorColumns = `task,project,state,COALESCE(job,0),expectedStage,message,updatedAt,selectionKey`
 
 func (r *ConductorRepo) Tasks(project int) ([]models.ConductorTask, error) {
 	where := ""
@@ -154,7 +154,7 @@ func (r *ConductorRepo) Tasks(project int) ([]models.ConductorTask, error) {
 	result := []models.ConductorTask{}
 	for rows.Next() {
 		var t models.ConductorTask
-		if err := rows.Scan(&t.TaskID, &t.ProjectID, &t.State, &t.JobID, &t.ExpectedStage, &t.Message, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.TaskID, &t.ProjectID, &t.State, &t.JobID, &t.ExpectedStage, &t.Message, &t.UpdatedAt, &t.SelectionKey); err != nil {
 			return nil, err
 		}
 		result = append(result, t)
@@ -197,10 +197,10 @@ func (r *ConductorRepo) Manage(project int, ids []int, action string) (models.Bu
 	} else if action == "send" || action == "recheck" {
 		conflict := "DO NOTHING"
 		if action == "recheck" {
-			conflict = `DO UPDATE SET state='waiting',expectedStage=excluded.expectedStage,message='',updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE conductor_task.state IN ('needs_context','failed','held')`
+			conflict = `DO UPDATE SET state='waiting',selectionKey=excluded.selectionKey,expectedStage=excluded.expectedStage,message='',updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE conductor_task.state IN ('needs_context','failed','held')`
 		}
-		res, err = tx.Exec(`INSERT INTO conductor_task(task,project,expectedStage)
- SELECT t.id,c.project,t.stage FROM task t JOIN checklist c ON c.id=t.checklist JOIN stage s ON s.id=t.stage
+		res, err = tx.Exec(`INSERT INTO conductor_task(task,project,expectedStage,selectionKey)
+ SELECT t.id,c.project,t.stage,lower(hex(randomblob(16))) FROM task t JOIN checklist c ON c.id=t.checklist JOIN stage s ON s.id=t.stage
  WHERE c.project=? AND t.id IN (`+strings.Join(marks, ",")+`) AND s.type<>'done'
  AND NOT EXISTS(SELECT 1 FROM agent_job j WHERE j.task=t.id AND j.status IN ('pending','claimed','running','canceling'))
  ON CONFLICT(task) `+conflict, args...)
@@ -220,18 +220,23 @@ func (r *ConductorRepo) Manage(project int, ids []int, action string) (models.Bu
 }
 
 func (r *ConductorRepo) SetState(t models.ConductorTask, state, message string) error {
-	_, err := r.DB.Exec(`UPDATE conductor_task SET state=?,message=?,updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE task=? AND state=? AND COALESCE(job,0)=?`, state, message, t.TaskID, t.State, t.JobID)
+	_, err := r.DB.Exec(`UPDATE conductor_task SET state=?,message=?,updatedAt=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE task=? AND state=? AND COALESCE(job,0)=? AND selectionKey=?`, state, message, t.TaskID, t.State, t.JobID, t.SelectionKey)
 	return err
 }
 
 // Advance commits body, stage, assignment, queue insertion and the Conductor
 // cursor together. Exact task/ownership comparisons protect concurrent edits.
-func (r *ConductorRepo) Advance(t models.ConductorTask, current *models.TaskWithProject, body string, stage int, state, message string, request *models.AIRunRequest, contract models.ConductorSettings) error {
+func (r *ConductorRepo) Advance(t models.ConductorTask, current *models.TaskWithProject, body string, stage int, state, message string, request *models.AIRunRequest, contract models.ConductorSettings, dispatchID ...int) error {
 	tx, err := r.beginTransition(t.ProjectID)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if len(dispatchID) > 0 && dispatchID[0] > 0 {
+		if err = CheckDispatch(tx, t.ProjectID, dispatchID[0]); err != nil {
+			return err
+		}
+	}
 	if err = validateConductorStages(tx, t.ProjectID, contract); err != nil {
 		return err
 	}
@@ -250,7 +255,7 @@ func (r *ConductorRepo) Advance(t models.ConductorTask, current *models.TaskWith
 		}
 	}
 	var owned int
-	if err = tx.QueryRow(`SELECT COUNT(*) FROM conductor_task WHERE task=? AND project=? AND state=? AND COALESCE(job,0)=?`, t.TaskID, t.ProjectID, t.State, t.JobID).Scan(&owned); err != nil {
+	if err = tx.QueryRow(`SELECT COUNT(*) FROM conductor_task WHERE task=? AND project=? AND state=? AND COALESCE(job,0)=? AND selectionKey=?`, t.TaskID, t.ProjectID, t.State, t.JobID, t.SelectionKey).Scan(&owned); err != nil {
 		return err
 	}
 	if owned != 1 || current.ProjectID != t.ProjectID || current.Stage != t.ExpectedStage {

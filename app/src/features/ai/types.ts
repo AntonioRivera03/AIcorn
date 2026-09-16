@@ -21,6 +21,7 @@ export type AISettingsResponse = {
   };
 };
 export type AIRunRequest = {
+  taskSession?: { role: string; mode: "question" | "work"; settings?: { workingStage: number; completionStage: number } };
   chat?: { clientKey: string; previousJob: number; sessionId?: string };
   conductor?: { phase: "planning" | "working" };
   key: string;

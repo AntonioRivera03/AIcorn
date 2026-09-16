@@ -23,6 +23,7 @@ export const useAISettings = () =>
 export const useAIContext = (taskId: number) => {
   const task = useQuery({
     queryKey: ["ai-task", taskId],
+    refetchInterval: 2000,
     queryFn: () => request<Task & { ProjectID: number }>(`/api/task/${taskId}`),
     enabled: taskId > 0,
   });

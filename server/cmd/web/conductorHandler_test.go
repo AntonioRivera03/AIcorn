@@ -47,7 +47,7 @@ func TestConductorSettingsAndBulkHTTP(t *testing.T) {
 	call("PUT", url, `{"enabled":true}`, 200)
 	call("PUT", url, `{"completionStage":5}`, 400)
 	call("PUT", url, `{"completionStage":6}`, 400)
-	call("PUT", url, `{"workingStage":2}`, 400)
+	call("PUT", url, `{"workingStage":4}`, 400)
 	call("PUT", url, `{"workerModels":["invalid model"]}`, 400)
 	call("PUT", url, `{"workerModels":null}`, 400)
 	call("PUT", url, `{"fullAccess":true}`, 400)

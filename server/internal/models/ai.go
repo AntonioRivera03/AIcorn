@@ -30,7 +30,18 @@ type ProjectChatTurn struct {
 	TaskIDs        []int           `json:"taskIds"`
 }
 
+// TaskSession identifies a persistent, independent task agent. Chat holds its
+// server-resolved Codex thread and workspace cursor; user messages cannot set it.
+type TaskSession struct {
+	Role          string             `json:"role"`
+	Mode          string             `json:"mode"` // work or question
+	Settings      *ConductorSettings `json:"settings,omitempty"`
+	ExpectedStage int                `json:"expectedStage"`
+}
+
 type AIRunRequest struct {
+	DispatchID     int               `json:"dispatchId,omitempty"`
+	TaskSession    *TaskSession      `json:"taskSession,omitempty"`
 	AgentModels    map[string]string `json:"agentModels,omitempty"`
 	ProjectChat    *ProjectChatTurn  `json:"projectChat,omitempty"`
 	Chat           *ChatTurn         `json:"chat,omitempty"`

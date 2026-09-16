@@ -1,5 +1,7 @@
 # Ticket chats
 
+Tasks started through Conductor, Jobs, or Task AI now use [independent task sessions](conductor-mode.md). For those tasks, this view shows the existing task conversation and the question/work composer: follow-up work requires confirmation, server code controls managed stages, and the selected role/model persists. The older chat endpoint cannot bypass that gate. The manual Chat-type flow below applies to tickets that have not entered a task session.
+
 Select the bundled **Chat** task type to replace a ticket's document editor with a persistent conversation. It is enabled for existing and new projects alongside the normal default task type. Renaming Chat does not change its behavior. Switching back to a document type restores the original body; neither conversion deletes the body or conversation history.
 
 The title, priority, stage, assignee, checklist, dates and relationships keep their normal controls. Chat never queues autonomous ticket work or changes these fields. The project Conductor toggle does not trigger chat messages. A ticket currently owned by Conductor must first be released from it before accepting a chat message.

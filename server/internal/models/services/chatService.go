@@ -36,6 +36,9 @@ func (s *AIService) StartChat(ctx context.Context, taskID int, in ChatInput) (*m
 	if err != nil {
 		return nil, err
 	}
+	if latest != nil && latest.Request.TaskSession != nil {
+		return nil, fmt.Errorf("%w: continue this task through its session conversation", ErrInvalidAIRun)
+	}
 	chat := &models.ChatTurn{ClientKey: in.Key}
 	if latest != nil {
 		chat.PreviousJob = latest.ID

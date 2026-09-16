@@ -6,6 +6,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waseem-polus/aycorn/server/internal/knowledge"
 	"github.com/waseem-polus/aycorn/server/internal/models"
+	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
 	"github.com/waseem-polus/aycorn/server/internal/taskownership"
@@ -24,6 +25,9 @@ func (t *toolset) projectContext(ctx context.Context, req *mcp.CallToolRequest, 
 func (t *toolset) checkProjectReadScope() error {
 	if t.runProjectID <= 0 {
 		return fmt.Errorf("project context requires a scoped agent run")
+	}
+	if t.runDispatchID > 0 {
+		return repos.CheckDispatch(t.taskService.TaskRepo.DB, t.runProjectID, t.runDispatchID)
 	}
 	if t.runChatTurnID > 0 {
 		return taskownership.CheckChat(t.taskService.TaskRepo.DB, t.runProjectID, t.runChatTurnID)

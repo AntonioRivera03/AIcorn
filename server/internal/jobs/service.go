@@ -376,10 +376,6 @@ func (s *Service) prepare(ctx context.Context, j Job) (Template, *models.AIRunRe
 	if err != nil {
 		return t, nil, err
 	}
-	conductor, err := s.AI.ResolveRole(ctx, "conductor")
-	if err != nil {
-		return t, nil, err
-	}
 	bodies, err := s.AI.Converter.ToBody(ctx, []string{t.Body})
 	if err != nil {
 		return t, nil, err
@@ -387,12 +383,25 @@ func (s *Service) prepare(ctx context.Context, j Job) (Template, *models.AIRunRe
 	task := &models.TaskWithProject{ProjectID: j.ProjectID}
 	task.Name, task.Body = t.Title, bodies[0]
 	settings.PlanningPrompt += "\n\nJob instructions:\n" + t.Prompt
-	req, err := s.AI.PrepareSnapshot(ctx, task, services.AIRunInput{Intent: "plan", Agent: conductor, UseRepository: settings.UseRepository, Instruction: settings.PlanningPrompt})
+	intent := "ask"
+	role := "coder"
+	if preset, e := s.AI.Presets.FindOne(j.AgentID); e == nil && preset.BuiltinRole != "" {
+		role = preset.BuiltinRole
+	}
+	if role == "conductor" || role == "chatter" {
+		return t, nil, invalid("choose a task agent for this Job")
+	}
+	if settings.UseRepository && role == "coder" {
+		intent = "implement"
+	}
+	req, err := s.AI.PrepareSnapshot(ctx, task, services.AIRunInput{Intent: intent, Agent: coder, UseRepository: settings.UseRepository, Instruction: settings.WorkingPrompt + "\n\nJob instructions:\n" + t.Prompt})
 	if err != nil {
 		return t, nil, err
 	}
 	settings.WorkingPrompt += "\n\nJob instructions:\n" + t.Prompt
-	req.Conductor = &models.ConductorRun{Independent: true, Phase: "planning", Settings: settings, SourceBody: bodies[0], ConductorAgent: conductor, TaskAgent: coder}
+	req.Chat = &models.ChatTurn{ClientKey: req.Key}
+	req.TaskSession = &models.TaskSession{Role: role, Mode: "work", Settings: &settings, ExpectedStage: settings.WorkingStage}
+	req.Conductor = &models.ConductorRun{Independent: true, Phase: "working", Settings: settings, SourceBody: bodies[0], TaskAgent: coder}
 	return t, req, nil
 }
 
@@ -511,13 +520,13 @@ func (s *Service) Fire(ctx context.Context, project, id int, trigger, key string
 	}
 	contract := req.Conductor.Settings
 	var validStages int
-	if err = tx.QueryRow("SELECT COUNT(*) FROM stage s JOIN project p ON p.workflow=s.workflow WHERE p.id=? AND s.id IN (?,?,?) AND s.type<>'done'", project, contract.PlanningStage, contract.WorkingStage, contract.CompletionStage).Scan(&validStages); err != nil {
+	if err = tx.QueryRow("SELECT COUNT(*) FROM stage s JOIN project p ON p.workflow=s.workflow WHERE p.id=? AND s.id IN (?,?) AND s.type<>'done'", project, contract.WorkingStage, contract.CompletionStage).Scan(&validStages); err != nil {
 		return 0, err
 	}
-	if validStages != 3 {
+	if validStages != 2 {
 		return 0, invalid("Conductor stages changed before the job could start")
 	}
-	t.StageID = contract.PlanningStage
+	t.StageID = contract.WorkingStage
 	t.Assignee = "AI · " + req.PresetName
 	taskID, err := insertTask(tx, t, req.Conductor.SourceBody)
 	if err != nil {
@@ -534,7 +543,7 @@ func (s *Service) Fire(ctx context.Context, project, id int, trigger, key string
 	if err = tx.QueryRow("INSERT INTO agent_job(task,persona,status,requestJson) VALUES(?,(SELECT id FROM persona WHERE id=?),'pending',?) RETURNING id", taskID, req.AgentID, string(raw)).Scan(&queueID); err != nil {
 		return 0, err
 	}
-	if _, err = tx.Exec("INSERT INTO conductor_task(task,project,state,job,expectedStage,message) VALUES(?,?,'planning',?,?,'Job is checking the task')", taskID, project, queueID, t.StageID); err != nil {
+	if _, err = tx.Exec("INSERT INTO conductor_task(task,project,state,job,expectedStage,message) VALUES(?,?,'queued',?,?,'Task session queued')", taskID, project, queueID, t.StageID); err != nil {
 		return 0, err
 	}
 	if _, err = tx.Exec("INSERT INTO scheduled_job_run(job,task,trigger,occurrence) VALUES(?,?,?,?)", id, taskID, trigger, key); err != nil {

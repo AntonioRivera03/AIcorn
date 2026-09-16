@@ -72,6 +72,27 @@ func main() {
 		converter:        &markdown.Converter{},
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	toolset.aiService = &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: toolset.converter, MCPExecutable: executable}
+	toolset.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: toolset.aiService, Runs: agentRunRepo}
+	if raw, scoped := os.LookupEnv("AYCORN_DISPATCH"); scoped {
+		id, err := strconv.Atoi(raw)
+		if err != nil || id <= 0 {
+			log.Fatal("invalid dispatcher scope")
+		}
+		project, err := strconv.Atoi(os.Getenv("AYCORN_DISPATCH_PROJECT"))
+		if err != nil || project <= 0 {
+			log.Fatal("invalid dispatcher project")
+		}
+		if err = repos.CheckDispatch(db, project, id); err != nil {
+			log.Fatal(err)
+		}
+		toolset.runDispatchID = id
+		toolset.runProjectID = project
+	}
 	if raw, scoped := os.LookupEnv("AYCORN_RUN_TASK"); scoped {
 		taskID, err := strconv.Atoi(raw)
 		if err != nil || taskID <= 0 {

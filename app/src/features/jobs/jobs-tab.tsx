@@ -537,8 +537,8 @@ function TemplateEditor({
             placeholder="What should the agent check or produce?"
           />
           <p className="text-xs text-muted-foreground">
-            Creating a task uses these defaults. A Job assigns Conductor and
-            uses the planning, working and review stages in Conductor settings.
+            Creating a task uses these defaults. A Job starts its selected agent
+            in the In progress stage and hands completed work to Human review.
           </p>
           <p role="status" className="text-xs text-muted-foreground">
             {edit.isPending
@@ -589,6 +589,9 @@ function JobEditor({
   const fields = usePendingFields();
   const edit = useJobEdit<ScheduledJob>(j.projectId, j.id, "jobs");
   const agents = usePersonasQuery();
+  const taskAgents = (agents.data ?? []).filter(
+    (agent) => !["conductor", "chatter"].includes(agent.BuiltinRole ?? ""),
+  );
   const url = `/api/project/${j.projectId}/automation/jobs/${j.id}`;
   const history = useQuery({
     queryKey: ["scheduled-job-runs", j.id],
@@ -659,7 +662,7 @@ function JobEditor({
             change={(v) => edit.mutate({ agentId: Number(v) })}
             options={[
               { value: 0, label: "Choose an agent…" },
-              ...(j.agentId && !agents.data?.some((a) => a.ID === j.agentId)
+              ...(j.agentId && !taskAgents.some((a) => a.ID === j.agentId)
                 ? [
                     {
                       value: j.agentId,
@@ -667,7 +670,7 @@ function JobEditor({
                     },
                   ]
                 : []),
-              ...(agents.data ?? []).map((a) => ({
+              ...taskAgents.map((a) => ({
                 value: a.ID,
                 label: `${a.Name || "Untitled agent"} · ${a.Model}`,
               })),

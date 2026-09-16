@@ -17,7 +17,7 @@ type Definition struct {
 }
 
 var definitions = []Definition{
-	{"conductor", "Conductor", "Default project orchestrator: coordinates planning, research, coding and review.", false},
+	{"conductor", "Conductor", "Default project orchestrator: selects managed tasks and starts independent sessions through MCP.", true},
 	{"planner", "Planner", "Checks readiness, dependencies and acceptance criteria before implementation.", true},
 	{"researcher", "Research", "Resolves technical questions using repository evidence and primary sources.", true},
 	{"coder", "Coder", "Implements assigned work and verifies the resulting behavior.", false},
@@ -64,9 +64,7 @@ func (d Definition) Config(model, skillPath string) []byte {
 	if d.ReadOnly {
 		config += "sandbox_mode = \"read-only\"\n"
 	}
-	if d.Role == "conductor" {
-		config += "\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 4\n"
-	}
+	config += "\n[agents]\nenabled = false\n"
 	config += "\n[[skills.config]]\npath = " + strconv.Quote(skillPath) + "\nenabled = true\n"
 	return []byte(config)
 }

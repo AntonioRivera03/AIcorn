@@ -17,7 +17,7 @@ type ConductorSettings struct {
 
 func DefaultConductorSettings() ConductorSettings {
 	return ConductorSettings{
-		PlanningPrompt:   "Validate the goal, acceptance criteria, dependencies, and required context. Add a concise plan and useful context without implementing the task. If anything essential is missing, ask specific questions instead of guessing.",
+		PlanningPrompt:   "Inspect the tasks given to Conductor. Start eligible tasks with the appropriate independent agent. Defer tasks with unresolved dependencies or essential missing context, giving a specific reason.",
 		WorkingPrompt:    "Carry out the task and its acceptance criteria. Follow the project instructions. Explain any blockers and distinguish verified results from assumptions.",
 		CompletionPrompt: "Write a handoff for human review: what changed, acceptance criteria addressed, validation performed, limitations, and what the reviewer should check. Never claim unperformed tests passed.",
 		UseRepository:    true,
@@ -25,6 +25,7 @@ func DefaultConductorSettings() ConductorSettings {
 }
 
 type ConductorTask struct {
+	SelectionKey  string `json:"-"`
 	TaskID        int    `json:"taskId"`
 	ProjectID     int    `json:"projectId"`
 	State         string `json:"state"`

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { useId, useState } from "react";
-import { AudioLines, CheckCheck, ClipboardList, Code2 } from "lucide-react";
+import { AudioLines, CheckCheck, Code2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -63,21 +63,12 @@ function AutoText({
 
 const phases = [
   {
-    stage: "planningStage",
-    prompt: "planningPrompt",
-    title: "Planning",
-    role: "Conductor",
-    description:
-      "Check readiness, add context, and flag missing information. Validated tasks wait here until an agent starts.",
-    icon: ClipboardList,
-  },
-  {
     stage: "workingStage",
     prompt: "workingPrompt",
     title: "In progress",
     role: "Assigned agent",
     description:
-      "The system moves the task here when its agent starts working, after it leaves the queue.",
+      "The start tool moves the task here and queues its independent session.",
     icon: Code2,
   },
   {
@@ -127,8 +118,8 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
             Conductor
           </CardTitle>
           <CardDescription>
-            Delegate selected tasks on this board. Conductor coordinates
-            planning, research, coding and review, and handles ticket stages.
+            Conductor selects tasks and starts an independent agent session for
+            each. The application moves tasks through their configured stages.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -154,16 +145,25 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
           {configurationError && (
             <p className="text-sm text-conductor">{configurationError}</p>
           )}
+          <AutoText
+            key={`selection-${settings.planningPrompt}`}
+            label="Task selection instructions"
+            value={settings.planningPrompt}
+            multiline
+            onChange={(value) =>
+              conductor.update.mutate({ planningPrompt: value })
+            }
+          />
           <p className="text-xs text-muted-foreground" role="status">
             {conductor.update.isPending
               ? "Saving…"
               : conductor.update.isError
                 ? "That change could not be saved. Check the error and try again."
-                : "Changes save automatically. Stage and prompt changes apply to the next planning cycle."}
+                : "Changes save automatically. Stage and prompt changes apply to newly started task sessions."}
           </p>
         </CardContent>
       </Card>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         {phases.map((phase, index) => (
           <Card key={phase.stage}>
             <CardHeader>
@@ -234,9 +234,9 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
         <CardHeader>
           <CardTitle>Agents and execution</CardTitle>
           <CardDescription>
-            Conductor is this project’s built-in orchestrator. It coordinates
-            the bundled Planner, Research, Coder and Reviewer agents. Model
-            choices are captured when planning starts.
+            Conductor is this project’s built-in task dispatcher. It chooses a
+            task agent and starts a separate session through MCP. Model choices
+            are captured when the task starts.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -283,10 +283,9 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Uses your local Codex login. Conductor owns each ticket and can
-            delegate to up to four subagents. Each bundled agent uses its own
-            model and fixed instructions. Planning is read-only; implementation
-            runs in an isolated worktree. Command network access is disabled.
+            Uses your local Codex login. Each task keeps its own conversation,
+            model, fixed instructions and workspace. The task session completes
+            its work directly; server code handles the review handoff.
           </p>
         </CardContent>
       </Card>

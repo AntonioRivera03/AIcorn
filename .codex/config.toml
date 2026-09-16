@@ -5,27 +5,26 @@ command = "/home/hal/Projects/AIcorn/server/bin/aycorn-mcp"
 AYCORN_DB = "/home/hal/.config/aycorn/app.db"
 
 [agents]
-enabled = true
-max_concurrent_threads_per_session = 4
+enabled = false
 
 [agents.conductor]
-description = "Aycorn conductor; ticket lifecycle belongs to Conductor"
+description = "Aycorn conductor; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/conductor.toml"
 
 [agents.planner]
-description = "Aycorn planner; ticket lifecycle belongs to Conductor"
+description = "Aycorn planner; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/planner.toml"
 
 [agents.researcher]
-description = "Aycorn researcher; ticket lifecycle belongs to Conductor"
+description = "Aycorn researcher; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/research.toml"
 
 [agents.coder]
-description = "Aycorn coder; ticket lifecycle belongs to Conductor"
+description = "Aycorn coder; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/coder.toml"
 
 [agents.reviewer]
-description = "Aycorn reviewer; ticket lifecycle belongs to Conductor"
+description = "Aycorn reviewer; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/reviewer.toml"
 
 [agents.chatter]

@@ -34,7 +34,7 @@ export function ConductorFrame({ children, only }: { children: ReactNode; only: 
   return <section aria-label={enabled ? "Conductor managed board" : "Project tasks"} className={cn("flex h-full min-h-0 flex-col gap-3", visible && "rounded-2xl border border-border p-3 sm:p-4", enabled && "conductor-frame")}>
     {visible && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
       <span className="inline-flex items-center gap-2 font-semibold tracking-[0.16em] text-conductor"><AudioLines className={cn("size-4", enabled && "animate-pulse motion-reduce:animate-none")} />CONDUCTOR {enabled ? "MANAGING" : "PAUSED"}</span>
-      <span className="text-muted-foreground">{count(["waiting", "planning"])} planning <span aria-hidden="true">·</span> {count(["queued", "working"])} in progress <span aria-hidden="true">·</span> {count(["completed"])} for review</span>
+      <span className="text-muted-foreground">{count(["waiting", "planning"])} awaiting selection <span aria-hidden="true">·</span> {count(["queued", "working"])} in progress <span aria-hidden="true">·</span> {count(["completed"])} for review</span>
       {count(["needs_context", "held", "failed"]) > 0 && <span className="text-conductor">{count(["needs_context", "held", "failed"])} need attention</span>}
       <span className="ml-auto text-muted-foreground">{enabled ? "You make the final call." : "New work is paused. Active sessions can finish."}</span>
     </div>}

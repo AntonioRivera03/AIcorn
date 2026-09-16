@@ -153,11 +153,7 @@ func (s *ConductorService) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	scheduled := false
 	for _, t := range tasks {
-		if t.State == "waiting" && scheduled {
-			continue
-		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -165,9 +161,6 @@ func (s *ConductorService) Tick(ctx context.Context) error {
 			continue
 		}
 		err = s.reconcile(ctx, t)
-		if t.State == "waiting" && err == nil {
-			scheduled = true
-		}
 		if err == nil || errors.Is(err, repos.ErrConductorPaused) || errors.Is(err, repos.ErrActiveAIRun) {
 			continue
 		}
@@ -212,50 +205,20 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		return err
 	}
 	if t.State == "waiting" {
-		// Rechecking a Job keeps its independently runnable, frozen fleet contract.
-		// Ordinary board rechecks continue to use current project settings.
-		var inherited *models.ConductorRun
-		var inheritedModels map[string]string
+		// The project dispatcher chooses when to call StartTask. No task model
+		// runs until that tool atomically claims the task and moves its stage.
 		if t.JobID > 0 {
 			previous, err := s.AI.Jobs.FindOne(t.JobID)
 			if err != nil {
 				return err
 			}
 			if previous.Request != nil && previous.Request.Conductor != nil && previous.Request.Conductor.Independent {
-				inherited = previous.Request.Conductor
-				inheritedModels = previous.Request.AgentModels
-				settings = inherited.Settings
+				return s.restartIndependent(ctx, t, task, previous)
 			}
 		}
-		if !settings.Enabled && inherited == nil {
-			return repos.ErrConductorPaused
-		}
-		if err = s.Repo.ValidateStages(t.ProjectID, settings); err != nil {
-			return err
-		}
-		input := AIRunInput{Intent: "plan", UseRepository: settings.UseRepository, PresetID: settings.ConductorAgentID, Instruction: settings.PlanningPrompt}
-		if inherited != nil {
-			input.Agent = inherited.ConductorAgent
-		}
-		req, err := s.AI.Prepare(ctx, t.TaskID, input)
-		if err != nil {
-			return err
-		}
-		var taskAgent *models.AgentSnapshot
-		if inherited != nil {
-			taskAgent = inherited.TaskAgent
-		} else {
-			taskAgent, err = s.AI.ResolveAgent(ctx, settings.TaskAgentID)
-		}
-		if err != nil {
-			return err
-		}
-		if inheritedModels != nil {
-			req.AgentModels = inheritedModels
-		}
-		req.Conductor = &models.ConductorRun{Independent: inherited != nil, Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent, ConductorAgent: &models.AgentSnapshot{ID: req.AgentID, Name: req.PresetName, Model: req.Model, Instructions: req.SystemPrompt}}
-		return s.Repo.Advance(t, task, task.Body, settings.PlanningStage, "planning", "Conductor is checking the task", req, settings)
+		return nil
 	}
+
 	if t.JobID == 0 {
 		return errors.New("Conductor's run is missing; recheck the task")
 	}
@@ -313,10 +276,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 			if contract.TaskAgent == nil {
 				return errors.New("Task agent snapshot is missing; recheck the task")
 			}
-			rootAgent := contract.ConductorAgent
-			if rootAgent == nil {
-				rootAgent = contract.TaskAgent
-			} // existing queued cycles
+			rootAgent := contract.TaskAgent // Finish legacy planning with an independent task agent.
 			req, err = s.AI.Prepare(ctx, t.TaskID, AIRunInput{Intent: intent, Agent: rootAgent, Instruction: contract.Settings.WorkingPrompt + "\n\nHuman review handoff requirements:\n" + contract.Settings.CompletionPrompt})
 			if err != nil {
 				return err
@@ -336,6 +296,8 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 			}
 			req.TaskBody = converted[0]
 			req.AgentModels = job.Request.AgentModels
+			req.Chat = &models.ChatTurn{ClientKey: req.Key}
+			req.TaskSession = &models.TaskSession{Role: "coder", Mode: "work", Settings: &contract.Settings, ExpectedStage: contract.Settings.WorkingStage}
 			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body, ConductorAgent: contract.ConductorAgent, TaskAgent: contract.TaskAgent, Independent: contract.Independent}
 		}
 		return s.Repo.Advance(t, task, body, task.Stage, state, message, req, contract.Settings)

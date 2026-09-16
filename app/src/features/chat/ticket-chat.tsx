@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { TaskSessionComposer } from "@/features/ai/task-session-composer";
+import { conductorOutput } from "@/features/conductor/conductor-output";
 import { useTaskOwnership } from "@/features/ai/queries/use-task-ownership";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -45,7 +47,7 @@ export function TicketChat({ taskId }: { taskId: number }) {
   const history = useAgentJobs(taskId);
   const settings = useAISettings();
   const agents = usePersonasQuery();
-  const { project } = useAIContext(taskId);
+  const { project, task } = useAIContext(taskId);
   const ownership = useTaskOwnership(project?.ID);
   const owner = ownership.data?.find((item) => item.taskId === taskId);
   const { cancel } = useAIMutations(taskId);
@@ -155,8 +157,9 @@ export function TicketChat({ taskId }: { taskId: number }) {
             Ticket chat
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            You direct each message. Chat leaves this ticket’s title, body,
-            assignee and stage under your control.
+            {last?.request?.taskSession
+              ? "Ask about the result or confirm more work in this task’s session."
+              : "You direct each message. Chat leaves this ticket’s title, body, assignee and stage under your control."}
           </p>
         </div>
         {session && (
@@ -244,123 +247,141 @@ export function TicketChat({ taskId }: { taskId: number }) {
           </Button>
         </div>
       )}
-      <div className="space-y-3 border-t pt-4">
-        <div className="flex flex-wrap gap-3">
-          <div className="space-y-1">
-            <Label htmlFor={`${composerId}-agent`}>Agent</Label>
-            <select
-              id={`${composerId}-agent`}
-              className={selectStyle}
-              value={selectedAgent}
-              disabled={busy || agents.isPending}
-              onChange={(e) => setPresetId(Number(e.target.value))}
-            >
-              <option value={0}>Codex · default model</option>
-              {selectedAgent > 0 &&
-                !agents.data?.some((a) => a.ID === selectedAgent) && (
-                  <option value={selectedAgent}>Agent unavailable</option>
-                )}
-              {agents.data?.map((a) => (
-                <option key={a.ID} value={a.ID}>
-                  {a.Name || "Untitled"} · {a.Model}
+      {last?.request?.taskSession ? (
+        <TaskSessionComposer
+          taskId={taskId}
+          stage={task.data?.Stage}
+          latest={last}
+          locked={
+            !!active ||
+            !!owner ||
+            ownership.isPending ||
+            ownership.isError ||
+            history.isError ||
+            task.isError
+          }
+        />
+      ) : (
+        <div className="space-y-3 border-t pt-4">
+          <div className="flex flex-wrap gap-3">
+            <div className="space-y-1">
+              <Label htmlFor={`${composerId}-agent`}>Agent</Label>
+              <select
+                id={`${composerId}-agent`}
+                className={selectStyle}
+                value={selectedAgent}
+                disabled={busy || agents.isPending}
+                onChange={(e) => setPresetId(Number(e.target.value))}
+              >
+                <option value={0}>Codex · default model</option>
+                {selectedAgent > 0 &&
+                  !agents.data?.some((a) => a.ID === selectedAgent) && (
+                    <option value={selectedAgent}>Agent unavailable</option>
+                  )}
+                {agents.data?.map((a) => (
+                  <option key={a.ID} value={a.ID}>
+                    {a.Name || "Untitled"} · {a.Model}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${composerId}-mode`}>Mode</Label>
+              <select
+                id={`${composerId}-mode`}
+                className={selectStyle}
+                value={mode}
+                disabled={busy}
+                onChange={(e) => setMode(e.target.value as "ask" | "edit")}
+              >
+                <option value="ask">Ask · read only</option>
+                <option value="edit" disabled={!project?.RepoPath}>
+                  Edit files
                 </option>
-              ))}
-            </select>
+              </select>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${composerId}-mode`}>Mode</Label>
-            <select
-              id={`${composerId}-mode`}
-              className={selectStyle}
-              value={mode}
-              disabled={busy}
-              onChange={(e) => setMode(e.target.value as "ask" | "edit")}
-            >
-              <option value="ask">Ask · read only</option>
-              <option value="edit" disabled={!project?.RepoPath}>
-                Edit files
-              </option>
-            </select>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${composerId}-repo`}
-              checked={useRepository}
-              disabled={busy || mode === "edit" || !project?.RepoPath}
-              onCheckedChange={(v) => setRepositoryChoice(v === true)}
-            />
-            <Label htmlFor={`${composerId}-repo`}>Use project repository</Label>
-          </div>
-          {turns.length > 0 && (
+          <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
               <Checkbox
-                id={`${composerId}-fresh`}
-                checked={newConversation}
-                disabled={busy}
-                onCheckedChange={(v) => setNewConversation(v === true)}
+                id={`${composerId}-repo`}
+                checked={useRepository}
+                disabled={busy || mode === "edit" || !project?.RepoPath}
+                onCheckedChange={(v) => setRepositoryChoice(v === true)}
               />
-              <Label htmlFor={`${composerId}-fresh`}>
-                Start a new conversation with this message
+              <Label htmlFor={`${composerId}-repo`}>
+                Use project repository
               </Label>
             </div>
+            {turns.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`${composerId}-fresh`}
+                  checked={newConversation}
+                  disabled={busy}
+                  onCheckedChange={(v) => setNewConversation(v === true)}
+                />
+                <Label htmlFor={`${composerId}-fresh`}>
+                  Start a new conversation with this message
+                </Label>
+              </div>
+            )}
+          </div>
+          {newConversation && (
+            <p className="text-xs text-muted-foreground">
+              Earlier messages and branches stay here. Your next message starts
+              a separate Codex conversation and workspace.
+            </p>
+          )}
+          <Label htmlFor={composerId}>Message</Label>
+          <Textarea
+            id={composerId}
+            placeholder="What would you like to work on?"
+            value={message}
+            maxLength={32000}
+            className="min-h-28 resize-y"
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Ctrl/⌘ + Enter to send. Drafts stay on this device.
+            </p>
+            <Button disabled={blocked} onClick={submit}>
+              <Send className="size-4" />
+              {send.isPending ? "Sending…" : "Send message"}
+            </Button>
+          </div>
+          {send.error && (
+            <p role="alert" className="text-sm text-destructive">
+              {send.error.message}
+            </p>
+          )}
+          {settings.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              Could not check Codex.{" "}
+              <Button variant="link" onClick={() => void settings.refetch()}>
+                Retry
+              </Button>
+            </p>
+          ) : (
+            settings.data &&
+            !settings.data.engine.ready && (
+              <p role="alert" className="text-sm text-destructive">
+                {settings.data.engine.error}{" "}
+                <Link to="/settings" className="underline">
+                  AI settings
+                </Link>
+              </p>
+            )
           )}
         </div>
-        {newConversation && (
-          <p className="text-xs text-muted-foreground">
-            Earlier messages and branches stay here. Your next message starts a
-            separate Codex conversation and workspace.
-          </p>
-        )}
-        <Label htmlFor={composerId}>Message</Label>
-        <Textarea
-          id={composerId}
-          placeholder="What would you like to work on?"
-          value={message}
-          maxLength={32000}
-          className="min-h-28 resize-y"
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            Ctrl/⌘ + Enter to send. Drafts stay on this device.
-          </p>
-          <Button disabled={blocked} onClick={submit}>
-            <Send className="size-4" />
-            {send.isPending ? "Sending…" : "Send message"}
-          </Button>
-        </div>
-        {send.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {send.error.message}
-          </p>
-        )}
-        {settings.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            Could not check Codex.{" "}
-            <Button variant="link" onClick={() => void settings.refetch()}>
-              Retry
-            </Button>
-          </p>
-        ) : (
-          settings.data &&
-          !settings.data.engine.ready && (
-            <p role="alert" className="text-sm text-destructive">
-              {settings.data.engine.error}{" "}
-              <Link to="/settings" className="underline">
-                AI settings
-              </Link>
-            </p>
-          )
-        )}
-      </div>
+      )}
     </section>
   );
 }
@@ -380,7 +401,9 @@ function ChatMessage({ job, run }: { job: AgentJob; run?: AgentRun }) {
       <div className="ml-4 rounded-lg bg-muted p-3 sm:ml-12">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
-            You · {job.request?.intent === "implement" ? "Edit" : "Ask"}
+            {job.request?.taskSession
+              ? `Task request · ${job.request.taskSession.mode === "work" ? "Work" : "Question"}`
+              : `You · ${job.request?.intent === "implement" ? "Edit" : "Ask"}`}
           </span>
           <time>
             {job.createdAt ? new Date(job.createdAt).toLocaleString() : ""}
@@ -402,7 +425,9 @@ function ChatMessage({ job, run }: { job: AgentJob; run?: AgentRun }) {
           </Badge>
         </div>
         {run?.output ? (
-          <AIMarkdown>{run.output}</AIMarkdown>
+          <AIMarkdown>
+            {job.request?.conductor ? conductorOutput(run.output) : run.output}
+          </AIMarkdown>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">
             {active ? "Waiting for a response…" : "No response was recorded."}

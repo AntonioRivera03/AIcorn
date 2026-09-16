@@ -21,7 +21,7 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 		env["AYCORN_RUN_JOB"] = fmt.Sprint(spec.JobID)
 		tools = append(tools, "list_task_links", "add_task_link", "remove_task_link")
 	}
-	if spec.Request.Conductor != nil {
+	if spec.Request.Conductor != nil || spec.Request.TaskSession != nil {
 		tools = append(tools, "search_tasks", "project_context", "read_project_document")
 		env["AYCORN_CONDUCTOR_PROJECT"] = fmt.Sprint(spec.Request.ProjectID)
 	}
@@ -29,15 +29,25 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 		env = map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_CHAT_TURN": fmt.Sprint(c.TurnID), "AYCORN_CHAT_PROJECT": fmt.Sprint(spec.Request.ProjectID)}
 		tools = []string{"project_context", "read_task", "search_tasks", "create_task", "update_task", "move_task_stage", "list_task_links", "add_task_link", "remove_task_link", "read_project_document", "request_task_work"}
 	}
+	if spec.Request.DispatchID > 0 {
+		env = map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_DISPATCH": fmt.Sprint(spec.Request.DispatchID), "AYCORN_DISPATCH_PROJECT": fmt.Sprint(spec.Request.ProjectID)}
+		tools = []string{"list_conductor_tasks", "start_conductor_task", "defer_conductor_task", "project_context", "read_project_document"}
+	}
+	if spec.Request.TaskSession != nil && spec.Request.TaskSession.Mode == "question" {
+		tools = []string{"read_task", "project_context", "read_project_document"}
+	}
 	config := map[string]any{
-		"agents.enabled": true,
-		"agents.max_concurrent_threads_per_session": 4,
+		"agents.enabled":                         false,
 		"approval_policy":                        "never",
 		"sandbox_workspace_write.network_access": false,
 		"mcp_servers.aycorn.command":             h.MCPExecutable,
 		"mcp_servers.aycorn.env":                 env,
 		"mcp_servers.aycorn.required":            true,
 		"mcp_servers.aycorn.enabled_tools":       tools,
+	}
+	if spec.Request.DispatchID > 0 || (spec.Request.TaskSession != nil && spec.Request.TaskSession.Mode == "question") {
+		config["features.shell_tool"] = false
+		config["web_search"] = "disabled"
 	}
 	// These scoped local tools are authorized by starting the Aycorn operation;
 	// their server-side transaction guards still enforce ownership and turn scope.
@@ -47,8 +57,8 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 	return config
 }
 
-// The root session and its native children share the same scoped MCP server.
-// Register executable agent profiles, not just role names in the prompt.
+// Materialize the fixed role definitions and workflow skill for each independent
+// session. Native agent delegation stays disabled in sessionConfig.
 func (h *Codex) agentConfig(spec RunSpec, fleetPath string) map[string]any {
 	config := h.sessionConfig(spec)
 	for _, role := range fleet.All() {
@@ -63,7 +73,7 @@ func codexEnvironment(cwd string) []string {
 	env := []string{}
 	for _, value := range os.Environ() {
 		key, _, _ := strings.Cut(value, "=")
-		if key == "PWD" || key == "OLDPWD" || key == "OPENAI_BASE_URL" || key == "OPENAI_API_BASE" || strings.HasPrefix(key, "AYCORN_") || strings.HasPrefix(key, "OPENCODE_") {
+		if key == "TYPESAFE_API_KEY" || key == "PWD" || key == "OLDPWD" || key == "OPENAI_BASE_URL" || key == "OPENAI_API_BASE" || strings.HasPrefix(key, "AYCORN_") || strings.HasPrefix(key, "OPENCODE_") {
 			continue
 		}
 		env = append(env, value)
@@ -113,6 +123,26 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 		return result, fmt.Errorf("install agent fleet: %w", err)
 	}
 	config := h.agentConfig(spec, fleetPath)
+	// Exclude inherited MCP connections from this operation's explicit scope.
+	// Read only names; never log or persist global credentials/config values.
+	var effective struct {
+		Config struct {
+			MCPServers map[string]json.RawMessage `json:"mcp_servers"`
+			Apps       map[string]json.RawMessage `json:"apps"`
+		} `json:"config"`
+	}
+	if err = client.call(ctx, "config/read", map[string]any{"cwd": spec.WorkDir, "includeLayers": false}, &effective); err != nil {
+		return result, err
+	}
+	for name := range effective.Config.MCPServers {
+		if name != "aycorn" {
+			config["mcp_servers."+name+".enabled"] = false
+		}
+	}
+	config["apps._default.enabled"] = false
+	for name := range effective.Config.Apps {
+		config["apps."+name+".enabled"] = false
+	}
 	sandbox := "read-only"
 	if r.Intent == "implement" && r.RepoPath != "" {
 		sandbox = "workspace-write"
@@ -155,9 +185,15 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 	if r.ProjectChat != nil {
 		threadName = "Aycorn · Chatter · " + r.TaskName
 	}
+	if r.DispatchID > 0 {
+		threadName = "Aycorn · Conductor · " + r.TaskName
+	}
 	if err = client.call(ctx, "thread/name/set", map[string]any{"threadId": opened.Thread.ID, "name": threadName}, nil); err != nil {
 		return result, err
 	}
+	// Native thread/goal/set starts an autonomous turn immediately. BuildContext
+	// supplies the task objective; Aycorn owns turn/start, locking and review.
+
 	params := map[string]any{"threadId": opened.Thread.ID, "input": []map[string]any{{"type": "text", "text": prompt}}}
 	if r.Conductor != nil {
 		var schema any
