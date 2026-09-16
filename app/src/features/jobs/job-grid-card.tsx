@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   CalendarClock,
   FileText,
+  LoaderCircle,
   Pencil,
   Play,
 } from "lucide-react";
@@ -124,26 +125,39 @@ export function JobGridCard({
         </div>
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => edit({ kind: item.kind, id: job?.id ?? template!.id })}
-          aria-label={`Edit ${name}`}
-        >
-          <Pencil className="size-3.5" />
-          Edit
-        </Button>
+        {job && (
+          <Button
+            size="icon-sm"
+            disabled={run.isPending || convert.isPending || !job.agentId}
+            onClick={() => run.mutate()}
+            aria-label={`Run ${name}`}
+            aria-busy={run.isPending}
+            title={
+              !job.agentId
+                ? "Choose an agent in Edit before running"
+                : run.isPending
+                  ? "Queuing…"
+                  : "Run"
+            }
+          >
+            {run.isPending ? (
+              <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />
+            ) : (
+              <Play className="size-3.5" />
+            )}
+          </Button>
+        )}
         {job ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 disabled={convert.isPending || run.isPending || !template}
                 aria-label={`Convert ${name} to template`}
+                title="Convert to template"
               >
                 <ArrowRightLeft className="size-3.5" />
-                Convert
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -168,31 +182,24 @@ export function JobGridCard({
         ) : (
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             disabled={convert.isPending}
             onClick={() => convert.mutate()}
             aria-label={`Convert ${name} to job`}
+            title="Convert to job"
           >
             <ArrowRightLeft className="size-3.5" />
-            Convert
           </Button>
         )}
-        {job && (
-          <Button
-            size="sm"
-            disabled={run.isPending || convert.isPending || !job.agentId}
-            onClick={() => run.mutate()}
-            aria-label={`Run ${name}`}
-            title={
-              !job.agentId
-                ? "Choose an agent in Edit before running"
-                : undefined
-            }
-          >
-            <Play className="size-3.5" />
-            {run.isPending ? "Queuing…" : "Run"}
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => edit({ kind: item.kind, id: job?.id ?? template!.id })}
+          aria-label={`Edit ${name}`}
+          title="Edit"
+        >
+          <Pencil className="size-3.5" />
+        </Button>
       </div>
     </article>
   );
