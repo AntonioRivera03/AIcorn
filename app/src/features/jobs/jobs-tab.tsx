@@ -294,9 +294,6 @@ export function JobsTab({ projectId }: { projectId: number }) {
           <h2 className="text-xl font-semibold tracking-tight">
             Jobs & templates
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reusable tasks and automated work, all in one place.
-          </p>
         </div>
         <Button onClick={() => create.mutate()} disabled={create.isPending}>
           <Plus className="size-4" />
