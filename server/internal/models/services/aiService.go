@@ -21,7 +21,7 @@ var ErrAISetup = errors.New("AI setup needs attention")
 
 type AIRunInput struct {
 	Engine        string                `json:"engine,omitempty"`
-	Agent         *models.AgentSnapshot `json:"-"` // Frozen custom agent for a Conductor cycle.
+	Agent         *models.AgentSnapshot `json:"-"` // Frozen agent model/instructions for a Conductor cycle.
 	Intent        string                `json:"intent"`
 	Instruction   string                `json:"instruction"`
 	PresetID      int                   `json:"presetId"`
@@ -137,6 +137,12 @@ func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithPr
 	}
 	req := models.AIRunRequest{Engine: "codex", Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
 
+	if s.Presets != nil {
+		req.AgentModels, err = s.Presets.FleetModels()
+		if err != nil {
+			return nil, err
+		}
+	}
 	if agent != nil {
 		req.AgentID = agent.ID
 		req.PresetName = agent.Name
@@ -177,10 +183,11 @@ func (s *AIService) Cancel(id int) (bool, error) {
 	return s.Jobs.CancelAI(id)
 }
 
-// ResolveAgent snapshots editable instructions and model once per planning cycle.
+// ResolveAgent snapshots the bundled instructions and editable model. Legacy
+// custom agents retain their saved instructions for existing task/Job references.
 func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnapshot, error) {
 	if id <= 0 {
-		return nil, fmt.Errorf("%w: select a custom agent from the AI page", ErrAISetup)
+		return nil, fmt.Errorf("%w: select an agent from the AI page", ErrAISetup)
 	}
 	p, err := s.Presets.FindOne(id)
 	if err != nil {
@@ -189,9 +196,23 @@ func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnap
 	if p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
 		return nil, fmt.Errorf("%w: selected agent must use Codex and an OpenAI model", ErrAISetup)
 	}
+	if p.BuiltinRole != "" {
+		return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: p.Instructions}, nil
+	}
 	prompts, err := s.Converter.ToMarkdown(ctx, []string{p.SystemPrompt})
 	if err != nil {
 		return nil, err
 	}
 	return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: prompts[0]}, nil
+}
+
+func (s *AIService) ResolveRole(ctx context.Context, role string) (*models.AgentSnapshot, error) {
+	if s.Presets == nil {
+		return nil, fmt.Errorf("%w: bundled agents unavailable", ErrAISetup)
+	}
+	p, err := s.Presets.FindRole(role)
+	if err != nil {
+		return nil, fmt.Errorf("%w: bundled %s agent unavailable", ErrAISetup, role)
+	}
+	return s.ResolveAgent(ctx, p.ID)
 }

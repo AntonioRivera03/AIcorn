@@ -178,7 +178,10 @@ func TestCodexContextAndScope(t *testing.T) {
 				t.Fatal(env)
 			}
 			developer := params["developerInstructions"].(string)
-			for _, want := range []string{"custom instructions", "planning=11, doing=12, review=13", "Only you manage the ticket"} {
+			if strings.Contains(developer, "custom instructions") {
+				t.Fatal("custom prompt replaced fixed Conductor")
+			}
+			for _, want := range []string{"default project orchestrator", "planning=11, doing=12, review=13", "Only you manage the ticket"} {
 				if !strings.Contains(developer, want) {
 					t.Fatal(developer)
 				}

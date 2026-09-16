@@ -10,24 +10,24 @@ max_concurrent_threads_per_session = 4
 
 [agents.conductor]
 description = "Aycorn conductor; ticket lifecycle belongs to Conductor"
-config_file = "../server/internal/harness/fleet/conductor.toml"
+config_file = "agents/conductor.toml"
 
 [agents.planner]
 description = "Aycorn planner; ticket lifecycle belongs to Conductor"
-config_file = "../server/internal/harness/fleet/planner.toml"
+config_file = "agents/planner.toml"
 
 [agents.researcher]
 description = "Aycorn researcher; ticket lifecycle belongs to Conductor"
-config_file = "../server/internal/harness/fleet/researcher.toml"
+config_file = "agents/research.toml"
 
 [agents.coder]
 description = "Aycorn coder; ticket lifecycle belongs to Conductor"
-config_file = "../server/internal/harness/fleet/coder.toml"
+config_file = "agents/coder.toml"
 
 [agents.reviewer]
 description = "Aycorn reviewer; ticket lifecycle belongs to Conductor"
-config_file = "../server/internal/harness/fleet/reviewer.toml"
+config_file = "agents/reviewer.toml"
 
 [agents.chatter]
 description = "Aycorn project conversation and task coordination"
-config_file = "../server/internal/harness/fleet/chatter.toml"
+config_file = "agents/chatter.toml"

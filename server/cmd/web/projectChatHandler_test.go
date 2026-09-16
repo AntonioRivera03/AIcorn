@@ -29,6 +29,43 @@ func projectChatApp(t *testing.T) *app {
 	a.projectChatService = &projectchat.Service{Store: projectchat.Store{DB: a.projectRepo.DB}, AI: a.aiService, WorkspaceRoot: filepath.Join(t.TempDir(), "chat")}
 	return a
 }
+
+func TestProjectChatUsesFrozenChatterModel(t *testing.T) {
+	a := projectChatApp(t)
+	s := a.projectChatService
+	setModel := func(model string) {
+		t.Helper()
+		if _, err := s.DB.Exec("UPDATE persona SET model=? WHERE builtin_role='chatter'", model); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setModel("gpt-5.5")
+	if _, err := s.Send(context.Background(), 1, projectchat.Input{Message: "First turn", Key: "frozen-model"}); err != nil {
+		t.Fatal(err)
+	}
+	setModel("gpt-6-astra")
+	var seen []string
+	s.Engine = chatEngine{func(_ context.Context, spec harness.RunSpec) (harness.RunResult, error) {
+		seen = append(seen, spec.Request.Model)
+		if spec.Request.PresetName != "Chatter" || spec.Request.AgentModels["chatter"] != spec.Request.Model {
+			t.Fatalf("inconsistent Chatter snapshot: %+v", spec.Request)
+		}
+		return harness.RunResult{Output: "Answered"}, nil
+	}}
+	if err := s.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Send(context.Background(), 1, projectchat.Input{Message: "Next turn", Key: "new-model"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 2 || seen[0] != "gpt-5.5" || seen[1] != "gpt-6-astra" {
+		t.Fatalf("expected queued and future model preferences, got %v", seen)
+	}
+}
+
 func TestProjectChatPersistentResumeIdempotencyAndScope(t *testing.T) {
 	a := projectChatApp(t)
 	s := a.projectChatService

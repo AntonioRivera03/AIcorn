@@ -47,7 +47,7 @@ func setupConcurrentAgentJobDB(t *testing.T) (*sql.DB, *sql.DB) {
 	t.Cleanup(func() { db2.Close() })
 
 	// Create schema once via db1 (shared cache so db2 sees it)
-	if _, err := db1.Exec(`CREATE TABLE persona (id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
+	if _, err := db1.Exec(`CREATE TABLE persona (builtin_role TEXT NOT NULL DEFAULT '',id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
 		t.Fatalf("create persona: %v", err)
 	}
 	if _, err := db1.Exec(`CREATE TABLE task (id INTEGER PRIMARY KEY);`); err != nil {

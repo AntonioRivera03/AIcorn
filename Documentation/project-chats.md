@@ -1,6 +1,6 @@
 # Project Chats and Chatter
 
-The **Chats** project view holds one durable conversation per project. It uses the installed Codex login and AI settings, streams the current response, retains previous turns, and resumes the same native session after navigation or restart. Messages, partial output, status, session/turn IDs, and native usage are stored in SQLite. A client request key prevents duplicate sends. Only one turn can be active in a conversation.
+The **Chats** project view holds one durable conversation per project. It uses the installed Codex login, the Chatter model from the AI page, and the shared execution settings, streams the current response, retains previous turns, and resumes the same native session after navigation or restart. Messages, partial output, status, session/turn IDs, and native usage are stored in SQLite. A client request key prevents duplicate sends. Only one turn can be active in a conversation.
 
 The schema separates `project_chat` from `project_chat_turn`. Conversations already have `archivedAt` and a unique active-per-project index; archiving/new-conversation controls can be added later without replacing the history model. This release exposes one persistent chat only.
 

@@ -14,17 +14,17 @@ Ask, Plan and Review use a read-only sandbox. Implement uses a separate writable
 
 ## Context and fleet
 
-`BuildContext` keeps workflow instructions in the developer prompt and ticket title/body/request in the user prompt. The immutable Conductor snapshot supplies project/task IDs, configured planning/working/review stage IDs, selected agent instructions and stage-specific prompts. Names such as “Doing” or “Review” are never used to guess stage IDs.
+`BuildContext` keeps workflow instructions in the developer prompt and ticket title/body/request in the user prompt. The immutable Conductor snapshot supplies project/task IDs, configured planning/working/review stage IDs, fixed agent instructions, frozen per-role models and stage-specific prompts. Names such as “Doing” or “Review” are never used to guess stage IDs.
 
 The server embeds `server/internal/harness/fleet/` and installs a content-addressed copy beside the database in `harness-fleet/`. These persistent files support native session resume and work for projects outside the Aycorn repository. Existing project files and the user's global Codex configuration are not rewritten. The repository's `.codex/config.toml` also registers the fleet for working on Aycorn itself.
 
 - **Conductor** owns ticket handling, delegates work, waits for results and produces the final decision.
 - **Planner** checks readiness and proposes a bounded plan.
 - **Researcher** resolves technical questions from repository evidence and primary sources.
-- **Coder** implements the accepted scope using the selected task agent's frozen model and instructions.
+- **Coder** implements the accepted scope using its frozen model and bundled instructions.
 - **Reviewer** independently checks the actual changes against acceptance criteria and test evidence.
 
-The selected Conductor stays the parent through planning and implementation. Up to four subagents can run concurrently. The workflow skill is bundled and injected for every run, and is discoverable in `.agents/skills/aycorn-workflow` for interactive repository work.
+The built-in Conductor stays the parent through planning and implementation. Up to four subagents can run concurrently. The workflow skill is bundled and injected for every run, and is discoverable in `.agents/skills/aycorn-workflow` for interactive repository work.
 
 The durable Conductor controller applies the root agent's structured decisions: planning at intake, working when execution starts, review only after a successful completed handoff. Blocked, failed, canceled and interrupted runs do not enter review; done still requires the human. Keeping stage writes in the controller makes them transactional and restart-safe. Subagents receive read-only Aycorn tools and cannot move tickets through the managed MCP surface. Manual AI runs do not alter ticket ownership or stages.
 

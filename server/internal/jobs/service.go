@@ -376,12 +376,9 @@ func (s *Service) prepare(ctx context.Context, j Job) (Template, *models.AIRunRe
 	if err != nil {
 		return t, nil, err
 	}
-	conductor := coder
-	if settings.ConductorAgentID > 0 {
-		conductor, err = s.AI.ResolveAgent(ctx, settings.ConductorAgentID)
-		if err != nil {
-			return t, nil, err
-		}
+	conductor, err := s.AI.ResolveRole(ctx, "conductor")
+	if err != nil {
+		return t, nil, err
 	}
 	bodies, err := s.AI.Converter.ToBody(ctx, []string{t.Body})
 	if err != nil {

@@ -37,12 +37,12 @@ func (s *ConductorService) Board(project int) (ConductorBoard, error) {
 	if configErr := s.Repo.ValidateStages(project, c); configErr != nil {
 		b.ConfigurationError = configErr.Error()
 	} else if c.ConductorAgentID == 0 || c.TaskAgentID == 0 {
-		b.ConfigurationError = "Choose a Conductor agent and task agent from the AI page."
+		b.ConfigurationError = "Bundled Conductor agents are unavailable."
 	} else {
 		for _, id := range []int{c.ConductorAgentID, c.TaskAgentID} {
 			p, err := s.AI.Presets.FindOne(id)
 			if err != nil || p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
-				b.ConfigurationError = "A selected agent is unavailable. Choose a Codex agent in project settings."
+				b.ConfigurationError = "A bundled agent model is invalid. Check the AI page."
 				break
 			}
 		}
@@ -62,6 +62,9 @@ func (s *ConductorService) UpdateSettings(ctx context.Context, project int, patc
 		return current, err
 	}
 	for key, value := range patch {
+		if key == "conductorAgentId" || key == "taskAgentId" {
+			return current, fmt.Errorf("%w: %s is fixed by Aycorn; change its model on the AI page", ErrInvalidAIRun, key)
+		}
 		if _, ok := fields[key]; !ok || string(value) == "null" {
 			return current, fmt.Errorf("%w: invalid Conductor setting %s", ErrInvalidAIRun, key)
 		}
@@ -212,6 +215,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		// Rechecking a Job keeps its independently runnable, frozen fleet contract.
 		// Ordinary board rechecks continue to use current project settings.
 		var inherited *models.ConductorRun
+		var inheritedModels map[string]string
 		if t.JobID > 0 {
 			previous, err := s.AI.Jobs.FindOne(t.JobID)
 			if err != nil {
@@ -219,6 +223,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 			}
 			if previous.Request != nil && previous.Request.Conductor != nil && previous.Request.Conductor.Independent {
 				inherited = previous.Request.Conductor
+				inheritedModels = previous.Request.AgentModels
 				settings = inherited.Settings
 			}
 		}
@@ -244,6 +249,9 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 		}
 		if err != nil {
 			return err
+		}
+		if inheritedModels != nil {
+			req.AgentModels = inheritedModels
 		}
 		req.Conductor = &models.ConductorRun{Independent: inherited != nil, Phase: "planning", Settings: settings, SourceBody: task.Body, TaskAgent: taskAgent, ConductorAgent: &models.AgentSnapshot{ID: req.AgentID, Name: req.PresetName, Model: req.Model, Instructions: req.SystemPrompt}}
 		return s.Repo.Advance(t, task, task.Body, settings.PlanningStage, "planning", "Conductor is checking the task", req, settings)
@@ -327,6 +335,7 @@ func (s *ConductorService) reconcile(ctx context.Context, t models.ConductorTask
 				return err
 			}
 			req.TaskBody = converted[0]
+			req.AgentModels = job.Request.AgentModels
 			req.Conductor = &models.ConductorRun{Phase: "working", Settings: contract.Settings, SourceBody: body, ConductorAgent: contract.ConductorAgent, TaskAgent: contract.TaskAgent, Independent: contract.Independent}
 		}
 		return s.Repo.Advance(t, task, body, task.Stage, state, message, req, contract.Settings)

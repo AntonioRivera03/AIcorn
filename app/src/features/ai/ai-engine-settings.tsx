@@ -2,7 +2,6 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OpenAIModelInput } from "@/features/ai/openai-model-input";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   useAISettings,
@@ -31,7 +30,8 @@ export function AIEngineSettings() {
         <div>
           <h2 className="font-medium">Local harness</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Run tasks with Codex, or let Conductor manage the tasks you delegate.
+            Run tasks with Codex, or let Conductor manage the tasks you
+            delegate.
           </p>
         </div>
         <Button
@@ -54,14 +54,13 @@ export function AIEngineSettings() {
         <>
           <div className="space-y-2">
             <Label htmlFor="ai-harness">Harness</Label>
-            <select id="ai-harness" value="codex" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" onChange={() => {}}>
-              {(query.data?.providers ?? [{ id: "codex", name: "Codex", enabled: true }]).map((provider) => (
-                <option key={provider.id} value={provider.id} disabled={!provider.enabled}>
-                  {provider.name}{!provider.enabled ? " · Coming later" : ""}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">Uses your local Codex login. Conversations are saved in Codex so you can continue them there.</p>
+            <p id="ai-harness" className="text-sm">
+              Codex · managed by Aycorn
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Uses your local Codex login. Conversations are saved in Codex so
+              you can continue them there.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="ai-model">Default OpenAI model</Label>
@@ -74,50 +73,23 @@ export function AIEngineSettings() {
               onBlur={save}
             />
             <p className="text-xs text-muted-foreground">
-              Used when a manual run has no custom agent. Each custom agent has its own model. Sign in with codex login on the server; authentication stays with Codex.
+              Used when a manual run has no selected agent. Each bundled agent
+              has its own model. Sign in with codex login on the server;
+              authentication stays with Codex.
             </p>
           </div>
           <details>
             <summary className="cursor-pointer text-sm text-muted-foreground">
               Execution settings
             </summary>
-            <div className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="ai-executable">Codex executable</Label>
-                <Input
-                  id="ai-executable"
-                  value={draft.executable}
-                  placeholder="Detect automatically"
-                  disabled={update.isPending}
-                  onChange={(e) =>
-                    setDraft({ ...draft, executable: e.target.value })
-                  }
-                  onBlur={save}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ai-timeout">Time limit (seconds)</Label>
-                <Input
-                  id="ai-timeout"
-                  type="number"
-                  min={10}
-                  max={1800}
-                  value={draft.timeoutSeconds}
-                  disabled={update.isPending}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      timeoutSeconds: Number(e.target.value),
-                    })
-                  }
-                  onBlur={save}
-                />
-                <p className="text-xs text-muted-foreground">
-                  The run stops at this limit. A dollar spending cap is not
-                  supported by this adapter.
-                </p>
-              </div>
-            </div>
+            <dl className="mt-4 space-y-2 text-sm">
+              <dt className="text-muted-foreground">Codex executable</dt>
+              <dd className="break-all">
+                {draft.executable || "Detected automatically"}
+              </dd>
+              <dt className="text-muted-foreground">Time limit</dt>
+              <dd>{draft.timeoutSeconds} seconds</dd>
+            </dl>
           </details>
         </>
       )}

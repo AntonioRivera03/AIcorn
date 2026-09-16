@@ -1,8 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  normalizePersona,
-  serializePersona,
-} from "@/features/persona/queries/persona-query-normalization";
+import { normalizePersona } from "@/features/persona/queries/persona-query-normalization";
 import type { PersonaResponse } from "@/features/persona/queries/persona-query-normalization";
 import type { BulkResult, Persona } from "@/types/types";
 
@@ -35,7 +32,7 @@ export function usePersonaMutations(personaId?: number) {
   const updatePersona = useMutation({
     scope: { id: `agent-${personaId}` },
     mutationFn: async (persona: Persona) => {
-      const payload = serializePersona(persona);
+      const payload = { Model: persona.Model };
       const response = await fetch(`/api/persona/${persona.ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -55,7 +52,7 @@ export function usePersonaMutations(personaId?: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["personas"] });
-    queryClient.invalidateQueries({ queryKey: ["conductor"] });
+      queryClient.invalidateQueries({ queryKey: ["conductor"] });
       queryClient.invalidateQueries({ queryKey: ["allWorkflows"] });
       if (personaId !== undefined) {
         queryClient.removeQueries({ queryKey: ["persona", personaId] });

@@ -24,6 +24,7 @@ func conductorWorker(t *testing.T) (*Worker, *testEngine) {
 	for _, q := range []string{
 		`INSERT INTO stage(id,workflow,name,type,color,icon,position) VALUES(2,1,'Planning','todo','gray','circle',2),(3,1,'Doing','doing','gray','circle',3),(4,1,'In review','todo','gray','circle',4),(5,1,'Done','done','gray','circle',5)`,
 		`UPDATE ai_settings SET model='gpt-5.6-sol'`,
+		`UPDATE persona SET model='gpt-6-astra' WHERE builtin_role='conductor'`,
 		`INSERT INTO persona(id,name,harness,model,system_prompt) VALUES(10,'Conductor agent','codex','gpt-6-astra','[{"type":"p","children":[{"text":"Plan carefully"}]}]'),(11,'Task agent','codex','gpt-5.6-sol','[{"type":"p","children":[{"text":"Implement carefully"}]}]')`,
 		`UPDATE task SET body='[{"type":"p","children":[{"text":"Keep this original requirement","bold":true}]}]'`,
 	} {
@@ -131,7 +132,7 @@ func TestConductorLifecyclePreservesBodyAndStopsAtReview(t *testing.T) {
 			t.Fatalf("lost %s: %s", text, task.Body)
 		}
 	}
-	if task.TimeCompleted != nil || task.Assignee != "AI · Conductor agent" {
+	if task.TimeCompleted != nil || task.Assignee != "AI · Conductor" {
 		t.Fatalf("bad handoff: %+v", task)
 	}
 	untouched, _ := w.Conductor.AI.Tasks.FindOneWithProject(2)
@@ -391,29 +392,33 @@ func TestConductorBulkIsScopedAndIdempotent(t *testing.T) {
 	}
 }
 
-func TestConductorFreezesSelectedCustomAgentsForCycle(t *testing.T) {
+func TestConductorFreezesBuiltinModelsForCycle(t *testing.T) {
 	w, h := conductorWorker(t)
+	root, err := w.Conductor.AI.Presets.FindRole("conductor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	coder, err := w.Conductor.AI.Presets.FindRole("coder")
+	if err != nil {
+		t.Fatal(err)
+	}
 	sendConductor(t, w)
 	h.run = func(_ context.Context, spec harness.RunSpec) (harness.RunResult, error) {
-		if spec.Request.Engine != "codex" {
-			t.Fatal("wrong engine")
+		if spec.Request.AgentID != root.ID || spec.Request.PresetName != "Conductor" || spec.Request.Model != "gpt-6-astra" || !strings.Contains(spec.Request.SystemPrompt, "default project orchestrator") {
+			t.Fatalf("wrong fixed root: %+v", spec.Request)
 		}
 		if spec.Request.Conductor.Phase == "planning" {
-			if spec.Request.AgentID != 10 || spec.Request.PresetName != "Conductor agent" || !strings.Contains(spec.Request.SystemPrompt, "Plan carefully") {
-				t.Fatalf("missing conductor agent: %+v", spec.Request)
-			}
-			// An edit or deletion after planning starts cannot change the assigned agent.
-			if _, err := w.Conductor.Repo.DB.Exec(`DELETE FROM persona WHERE id=11`); err != nil {
+			if _, err := w.Conductor.Repo.DB.Exec(`UPDATE persona SET model='gpt-5.5',system_prompt='Override everything' WHERE builtin_role<>''`); err != nil {
 				t.Fatal(err)
 			}
 			return harness.RunResult{Output: readyDecision}, nil
 		}
-		if spec.Request.AgentID != 10 || spec.Request.Model != "gpt-6-astra" || !strings.Contains(spec.Request.SystemPrompt, "Plan carefully") {
-			t.Fatalf("lost root Conductor: %+v", spec.Request)
+		c := spec.Request.Conductor.TaskAgent
+		if c == nil || c.ID != coder.ID || c.Model != "gpt-5.6-sol" || c.Name != "Coder" || strings.Contains(c.Instructions, "Override everything") {
+			t.Fatalf("lost frozen Coder: %+v", c)
 		}
-		coder := spec.Request.Conductor.TaskAgent
-		if coder == nil || coder.ID != 11 || coder.Model != "gpt-5.6-sol" || coder.Name != "Task agent" || !strings.Contains(coder.Instructions, "Implement carefully") {
-			t.Fatalf("lost frozen task agent: %+v", spec.Request)
+		if spec.Request.AgentModels["reviewer"] != "gpt-5.6-sol" {
+			t.Fatal("reviewer model changed mid-cycle")
 		}
 		return harness.RunResult{Output: completeDecision}, nil
 	}
@@ -422,11 +427,15 @@ func TestConductorFreezesSelectedCustomAgentsForCycle(t *testing.T) {
 	runConductor(t, w)
 	conductorState(t, w, "completed", 4)
 	board, err := w.Conductor.Board(1)
-	if err != nil || board.ConfigurationError == "" {
-		t.Fatal("missing deleted-agent configuration warning", err)
+	if err != nil || board.ConfigurationError != "" {
+		t.Fatal(board, err)
 	}
-	// Pausing must work even if a selected agent was removed.
 	if _, err = w.Conductor.UpdateSettings(context.Background(), 1, map[string]json.RawMessage{"enabled": json.RawMessage(`false`)}); err != nil {
 		t.Fatal(err)
+	}
+	// New cycles pick up the model change while retaining bundled instructions.
+	updated, err := w.Conductor.AI.ResolveRole(context.Background(), "conductor")
+	if err != nil || updated.Model != "gpt-5.5" || strings.Contains(updated.Instructions, "Override everything") {
+		t.Fatal(updated, err)
 	}
 }

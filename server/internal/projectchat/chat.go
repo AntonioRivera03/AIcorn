@@ -179,7 +179,11 @@ func (s *Service) Send(ctx context.Context, project int, in Input) (Turn, error)
 	}
 	snapshot := &models.TaskWithProject{ProjectID: project}
 	snapshot.Name = p.Name
-	req, err := s.AI.PrepareSnapshot(ctx, snapshot, services.AIRunInput{Intent: "ask", Instruction: in.Message, UseRepository: p.RepoPath != ""})
+	chatter, err := s.AI.ResolveRole(ctx, "chatter")
+	if err != nil {
+		return Turn{}, err
+	}
+	req, err := s.AI.PrepareSnapshot(ctx, snapshot, services.AIRunInput{Intent: "ask", Agent: chatter, Instruction: in.Message, UseRepository: p.RepoPath != ""})
 	if err != nil {
 		return Turn{}, err
 	}

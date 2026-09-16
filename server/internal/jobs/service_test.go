@@ -39,6 +39,7 @@ func fixture(t *testing.T) *Service {
 		`INSERT INTO project_task_type(project,task_type) VALUES(1,1),(2,1)`,
 		`INSERT INTO persona(id,name,harness,model,system_prompt) VALUES(10,'Conductor','codex','gpt-6-astra','[]'),(11,'Job coder','codex','gpt-5.6-sol','[]')`,
 		`UPDATE ai_settings SET model='gpt-5.6-sol'`,
+		`UPDATE persona SET model='gpt-6-astra' WHERE builtin_role='conductor'`,
 	} {
 		if _, err = db.Exec(q); err != nil {
 			t.Fatal(err)

@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import type { Value } from "platejs";
-import type { PlateEditor } from "platejs/react";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -10,267 +8,173 @@ import {
   DrawerDescription,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { OpenAIModelInput } from "@/features/ai/openai-model-input";
+import { AIMarkdown } from "@/features/ai/ai-markdown";
 import { Label } from "@/components/ui/label";
-import { EditableHeader } from "@/components/EditableHeader";
-import { RichEditor } from "@/features/editor/rich-editor";
-import { DeletePersonaDialog } from "@/features/persona/delete-persona-dialog";
 import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonaQuery } from "@/features/persona/queries/use-persona-query";
-import type { Persona } from "@/types/types";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Skeleton } from "@/components/ui/skeleton";
 
-type PersonaEditorDrawerProps = {
+// Legacy rich-text prompts remain readable without mounting an editable editor.
+function textOf(node: unknown): string {
+  if (Array.isArray(node)) return node.map(textOf).join("\n");
+  if (node && typeof node === "object") {
+    if ("text" in node && typeof node.text === "string") return node.text;
+    if ("children" in node && Array.isArray(node.children))
+      return node.children.map(textOf).join("");
+  }
+  return "";
+}
+
+type Props = {
   personaId: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
-
-export function PersonaEditorDrawer(props: PersonaEditorDrawerProps) {
+export function PersonaEditorDrawer(props: Props) {
   return props.open && props.personaId !== null ? (
-    <PersonaEditorSession key={props.personaId} {...props} />
+    <AgentDetails
+      key={props.personaId}
+      {...props}
+      personaId={props.personaId}
+    />
   ) : null;
 }
 
-function PersonaEditorSession({
+function AgentDetails({
   personaId,
   open,
   onOpenChange,
-}: PersonaEditorDrawerProps) {
-  const isMobile = useIsMobile();
-  const { data: persona, isPending, error } = usePersonaQuery(personaId ?? 0);
-  const { updatePersona } = usePersonaMutations(personaId ?? undefined);
-
-  const [changes, setDraft] = useState<Persona | null>(null);
-  const draft = changes ?? persona ?? null;
-  const editorRef = useRef<PlateEditor | null>(null);
-  const [editorReady, setEditorReady] = useState(false);
-  const savedPromptRef = useRef<Value | null>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const hasAutoFocused = useRef(false);
-  const [modelDraft, setModelDraft] = useState<string | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open || !draft || hasAutoFocused.current || !titleRef.current) return;
-    // Autofocus title on first open for newly created persona (name is empty)
-    if (draft.Name === "") {
-      hasAutoFocused.current = true;
-      titleRef.current.focus();
+}: Props & { personaId: number }) {
+  const mobile = useIsMobile();
+  const {
+    data: persona,
+    isPending,
+    error,
+    refetch,
+  } = usePersonaQuery(personaId);
+  const { updatePersona } = usePersonaMutations(personaId);
+  const [model, setModel] = useState<string | null>(null);
+  const saveModel = () => {
+    if (!persona || updatePersona.isPending) return;
+    const Model = (model ?? persona.Model).trim();
+    if (Model === persona.Model) {
+      setModel(null);
+      return;
     }
-  }, [open, draft]);
-
-  if (personaId === null) return null;
-
-  const save = (next: Persona, successMessage?: string) => {
-    setDraft(next);
-    updatePersona.mutate(next, {
-      onSuccess: () => {
-        if (successMessage) toast.success(successMessage);
+    updatePersona.mutate(
+      { ...persona, Model },
+      {
+        onSuccess: () => setModel(null),
+        onError: (err: Error) =>
+          toast.error(
+            err.message ||
+              "Could not save model. Your value is still here to retry.",
+          ),
       },
-      onError: () => {
-        if (persona) setDraft(persona);
-        toast.error("Failed to update agent.");
-      },
-    });
+    );
   };
-
-  const saveName = (Name: string) => {
-    if (!draft || Name === draft.Name) return;
-    save({ ...draft, Name });
-  };
-
-  const commitPendingPrompt = () => {
-    const editor = editorRef.current;
-    if (!editor || !draft || personaId === 0) return;
-    const body = editor.children as Value;
-    if (JSON.stringify(body) !== JSON.stringify(savedPromptRef.current)) {
-      save({ ...draft, SystemPrompt: body }, "System prompt updated.");
-    }
-  };
-
-  const handlePromptChange = (value: Value) => {
-    if (!draft) return;
-    setDraft({ ...draft, SystemPrompt: value });
-    savedPromptRef.current = value;
-    // Debounced persist - mirrors task body 250ms behavior via RichEditor + our 250ms
-    // RichEditor already debounces, we just forward to API
-    if (draft.ID !== 0) {
-      // use draft.ID from closure but ensure we send latest SystemPrompt
-      // We delay via updatePersona directly; the RichEditor debounce already handled timing
-      // So immediate mutate is fine – the debounced value is what we receive here
-      updatePersona.mutate(
-        { ...draft, SystemPrompt: value },
-        {
-          onError: () => toast.error("Failed to update system prompt."),
-        },
-      );
-    }
-  };
-
-  const handleClose = (nextOpen: boolean) => {
-    if (!nextOpen) commitPendingPrompt();
-    onOpenChange(nextOpen);
-    if (!nextOpen) {
-      editorRef.current = null;
-      setEditorReady(false);
-    }
-  };
-
   return (
     <Drawer
-      direction={isMobile ? "bottom" : "right"}
+      direction={mobile ? "bottom" : "right"}
       open={open}
-      onOpenChange={handleClose}
-      repositionInputs={!isMobile}
-      handleOnly={!isMobile}
+      onOpenChange={onOpenChange}
+      repositionInputs={!mobile}
+      handleOnly={!mobile}
     >
-      <DrawerContent className="md:min-w-3xl p-0 overflow-x-visible box-border rounded-lg data-[vaul-drawer-direction=bottom]:h-[calc(100dvh-var(--header-height))] data-[vaul-drawer-direction=bottom]:max-h-dvh flex flex-col">
+      <DrawerContent className="md:min-w-3xl p-0 rounded-lg data-[vaul-drawer-direction=bottom]:h-[calc(100dvh-var(--header-height))] data-[vaul-drawer-direction=bottom]:max-h-dvh flex flex-col">
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <DrawerTitle>Custom agent</DrawerTitle>
+          <DrawerTitle>Agent details</DrawerTitle>
           <DrawerDescription className="sr-only">
-            Edit reusable instructions for task AI runs.
+            Change the model and read the agent’s fixed instructions and skills.
           </DrawerDescription>
-          <div className="flex items-center gap-1">
-            {draft && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Agent actions"
-                  >
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2 />
-                    Delete agent
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleClose(false)}
-            >
-              Close
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
         </div>
-
         <div
-          className="flex-1 min-h-0 overflow-y-auto"
+          className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6"
           data-vaul-no-drag
           onWheel={(e) => e.stopPropagation()}
         >
-          {isPending || !draft ? (
-            <div className="flex flex-col gap-4 p-6">
-              {error ? (
-                <div className="text-sm text-muted-foreground">
-                  Preset could not be loaded.
-                </div>
-              ) : (
-                <>
-                  <Skeleton className="h-8 w-3/4" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-32 w-full" />
-                </>
-              )}
+          {error ? (
+            <div role="alert" className="text-sm text-destructive">
+              Could not load agent.{" "}
+              <Button variant="outline" onClick={() => void refetch()}>
+                Retry
+              </Button>
             </div>
+          ) : isPending || !persona ? (
+            <p className="text-sm text-muted-foreground">Loading agent…</p>
           ) : (
-            <div className="flex flex-col gap-6 p-6">
-              <EditableHeader
-                ref={titleRef}
-                value={draft.Name}
-                setValue={saveName}
-                placeholder="Untitled agent"
-                className="min-w-0 flex-1"
-              />
-
+            <>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold">
+                  {persona.Name || "Untitled agent"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {persona.Description ||
+                    "Legacy agent with preserved instructions."}
+                </p>
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <LockKeyhole className="size-3.5" />
+                  {persona.BuiltinRole
+                    ? "Built-in role · instructions and skills are read-only"
+                    : "Saved role · instructions are read-only"}
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="agent-model">OpenAI model</Label>
-                <OpenAIModelInput id="agent-model" value={modelDraft ?? draft.Model} onChange={(event) => setModelDraft(event.target.value)} onBlur={() => {
-                  const Model = (modelDraft ?? draft.Model).trim();
-                  if (Model !== draft.Model) save({ ...draft, Model });
-                  setModelDraft(null);
-                }} />
-                <p className="text-xs text-muted-foreground">Runs with Codex. Select this agent as a Conductor or task agent in project settings. Model availability depends on your Codex account.</p>
+                <OpenAIModelInput
+                  id="agent-model"
+                  value={model ?? persona.Model}
+                  disabled={updatePersona.isPending}
+                  onChange={(e) => setModel(e.target.value)}
+                  onBlur={saveModel}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing)
+                      e.currentTarget.blur();
+                  }}
+                />
+                <p role="status" className="text-xs text-muted-foreground">
+                  {updatePersona.isPending
+                    ? "Saving model…"
+                    : updatePersona.isError
+                      ? "Model was not saved. Check the value and leave the field to retry."
+                      : "Changes save automatically and apply to new runs. Active work keeps its model snapshot."}
+                </p>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <Label>Instructions</Label>
-                {open ? (
-                  <RichEditor
-                    key={`${draft.ID}-${open}`}
-                    initialValue={draft.SystemPrompt}
-                    debounceDuration={250}
-                    onDebounceChange={handlePromptChange}
-                    onEditorReady={(editor) => {
-                      editorRef.current = editor;
-                      savedPromptRef.current = editor.children as Value;
-                      setEditorReady(true);
-                    }}
-                    className="min-h-72"
-                  />
-                ) : (
-                  <Skeleton className="h-32 w-full" />
-                )}
-                {!editorReady && open && (
-                  <p className="text-xs text-muted-foreground">
-                    Loading editor…
+              <section aria-label="Read-only agent instructions">
+                <h3 className="font-medium">Instructions</h3>
+                {persona.InstructionPath && (
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                    {persona.InstructionPath}
                   </p>
                 )}
-              </div>
-            </div>
+                <AIMarkdown>
+                  {persona.Instructions ||
+                    textOf(persona.SystemPrompt) ||
+                    "No saved instructions."}
+                </AIMarkdown>
+              </section>
+              {persona.Skills?.map((skill) => (
+                <details
+                  key={skill.Name}
+                  className="rounded-lg border border-border p-4"
+                >
+                  <summary className="cursor-pointer font-medium">
+                    {skill.Name} · read-only skill
+                  </summary>
+                  <p className="mt-3 break-all font-mono text-xs text-muted-foreground">
+                    {skill.Path}
+                  </p>
+                  <AIMarkdown>{skill.Content}</AIMarkdown>
+                </details>
+              ))}
+            </>
           )}
         </div>
-        {draft && (
-          <DeletePersonaDialog
-            persona={draft}
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-            onDeleted={() => {
-              setDeleteOpen(false);
-              onOpenChange(false);
-            }}
-          />
-        )}
       </DrawerContent>
     </Drawer>
-  );
-}
-
-export function NewPersonaDrawer({
-  onCreated,
-  children,
-}: {
-  onCreated: (persona: Persona) => void;
-  children: React.ReactNode;
-}) {
-  const { createPersona } = usePersonaMutations();
-
-  const handleCreate = () => {
-    createPersona.mutate(undefined, {
-      onSuccess: (persona) => onCreated(persona),
-      onError: () => toast.error("Failed to create persona."),
-    });
-  };
-
-  return (
-    <span className="contents" onClick={handleCreate}>
-      {children}
-    </span>
   );
 }

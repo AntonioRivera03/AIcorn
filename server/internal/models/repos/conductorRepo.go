@@ -53,6 +53,10 @@ func (r *ConductorRepo) ClaimNext() (*models.AgentJob, error) {
 	return &job, err
 }
 
+func (r *ConductorRepo) fixedAgents(s *models.ConductorSettings) error {
+	return r.DB.QueryRow(`SELECT (SELECT id FROM persona WHERE builtin_role='conductor'), (SELECT id FROM persona WHERE builtin_role='coder')`).Scan(&s.ConductorAgentID, &s.TaskAgentID)
+}
+
 func (r *ConductorRepo) Settings(project int) (models.ConductorSettings, string, error) {
 	s := models.DefaultConductorSettings()
 	var raw string
@@ -60,22 +64,27 @@ func (r *ConductorRepo) Settings(project int) (models.ConductorSettings, string,
 	err := r.DB.QueryRow(`SELECT cp.settings, cp.enabled FROM conductor_project cp WHERE cp.project=?`, project).Scan(&raw, &enabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		var exists int
-		err = r.DB.QueryRow(`SELECT id FROM project WHERE id=?`, project).Scan(&exists)
+		if err = r.DB.QueryRow(`SELECT id FROM project WHERE id=?`, project).Scan(&exists); err != nil {
+			return s, "", err
+		}
+	} else if err != nil {
 		return s, "", err
+	} else {
+		if err = json.Unmarshal([]byte(raw), &s); err != nil {
+			return s, "", err
+		}
+		s.Enabled = enabled
 	}
-	if err != nil {
-		return s, "", err
-	}
-	if err = json.Unmarshal([]byte(raw), &s); err != nil {
-		return s, "", err
-	}
-	s.Enabled = enabled
-	return s, raw, nil
+	err = r.fixedAgents(&s)
+	return s, raw, err
 }
 
 // SaveSettings compares the previous document so concurrent settings edits cannot
 // silently overwrite one another. The enabled column also gates queue claims.
 func (r *ConductorRepo) SaveSettings(project int, s models.ConductorSettings, previous string) error {
+	if err := r.fixedAgents(&s); err != nil {
+		return err
+	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return err

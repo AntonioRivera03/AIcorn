@@ -23,7 +23,7 @@ func TestTemplatesAndJobsHTTP(t *testing.T) {
 		}
 		return r
 	}
-	call("PUT", "/api/project/1/settings/conductor", `{"planningStage":2,"workingStage":3,"completionStage":4,"useRepository":false,"conductorAgentId":1}`, 200)
+	call("PUT", "/api/project/1/settings/conductor", `{"planningStage":2,"workingStage":3,"completionStage":4,"useRepository":false}`, 200)
 	base := "/api/project/1/automation/templates"
 	r := call("POST", base, "", 201)
 	var tpl jobs.Template

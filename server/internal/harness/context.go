@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 )
 
 // BuildContext is provider independent: the trusted workflow contract lives in
@@ -11,8 +13,8 @@ import (
 func BuildContext(spec RunSpec) (developer, user string) {
 	r := spec.Request
 	if r.ProjectChat != nil {
-		contract, _ := fleet.ReadFile("fleet/chatter-instructions.md")
-		developer = string(contract)
+		d, _ := fleet.Lookup("chatter")
+		developer = d.Instructions()
 		payload, _ := json.Marshal(map[string]any{"projectId": r.ProjectID, "projectContext": r.ProjectChat.Context, "referencedTaskIds": r.ProjectChat.TaskIDs, "message": r.Instruction})
 		return developer, string(payload)
 	}
@@ -24,10 +26,12 @@ func BuildContext(spec RunSpec) (developer, user string) {
 	if r.Intent != "implement" {
 		developer += " This run is read-only: analyze and explain without editing repository files."
 	}
-	if r.SystemPrompt != "" {
+	if r.SystemPrompt != "" && r.Conductor == nil {
 		developer += "\n\nSelected agent instructions:\n" + r.SystemPrompt
 	}
 	if c := r.Conductor; c != nil {
+		d, _ := fleet.Lookup("conductor")
+		developer += "\n\n" + d.Instructions()
 		developer += fmt.Sprintf("\n\nYou are Conductor, the root orchestrator for task %d in project %d. The workflow stages are configured IDs, never infer them from names: planning=%d, doing=%d, review=%d. Use planner and researcher for bounded investigation, coder for implementation, and reviewer for independent verification. Delegate concrete subtasks, wait for their results, resolve findings and produce the final decision yourself. Pass task ID and relevant context to every subagent. Only you manage the ticket; subagents use read-only Aycorn MCP tools. Aycorn's durable Conductor controller applies your structured decision atomically, moves the ticket to doing when work starts and to review only after a verified completed handoff. Never mark a blocked task complete or move it to done.", spec.TaskID, r.ProjectID, c.Settings.PlanningStage, c.Settings.WorkingStage, c.Settings.CompletionStage)
 		if c.Phase == "planning" {
 			developer += "\nAssess readiness, dependencies, acceptance criteria and missing information; do not implement. Delegate investigation to planner/researcher when useful. Return only {\"ready\":boolean,\"context\":\"planning notes\",\"missingContext\":\"specific questions, or empty\"}."
@@ -36,8 +40,7 @@ func BuildContext(spec RunSpec) (developer, user string) {
 		}
 		developer += "\n\nPlanning instructions:\n" + c.Settings.PlanningPrompt + "\n\nWorking instructions:\n" + c.Settings.WorkingPrompt + "\n\nReview handoff instructions:\n" + c.Settings.CompletionPrompt
 	}
-	workflow, _ := fleet.ReadFile("fleet/skills/aycorn-workflow/SKILL.md")
-	developer += "\n\nAycorn workflow skill:\n" + string(workflow)
+	developer += "\n\nAycorn workflow skill:\n" + fleet.Workflow()
 	// JSON quoting keeps delimiters inside ticket content from impersonating the
 	// middleware's labels. It is still user content, never developer instructions.
 	context, _ := json.Marshal(map[string]any{"taskId": spec.TaskID, "projectId": r.ProjectID, "title": r.TaskName, "description": r.TaskBody})

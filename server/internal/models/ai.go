@@ -31,24 +31,25 @@ type ProjectChatTurn struct {
 }
 
 type AIRunRequest struct {
-	ProjectChat    *ProjectChatTurn `json:"projectChat,omitempty"`
-	Chat           *ChatTurn        `json:"chat,omitempty"`
-	Engine         string           `json:"engine"`
-	AgentID        int              `json:"agentId,omitempty"`
-	Conductor      *ConductorRun    `json:"conductor,omitempty"`
-	Key            string           `json:"key"`
-	Intent         string           `json:"intent"`
-	Instruction    string           `json:"instruction"`
-	TaskName       string           `json:"taskName"`
-	TaskBody       string           `json:"taskBody"`
-	PresetName     string           `json:"presetName,omitempty"`
-	SystemPrompt   string           `json:"systemPrompt,omitempty"`
-	Model          string           `json:"model"`
-	Executable     string           `json:"executable"`
-	EngineVersion  string           `json:"engineVersion"`
-	RepoPath       string           `json:"repoPath,omitempty"`
-	ProjectID      int              `json:"projectId"`
-	TimeoutSeconds int              `json:"timeoutSeconds"`
+	AgentModels    map[string]string `json:"agentModels,omitempty"`
+	ProjectChat    *ProjectChatTurn  `json:"projectChat,omitempty"`
+	Chat           *ChatTurn         `json:"chat,omitempty"`
+	Engine         string            `json:"engine"`
+	AgentID        int               `json:"agentId,omitempty"`
+	Conductor      *ConductorRun     `json:"conductor,omitempty"`
+	Key            string            `json:"key"`
+	Intent         string            `json:"intent"`
+	Instruction    string            `json:"instruction"`
+	TaskName       string            `json:"taskName"`
+	TaskBody       string            `json:"taskBody"`
+	PresetName     string            `json:"presetName,omitempty"`
+	SystemPrompt   string            `json:"systemPrompt,omitempty"`
+	Model          string            `json:"model"`
+	Executable     string            `json:"executable"`
+	EngineVersion  string            `json:"engineVersion"`
+	RepoPath       string            `json:"repoPath,omitempty"`
+	ProjectID      int               `json:"projectId"`
+	TimeoutSeconds int               `json:"timeoutSeconds"`
 }
 
 type AISettings struct {

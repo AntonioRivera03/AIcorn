@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -31,19 +32,10 @@ func (app *app) getPersona(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, persona)
 }
 
-func (app *app) postPersona(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	persona := models.Persona{}
-	if err := json.NewDecoder(r.Body).Decode(&persona); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	created, err := app.personaService.Create(&persona)
-	if err != nil {
-		respondErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, created)
+func (app *app) postPersona(w http.ResponseWriter, _ *http.Request) { fixedAgentResponse(w) }
+
+func fixedAgentResponse(w http.ResponseWriter) {
+	http.Error(w, "Agent definitions are managed by Aycorn. Only the model can be changed.", http.StatusForbidden)
 }
 
 func (app *app) putPersona(w http.ResponseWriter, r *http.Request) {
@@ -53,13 +45,18 @@ func (app *app) putPersona(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	persona := models.Persona{}
-	if err := json.NewDecoder(r.Body).Decode(&persona); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	var in struct{ Model models.PersonaModel }
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&in); err != nil {
+		http.Error(w, "Only Model can be updated.", http.StatusBadRequest)
 		return
 	}
-	persona.ID = id
-	updated, err := app.personaService.Update(&persona)
+	if decoder.Decode(new(any)) != io.EOF {
+		http.Error(w, "Expected one model update.", http.StatusBadRequest)
+		return
+	}
+	updated, err := app.personaService.UpdateModel(id, in.Model)
 	if err != nil {
 		respondErr(w, err)
 		return
@@ -67,61 +64,7 @@ func (app *app) putPersona(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
-func (app *app) deletePersona(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.PathValue("personaId"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	deleted, err := app.personaService.Delete(id)
-	if err != nil {
-		respondErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, deleted)
-}
-
-func (app *app) bulkCreatePersonas(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	personas := []models.Persona{}
-	if err := json.NewDecoder(r.Body).Decode(&personas); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result, err := app.personaService.BulkCreate(personas)
-	if err != nil {
-		respondErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (app *app) bulkUpdatePersonas(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	personas := []models.Persona{}
-	if err := json.NewDecoder(r.Body).Decode(&personas); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result, err := app.personaService.BulkUpdate(personas)
-	if err != nil {
-		respondErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (app *app) bulkDeletePersonas(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	ids := []int{}
-	if err := json.NewDecoder(r.Body).Decode(&ids); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result, err := app.personaService.BulkDelete(ids)
-	if err != nil {
-		respondErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
+func (app *app) deletePersona(w http.ResponseWriter, _ *http.Request)      { fixedAgentResponse(w) }
+func (app *app) bulkCreatePersonas(w http.ResponseWriter, _ *http.Request) { fixedAgentResponse(w) }
+func (app *app) bulkUpdatePersonas(w http.ResponseWriter, _ *http.Request) { fixedAgentResponse(w) }
+func (app *app) bulkDeletePersonas(w http.ResponseWriter, _ *http.Request) { fixedAgentResponse(w) }

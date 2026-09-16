@@ -81,6 +81,11 @@ export type PersonaSummary = {
 };
 
 export type Persona = PersonaSummary & {
+  BuiltinRole?: string;
+  Description?: string;
+  Instructions?: string;
+  InstructionPath?: string;
+  Skills?: { Name: string; Path: string; Content: string }[];
   SystemPrompt: import("platejs").Value;
   AllowedTools: string[];
   TimeCreated: string;
