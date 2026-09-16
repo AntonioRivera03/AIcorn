@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Image,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +52,38 @@ export function DocumentsView({ projectId }: { projectId: number }) {
   const [search, setSearch] = useState("");
   const [editorVersion, setEditorVersion] = useState(0);
   const editor = useRef<DocumentDraft | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      if (file.size > 20 * 1024 * 1024)
+        throw new Error("Files must be 20 MiB or smaller.");
+      if (editor.current && !(await editor.current.flush()))
+        throw new Error("Resolve the unsaved note before uploading.");
+      const body = new FormData();
+      body.append("file", file);
+      return request<ProjectDocument>(`${base}/upload`, {
+        method: "POST",
+        body,
+      });
+    },
+    onSuccess: (doc) => {
+      client.setQueryData<ProjectDocument[]>(queryKey, (items) => [
+        doc,
+        ...(items ?? []),
+      ]);
+      setSearch("");
+      setSelected(doc.id);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const addFiles = (files: File[]) => {
+    if (upload.isPending) return;
+    if (files.length !== 1) {
+      toast.error("Upload one file at a time.");
+      return;
+    }
+    upload.mutate(files[0]);
+  };
   const create = useMutation({
     mutationFn: () => request<ProjectDocument>(base, { method: "POST" }),
     onSuccess: (doc) => {
@@ -72,22 +112,70 @@ export function DocumentsView({ projectId }: { projectId: number }) {
     <section
       className="flex min-h-96 flex-1 flex-col overflow-hidden rounded-lg border md:flex-row"
       aria-label="Project documents"
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.files.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          addFiles(Array.from(event.dataTransfer.files));
+        }
+      }}
+      onPasteCapture={(event) => {
+        const files = Array.from(event.clipboardData.files);
+        if (files.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          addFiles(files);
+        }
+      }}
     >
       <aside className="flex max-h-64 flex-col gap-3 border-b p-3 md:max-h-none md:w-64 md:shrink-0 md:border-r md:border-b-0">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Documents</h2>
           <Button
             size="sm"
             variant="outline"
-            disabled={create.isPending}
+            disabled={create.isPending || upload.isPending}
             onClick={async () => {
               if (editor.current && !(await editor.current.flush())) return;
               create.mutate();
             }}
           >
-            <Plus /> New document
+            <Plus /> New note
           </Button>
         </div>
+        <input
+          ref={fileInput}
+          type="file"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Upload project file"
+          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.md"
+          onChange={(event) => {
+            if (event.target.files?.length)
+              addFiles(Array.from(event.target.files));
+            event.target.value = "";
+          }}
+        />
+        <Button
+          variant="outline"
+          disabled={upload.isPending || create.isPending}
+          onClick={() => fileInput.current?.click()}
+        >
+          <Upload className="size-4" />
+          {upload.isPending ? "Uploading…" : "Upload file"}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Drop a file or paste a screenshot here. PDF, Word, images, or text ·
+          up to 20 MiB.
+        </p>
+        {upload.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {upload.error.message}
+          </p>
+        )}
         <div className="relative">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
           <Input
@@ -124,7 +212,11 @@ export function DocumentsView({ projectId }: { projectId: number }) {
               )}
               onClick={() => void select(doc.id)}
             >
-              <FileText className="size-4 shrink-0 text-muted-foreground" />
+              {doc.file?.mediaType.startsWith("image/") ? (
+                <Image className="size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+              )}
               <span className="truncate">
                 {doc.title || "Untitled document"}
               </span>
@@ -136,7 +228,7 @@ export function DocumentsView({ projectId }: { projectId: number }) {
               <p className="p-2 text-sm text-muted-foreground">
                 {search
                   ? "No matching documents."
-                  : "Keep notes, decisions, and project knowledge here."}
+                  : "Keep requests, notes, screenshots, and project files here."}
               </p>
             )}
         </nav>
@@ -157,7 +249,11 @@ export function DocumentsView({ projectId }: { projectId: number }) {
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center text-muted-foreground">
           <FileText className="size-8" />
-          <p>Select a document or create one to start writing.</p>
+          <p>Select an item, upload a file, or create a note.</p>
+          <p className="text-sm">
+            Capture a quick request like “Fabiana wants us to do this” and add
+            the details.
+          </p>
         </div>
       )}
     </section>
@@ -318,6 +414,10 @@ function DocumentEditor({
           "All changes saved"
         )}
       </div>
+      {state.value.file && <DocumentFilePreview document={state.value} />}
+      {state.value.file && (
+        <p className="mt-5 mb-2 text-sm font-medium">Context and notes</p>
+      )}
       <RichEditor
         initialValue={state.value.body}
         onValueChange={(body) => draft.edit({ body })}
@@ -366,5 +466,65 @@ function DocumentEditor({
         </AlertDialogContent>
       </AlertDialog>
     </article>
+  );
+}
+
+function DocumentFilePreview({ document }: { document: ProjectDocument }) {
+  const file = document.file!;
+  const url = `/api/documents/project/${document.projectId}/${document.id}/file`;
+  return (
+    <section
+      className="mt-6 space-y-3 border-t pt-4"
+      aria-label="Original file"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 break-all text-sm text-muted-foreground">
+          {file.name} ·{" "}
+          {file.size < 1024 * 1024
+            ? `${Math.ceil(file.size / 1024)} KB`
+            : `${(file.size / (1024 * 1024)).toFixed(1)} MiB`}
+        </p>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`${url}?download=1`} download={file.name}>
+            <Download className="size-4" />
+            Download original
+          </a>
+        </Button>
+      </div>
+      {file.mediaType.startsWith("image/") ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open full-size image"
+        >
+          <img
+            src={url}
+            alt={document.title || file.name}
+            className="max-h-[65vh] max-w-full rounded-md border object-contain"
+          />
+        </a>
+      ) : file.mediaType === "application/pdf" ? (
+        <>
+          <a
+            className="text-sm underline"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open PDF in a new tab
+          </a>
+          <iframe
+            src={url}
+            title={`Preview of ${file.name}`}
+            className="h-[65vh] w-full rounded-md border"
+          />
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          The original file is preserved. Add project context in the note below.
+        </p>
+      )}
+    </section>
   );
 }

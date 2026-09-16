@@ -25,6 +25,7 @@ type Document struct {
 	Revision  int             `json:"revision"`
 	CreatedAt string          `json:"createdAt"`
 	UpdatedAt string          `json:"updatedAt"`
+	File      *DocumentFile   `json:"file,omitempty"`
 }
 
 type DocumentPatch struct {
@@ -33,17 +34,27 @@ type DocumentPatch struct {
 	Revision int             `json:"revision"`
 }
 
-const documentColumns = "id,project,title,body,revision,timeCreated,timeModified"
+const documentColumns = `id,project,title,body,revision,timeCreated,timeModified,
+COALESCE((SELECT fileName FROM project_document_file WHERE documentId=project_document.id),''),
+COALESCE((SELECT mediaType FROM project_document_file WHERE documentId=project_document.id),''),
+COALESCE((SELECT byteSize FROM project_document_file WHERE documentId=project_document.id),0)`
 
 func scanDocument(row interface{ Scan(...any) error }) (Document, error) {
 	var d Document
 	var body string
-	err := row.Scan(&d.ID, &d.ProjectID, &d.Title, &body, &d.Revision, &d.CreatedAt, &d.UpdatedAt)
+	var file DocumentFile
+	err := row.Scan(&d.ID, &d.ProjectID, &d.Title, &body, &d.Revision, &d.CreatedAt, &d.UpdatedAt, &file.Name, &file.MediaType, &file.Size)
+	if file.Size > 0 {
+		d.File = &file
+	}
 	d.Body = json.RawMessage(body)
 	return d, err
 }
 
 func (s *Store) Documents(project int) ([]Document, error) {
+	if s.ProjectScope > 0 && s.ProjectScope != project {
+		return nil, sql.ErrNoRows
+	}
 	var exists int
 	if err := s.DB.QueryRow("SELECT id FROM project WHERE id=?", project).Scan(&exists); err != nil {
 		return nil, err
@@ -65,14 +76,23 @@ func (s *Store) Documents(project int) ([]Document, error) {
 }
 
 func (s *Store) Document(project, id int) (Document, error) {
+	if s.ProjectScope > 0 && s.ProjectScope != project {
+		return Document{}, sql.ErrNoRows
+	}
 	return scanDocument(s.DB.QueryRow("SELECT "+documentColumns+" FROM project_document WHERE project=? AND id=?", project, id))
 }
 
 func (s *Store) CreateDocument(project int) (Document, error) {
+	if s.ProjectScope > 0 && s.ProjectScope != project {
+		return Document{}, sql.ErrNoRows
+	}
 	return scanDocument(s.DB.QueryRow("INSERT INTO project_document(project) SELECT id FROM project WHERE id=? RETURNING "+documentColumns, project))
 }
 
 func (s *Store) UpdateDocument(project, id int, patch DocumentPatch) (Document, error) {
+	if s.ProjectScope > 0 && s.ProjectScope != project {
+		return Document{}, sql.ErrNoRows
+	}
 	if patch.Revision <= 0 || (patch.Title == nil && patch.Body == nil) {
 		return Document{}, fmt.Errorf("%w: supply changed fields and a revision", ErrInvalid)
 	}
@@ -134,6 +154,9 @@ func validBody(raw []byte) bool {
 }
 
 func (s *Store) DeleteDocument(project, id, revision int) error {
+	if s.ProjectScope > 0 && s.ProjectScope != project {
+		return sql.ErrNoRows
+	}
 	res, err := s.DB.Exec("DELETE FROM project_document WHERE project=? AND id=? AND revision=?", project, id, revision)
 	if err != nil {
 		return err

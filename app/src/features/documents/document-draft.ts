@@ -8,6 +8,7 @@ export type ProjectDocument = {
   revision: number;
   createdAt: string;
   updatedAt: string;
+  file?: { name: string; mediaType: string; size: number };
 };
 
 export type DocumentState = {
