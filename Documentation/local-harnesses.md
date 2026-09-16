@@ -6,7 +6,7 @@ The implementation uses the same separation as [T3 Code](https://github.com/ping
 
 ## Codex sessions
 
-Each Aycorn run creates a persistent, named Codex conversation. The run records its native conversation and turn IDs before execution proceeds. Run cards offer a `codex resume <id>` command; conversations with messages appear in Codex's normal local conversation listing. Retry creates a new run and conversation, preserving the previous attempt. After an interruption, Aycorn never silently replays a possibly executed turn.
+Each ordinary Aycorn run creates a persistent, named Codex conversation. [Ticket chats](ticket-chats.md) resume their conversation for follow-up messages. The run records its native conversation and turn IDs before execution proceeds. Run cards offer a `codex resume <id>` command; conversations with messages appear in Codex's normal local conversation listing. Retrying an ordinary run creates a new conversation, preserving the previous attempt. After an interruption, Aycorn never silently replays a possibly executed turn.
 
 The adapter initializes the JSON-RPC connection, creates the thread, injects developer context separately from ticket data, starts a turn and consumes notifications. Only completion of the root turn completes the run. Child-agent notifications cannot overwrite the parent's final handoff. Partial responses survive failure, cancellation and timeout. Cancellation terminates the app-server process group and its children. Interactive requests stop the unattended run with a message to continue in Codex; they are never automatically approved.
 
@@ -14,17 +14,17 @@ Ask, Plan and Review use a read-only sandbox. Implement uses a separate writable
 
 ## Context and fleet
 
-`BuildContext` keeps workflow instructions in the developer prompt and ticket title/body/request in the user prompt. The immutable Conductor snapshot supplies project/task IDs, configured planning/working/review stage IDs, selected agent instructions and stage-specific prompts. Names such as “Doing” or “Review” are never used to guess stage IDs.
+`BuildContext` keeps workflow instructions in the developer prompt and ticket title/body/request in the user prompt. The immutable Conductor snapshot supplies project/task IDs, configured planning/working/review stage IDs, fixed agent instructions, frozen per-role models and stage-specific prompts. Names such as “Doing” or “Review” are never used to guess stage IDs.
 
 The server embeds `server/internal/harness/fleet/` and installs a content-addressed copy beside the database in `harness-fleet/`. These persistent files support native session resume and work for projects outside the Aycorn repository. Existing project files and the user's global Codex configuration are not rewritten. The repository's `.codex/config.toml` also registers the fleet for working on Aycorn itself.
 
 - **Conductor** owns ticket handling, delegates work, waits for results and produces the final decision.
 - **Planner** checks readiness and proposes a bounded plan.
 - **Researcher** resolves technical questions from repository evidence and primary sources.
-- **Coder** implements the accepted scope using the selected task agent's frozen model and instructions.
+- **Coder** implements the accepted scope using its frozen model and bundled instructions.
 - **Reviewer** independently checks the actual changes against acceptance criteria and test evidence.
 
-The selected Conductor stays the parent through planning and implementation. Up to four subagents can run concurrently. The workflow skill is bundled and injected for every run, and is discoverable in `.agents/skills/aycorn-workflow` for interactive repository work.
+The built-in Conductor stays the parent through planning and implementation. Up to four subagents can run concurrently. The workflow skill is bundled and injected for every run, and is discoverable in `.agents/skills/aycorn-workflow` for interactive repository work.
 
 The durable Conductor controller applies the root agent's structured decisions: planning at intake, working when execution starts, review only after a successful completed handoff. Blocked, failed, canceled and interrupted runs do not enter review; done still requires the human. Keeping stage writes in the controller makes them transactional and restart-safe. Subagents receive read-only Aycorn tools and cannot move tickets through the managed MCP surface. Manual AI runs do not alter ticket ownership or stages.
 
@@ -38,4 +38,4 @@ Run `go test -race ./internal/harness ./internal/worker ./cmd/mcp ./cmd/web ./in
 
 The opt-in `TestInstalledCodexProtocol` creates and reads an empty persistent session in a temporary `CODEX_HOME` without a model call. Set `AYCORN_CODEX_INTEGRATION` to the CLI path and `AYCORN_MCP_INTEGRATION` to the built Aycorn MCP binary.
 
-`TestInstalledCodexTurn` additionally requires `AYCORN_CODEX_LIVE=1`. It uses the current local login for one small real turn, a disposable ticket database and work directory, verifies the completed conversation is listed, then archives only its own test conversation.
+`TestInstalledCodexTurn` additionally requires `AYCORN_CODEX_LIVE=1`. It uses the current local login for two small real turns, a disposable ticket database and work directory, verifies subagent delegation, conversation resume and native listing, then archives only its own test conversation.

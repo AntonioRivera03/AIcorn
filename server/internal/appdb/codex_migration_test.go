@@ -62,8 +62,12 @@ func TestCodexMigrationPreservesAgentsAndRequiresExplicitRestart(t *testing.T) {
 	if err = db.QueryRow(`SELECT output,requestJson FROM agent_run JOIN agent_job ON agent_job.id=agent_run.job WHERE agent_run.id=9`).Scan(&output, &request); err != nil || output != "Historical answer" || request != `{"model":"old/model"}` {
 		t.Fatal(output, request, err)
 	}
+	var expectedAgent int
+	if err = db.QueryRow("SELECT id FROM persona WHERE builtin_role='conductor'").Scan(&expectedAgent); err != nil {
+		t.Fatal(err)
+	}
 	var enabled, agent int
-	if err = db.QueryRow(`SELECT enabled,json_extract(settings,'$.conductorAgentId'),json_extract(settings,'$.planningPrompt') FROM conductor_project`).Scan(&enabled, &agent, &prompt); err != nil || enabled != 0 || agent != 0 || prompt != "my plan" {
+	if err = db.QueryRow(`SELECT enabled,json_extract(settings,'$.conductorAgentId'),json_extract(settings,'$.planningPrompt') FROM conductor_project`).Scan(&enabled, &agent, &prompt); err != nil || enabled != 0 || agent != expectedAgent || prompt != "my plan" {
 		t.Fatal(enabled, agent, prompt, err)
 	}
 	if err = db.QueryRow(`SELECT state FROM conductor_task`).Scan(&state); err != nil || state != "held" {

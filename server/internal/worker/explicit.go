@@ -60,6 +60,11 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 		if err := repo.FinishAI(job.ID, status, message, result.Output, result.UsageJson, result.ExitCode, artifacts); err != nil {
 			return true, err
 		}
+		if w.Conductor != nil && job.Request != nil && job.Request.Conductor != nil {
+			if err := w.Conductor.Tick(parent); err != nil {
+				return true, err
+			}
+		}
 		return true, nil
 	}
 	if job.Request == nil {
@@ -99,14 +104,35 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 	defer func() { close(stopWatch); <-watchDone }()
 	spec := harness.RunSpec{JobID: job.ID, TaskID: job.Task, Request: job.Request}
 	var wt *worktree.Worktree
+	var turnBase string
+	if chat := job.Request.Chat; chat != nil {
+		artifacts.Provider = job.Request.Engine
+		artifacts.SessionID = chat.SessionID
+	}
 	if job.Request.RepoPath != "" {
-		wt, artifacts.BaseCommit, err = worktree.CreateRun(ctx, job.Request.RepoPath, job.Request.Key)
+		if chat := job.Request.Chat; chat != nil && chat.Workspace != "" {
+			wt, err = worktree.ResumeRun(ctx, job.Request.RepoPath, chat.Workspace, chat.Branch)
+			artifacts.BaseCommit = chat.BaseCommit
+		} else {
+			wt, artifacts.BaseCommit, err = worktree.CreateRun(ctx, job.Request.RepoPath, job.Request.Key)
+		}
 		if err != nil {
 			return finish(fmt.Errorf("create workspace: %w", err))
 		}
 		artifacts.Workspace = wt.Path
 		artifacts.Branch = wt.Branch
+		release, reserveErr := worktree.ReserveRun(wt.RepoRoot, wt.Branch)
+		if reserveErr != nil {
+			return finish(reserveErr)
+		}
+		defer release()
 		spec.WorkDir = wt.Path
+		if job.Request.Chat != nil {
+			turnBase, err = wt.SnapshotTree(ctx)
+			if err != nil {
+				return finish(fmt.Errorf("snapshot chat turn: %w", err))
+			}
+		}
 	} else {
 		spec.WorkDir, err = os.MkdirTemp("", "aycorn-ask-")
 		if err != nil {
@@ -146,6 +172,11 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 	if wt != nil {
 		captureCtx, stop := context.WithTimeout(context.Background(), 20*time.Second)
 		diff, files, captureErr := wt.Capture(captureCtx, artifacts.BaseCommit)
+		if turnBase != "" {
+			var turnErr error
+			artifacts.TurnDiff, artifacts.TurnFiles, turnErr = wt.Capture(captureCtx, turnBase)
+			captureErr = errors.Join(captureErr, turnErr)
+		}
 		stop()
 		artifacts.Diff = diff
 		artifacts.Files = files

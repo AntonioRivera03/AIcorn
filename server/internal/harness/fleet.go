@@ -2,43 +2,48 @@ package harness
 
 import (
 	"crypto/sha256"
-	"embed"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
+	"github.com/waseem-polus/aycorn/server/internal/models"
 )
-
-//go:embed fleet
-var fleet embed.FS
-
-var fleetRoles = []string{"conductor", "planner", "researcher", "coder", "reviewer"}
 
 // Agent files are bundled with the server, so a task in any repository receives
 // the same fleet. Versioned paths survive restarts and native Codex resume.
 func (h *Codex) installFleet(spec RunSpec) (string, error) {
 	files := map[string][]byte{}
-	err := fs.WalkDir(fleet, "fleet", func(path string, entry fs.DirEntry, err error) error {
+	err := fs.WalkDir(fleet.Files, ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
 			return nil
 		}
-		data, err := fleet.ReadFile(path)
+		data, err := fleet.Files.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		files[path[len("fleet/"):]] = data
+		files[path] = data
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
-	if c := spec.Request.Conductor; c != nil && c.TaskAgent != nil {
-		instructions := "You are Conductor's coder. Use Aycorn MCP for ticket context, implement the assigned scope and report actual validation. Do not move tickets or change ownership.\n\nSelected task agent instructions:\n" + c.TaskAgent.Instructions
-		files["coder.toml"] = []byte("name = \"coder\"\ndescription = \"Implement the assigned ticket scope\"\nmodel = " + tomlString(c.TaskAgent.Model) + "\ndeveloper_instructions = " + tomlString(instructions) + "\n")
+	for _, d := range fleet.All() {
+		model := spec.Request.AgentModels[d.Role]
+		// Preserve the model of an already queued Conductor cycle or Job while
+		// always using the fixed Coder instructions.
+		if c := spec.Request.Conductor; c != nil && d.Role == "coder" && c.TaskAgent != nil {
+			model = c.TaskAgent.Model
+		}
+		if model != "" && !models.IsOpenAIModel(model) {
+			return "", fmt.Errorf("invalid model for %s", d.Name)
+		}
+		files[d.Role+".toml"] = d.Config(model, fleet.WorkflowPath)
 	}
 	keys := make([]string, 0, len(files))
 	for key := range files {

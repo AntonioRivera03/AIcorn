@@ -1,0 +1,13 @@
+case,category,variant,trial,passed,latency_ms,input_tokens,cached_input_tokens,output_tokens,total_tokens,cost_usd,grade,error
+slug,coding,baseline,1,true,36090,171904,160768,1087,172991,,all postconditions passed,
+priorities,coding,baseline,1,true,37275,146561,130176,1176,147737,,all postconditions passed,
+mentions,coding,baseline,1,true,35741,150068,111616,1296,151364,,all postconditions passed,
+revision-patch,coding,baseline,1,true,38894,149654,139008,1265,150919,,all postconditions passed,
+workflow,coding,baseline,1,true,35962,149141,129664,1332,150473,,all postconditions passed,
+retry-delay,coding,baseline,1,false,120023,107577,97664,1026,108603,,postconditions passed but agent run failed,context deadline exceeded
+dependency-order,coding,baseline,1,true,63389,199238,170496,2155,201393,,all postconditions passed,
+calendar-span,coding,baseline,1,false,120035,152283,141568,1214,153497,,postconditions passed but agent run failed,context deadline exceeded
+read-context,task-manager,baseline,1,true,10297,60213,39296,173,60386,,all postconditions passed,
+attach-pr,task-manager,baseline,1,true,13337,82330,73344,247,82577,,all postconditions passed,
+attach-branch,task-manager,baseline,1,true,13362,82400,73344,300,82700,,all postconditions passed,
+deduplicate-link,task-manager,baseline,1,true,23730,125051,115328,488,125539,,all postconditions passed,

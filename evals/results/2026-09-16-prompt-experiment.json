@@ -1,0 +1,902 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": 2,
+  "suiteSha256": "7fe0612558b0d912bffa3151f739b7de1d522a8bac5d4c695c3a3628eb4ad523",
+  "sourceCommit": "7164cd0c100e9e30bce32f881b926ba1718a0fe0",
+  "sourceDiffSha256": "3ea83bd84f61d4f7cb8b5dc0fddc02e999545b557748d6f90e6c0476fd9c31f1",
+  "model": "gpt-5.6-sol",
+  "engineVersion": "codex-cli 0.153.4",
+  "startedAt": "2026-09-16T07:47:37Z",
+  "completedAt": "2026-09-16T08:02:06Z",
+  "planned": 24,
+  "prompts": {
+    "baseline": "Complete the assigned task. Use the provided workspace and Aycorn tools. Do not delegate. Keep the final response concise.",
+    "verify-first": "Complete the assigned task. Do not delegate. Before acting, read the current ticket through Aycorn MCP and identify the exact acceptance conditions. For code, check empty inputs, boundaries, and preservation of existing data, then run a local check before answering. For ticket operations, verify the final state through the available tools and avoid duplicate references. Keep the final response concise."
+  },
+  "results": [
+    {
+      "case": "slug",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 38880,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149765,
+        "cachedInput": 110848,
+        "output": 1200,
+        "total": 150965
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 150965,
+          "inputTokens": 149765,
+          "cachedInputTokens": 110848,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1200,
+          "reasoningOutputTokens": 233
+        },
+        "last": {
+          "totalTokens": 22587,
+          "inputTokens": 22446,
+          "cachedInputTokens": 21504,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 141,
+          "reasoningOutputTokens": 38
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/slug-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Lowercases ASCII `A–Z`\n- Preserves ASCII `a–z` and `0–9`\n- Collapses other-character runs into one hyphen\n- Trims edge hyphens\n- Returns without printing\n\nValidation: compilation succeeded and 10 representative test cases passed."
+    },
+    {
+      "case": "slug",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 36561,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 169836,
+        "cachedInput": 152832,
+        "output": 1241,
+        "total": 171077
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 171077,
+          "inputTokens": 169836,
+          "cachedInputTokens": 152832,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1241,
+          "reasoningOutputTokens": 218
+        },
+        "last": {
+          "totalTokens": 22377,
+          "inputTokens": 22307,
+          "cachedInputTokens": 21888,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 70,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/slug-verify-first-1/workspace/solution.py).\n\nIt handles ASCII case conversion, separator collapsing, edge trimming, empty input, and non-ASCII characters. Validation passed: compilation plus 10 test cases."
+    },
+    {
+      "case": "priorities",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 33651,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 147120,
+        "cachedInput": 109440,
+        "output": 1194,
+        "total": 148314
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 148314,
+          "inputTokens": 147120,
+          "cachedInputTokens": 109440,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1194,
+          "reasoningOutputTokens": 219
+        },
+        "last": {
+          "totalTokens": 22163,
+          "inputTokens": 22017,
+          "cachedInputTokens": 21504,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 146,
+          "reasoningOutputTokens": 51
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/priorities-baseline-1/workspace/solution.py:1).\n\nIt now:\n\n- Orders priorities: Urgent, High, Medium, Low, then unknown/missing\n- Preserves input order within each group\n- Returns task IDs without printing\n\nValidation passed, including ties, unknown/missing priorities, and empty input."
+    },
+    {
+      "case": "priorities",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 41009,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 205264,
+        "cachedInput": 172416,
+        "output": 1243,
+        "total": 206507
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 206507,
+          "inputTokens": 205264,
+          "cachedInputTokens": 172416,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1243,
+          "reasoningOutputTokens": 195
+        },
+        "last": {
+          "totalTokens": 31899,
+          "inputTokens": 31769,
+          "cachedInputTokens": 31104,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 130,
+          "reasoningOutputTokens": 42
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/priorities-verify-first-1/workspace/solution.py).\n\n- Orders Urgent → High → Medium → Low → unknown/missing.\n- Preserves input order within ties.\n- Returns IDs without printing.\n- Validated compilation and 4 cases, including empty input and stable unknown priorities."
+    },
+    {
+      "case": "mentions",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 34821,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 148880,
+        "cachedInput": 138240,
+        "output": 1304,
+        "total": 150184
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 150184,
+          "inputTokens": 148880,
+          "cachedInputTokens": 138240,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1304,
+          "reasoningOutputTokens": 296
+        },
+        "last": {
+          "totalTokens": 22480,
+          "inputTokens": 22361,
+          "cachedInputTokens": 21760,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 119,
+          "reasoningOutputTokens": 23
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/mentions-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Returns all IDs for an empty query.\n- Matches numeric queries against the start of decimal IDs.\n- Matches other queries case-insensitively against titles.\n- Preserves original task order and ID values.\n\nValidation passed with `py_compile` and representative assertions."
+    },
+    {
+      "case": "mentions",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 49964,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 238057,
+        "cachedInput": 210944,
+        "output": 2039,
+        "total": 240096
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 240096,
+          "inputTokens": 238057,
+          "cachedInputTokens": 210944,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 2039,
+          "reasoningOutputTokens": 745
+        },
+        "last": {
+          "totalTokens": 32657,
+          "inputTokens": 32346,
+          "cachedInputTokens": 31616,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 311,
+          "reasoningOutputTokens": 232
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/mentions-verify-first-1/workspace/solution.py).\n\nIt handles empty queries, numeric ID-prefix searches, case-insensitive title searches, preserves task order, and does not mutate input. Validation: compilation succeeded and 6 edge-case checks passed."
+    },
+    {
+      "case": "revision-patch",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 36079,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149908,
+        "cachedInput": 138880,
+        "output": 1228,
+        "total": 151136
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 151136,
+          "inputTokens": 149908,
+          "cachedInputTokens": 138880,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1228,
+          "reasoningOutputTokens": 243
+        },
+        "last": {
+          "totalTokens": 22726,
+          "inputTokens": 22580,
+          "cachedInputTokens": 21888,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 146,
+          "reasoningOutputTokens": 58
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/revision-patch-baseline-1/workspace/solution.py).\n\nBehavior includes:\n\n- Revision conflict detection\n- Non-mutating shallow merge\n- Explicit `None` edits preserved\n- Revision incremented after successful merge\n\nValidation: 3 behavior cases passed, and `py_compile` succeeded."
+    },
+    {
+      "case": "revision-patch",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 39462,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 173173,
+        "cachedInput": 152320,
+        "output": 1288,
+        "total": 174461
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 174461,
+          "inputTokens": 173173,
+          "cachedInputTokens": 152320,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1288,
+          "reasoningOutputTokens": 200
+        },
+        "last": {
+          "totalTokens": 22907,
+          "inputTokens": 22823,
+          "cachedInputTokens": 22400,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 84,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented [`solve(value)`](\u003ceval-workspace\u003e/revision-patch-verify-first-1/workspace/solution.py:1).\n\nIt now:\n\n- Detects revision conflicts.\n- Merges patches while preserving explicit `None` values.\n- Increments the revision.\n- Avoids mutating the input.\n\nValidation passed: three behavioral checks plus Python compilation."
+    },
+    {
+      "case": "workflow",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 61040,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 221568,
+        "cachedInput": 209024,
+        "output": 2486,
+        "total": 224054
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 224054,
+          "inputTokens": 221568,
+          "cachedInputTokens": 209024,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 2486,
+          "reasoningOutputTokens": 1188
+        },
+        "last": {
+          "totalTokens": 24222,
+          "inputTokens": 23746,
+          "cachedInputTokens": 23424,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 476,
+          "reasoningOutputTokens": 375
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/workflow-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Matches targets by stage ID only.\n- Sets `completed` only when `type == \"done\"`.\n- Returns `{\"allowed\": False}` for missing targets.\n- Ignores stage names, ordering, and current stage.\n\nValidation: Python compilation and 3 focused cases passed."
+    },
+    {
+      "case": "workflow",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 46168,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 151214,
+        "cachedInput": 136320,
+        "output": 1699,
+        "total": 152913
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 152913,
+          "inputTokens": 151214,
+          "cachedInputTokens": 136320,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1699,
+          "reasoningOutputTokens": 415
+        },
+        "last": {
+          "totalTokens": 20407,
+          "inputTokens": 20327,
+          "cachedInputTokens": 19712,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 80,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/workflow-verify-first-1/workspace/solution.py).\n\nValidated:\n\n- Present done and non-done targets\n- Missing targets and empty stages\n- Unordered and negative IDs\n- Stage names have no effect\n- Input remains unchanged\n- Python compilation passes"
+    },
+    {
+      "case": "retry-delay",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 47106,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 131378,
+        "cachedInput": 116480,
+        "output": 1843,
+        "total": 133221
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 133221,
+          "inputTokens": 131378,
+          "cachedInputTokens": 116480,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1843,
+          "reasoningOutputTokens": 769
+        },
+        "last": {
+          "totalTokens": 20399,
+          "inputTokens": 20265,
+          "cachedInputTokens": 19712,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 134,
+          "reasoningOutputTokens": 45
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/retry-delay-baseline-1/workspace/solution.py).\n\n- Computes the capped exponential retry delay.\n- Avoids constructing enormous integers for huge attempts.\n- Handles zero, negative/initial attempts, and cap boundaries.\n- Validated with 31,500 exhaustive cases plus large-attempt edge cases."
+    },
+    {
+      "case": "retry-delay",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 46360,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 154393,
+        "cachedInput": 142208,
+        "output": 1861,
+        "total": 156254
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 156254,
+          "inputTokens": 154393,
+          "cachedInputTokens": 142208,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1861,
+          "reasoningOutputTokens": 651
+        },
+        "last": {
+          "totalTokens": 23843,
+          "inputTokens": 23688,
+          "cachedInputTokens": 22784,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 155,
+          "reasoningOutputTokens": 76
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/retry-delay-verify-first-1/workspace/solution.py).\n\nIt efficiently caps large attempts before constructing exponential-size integers.\n\nValidation passed:\n\n- 9,671 exhaustive, boundary, and huge-attempt cases\n- Python compilation check (`py_compile`)"
+    },
+    {
+      "case": "dependency-order",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 43489,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149097,
+        "cachedInput": 123008,
+        "output": 1466,
+        "total": 150563
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 150563,
+          "inputTokens": 149097,
+          "cachedInputTokens": 123008,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1466,
+          "reasoningOutputTokens": 163
+        },
+        "last": {
+          "totalTokens": 22667,
+          "inputTokens": 22516,
+          "cachedInputTokens": 21120,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 151,
+          "reasoningOutputTokens": 56
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/dependency-order-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Returns the lexicographically smallest topological order.\n- Includes prerequisite-only task IDs.\n- Returns `None` for cycles.\n- Handles duplicate prerequisites correctly.\n- Uses only Python’s standard library.\n\nValidation passed, including randomized comparisons against brute-force results."
+    },
+    {
+      "case": "dependency-order",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 40856,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 172063,
+        "cachedInput": 154496,
+        "output": 1600,
+        "total": 173663
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 173663,
+          "inputTokens": 172063,
+          "cachedInputTokens": 154496,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1600,
+          "reasoningOutputTokens": 187
+        },
+        "last": {
+          "totalTokens": 22881,
+          "inputTokens": 22750,
+          "cachedInputTokens": 22144,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 131,
+          "reasoningOutputTokens": 30
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/dependency-order-verify-first-1/workspace/solution.py).\n\nIt now:\n\n- Produces the lexicographically smallest topological order\n- Includes prerequisite-only IDs\n- Returns `None` for cycles\n- Handles empty input and duplicate prerequisites\n- Uses only the Python standard library\n\nValidation: 9 edge-case tests passed, plus Python compilation succeeded."
+    },
+    {
+      "case": "calendar-span",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 39906,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 152980,
+        "cachedInput": 135296,
+        "output": 1249,
+        "total": 154229
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 154229,
+          "inputTokens": 152980,
+          "cachedInputTokens": 135296,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1249,
+          "reasoningOutputTokens": 211
+        },
+        "last": {
+          "totalTokens": 23223,
+          "inputTokens": 23101,
+          "cachedInputTokens": 22400,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 122,
+          "reasoningOutputTokens": 25
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/calendar-span-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Returns inclusive ISO dates in ascending order\n- Returns `[]` when `end \u003c start`\n- Handles leap years using the standard library\n- Returns results without printing\n\nValidation passed 4 cases covering leap day, year rollover, equal dates, and reversed dates."
+    },
+    {
+      "case": "calendar-span",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 84138,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149975,
+        "cachedInput": 126848,
+        "output": 1311,
+        "total": 151286
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 151286,
+          "inputTokens": 149975,
+          "cachedInputTokens": 126848,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1311,
+          "reasoningOutputTokens": 174
+        },
+        "last": {
+          "totalTokens": 22819,
+          "inputTokens": 22677,
+          "cachedInputTokens": 22528,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 142,
+          "reasoningOutputTokens": 43
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/calendar-span-verify-first-1/workspace/solution.py).\n\nIt now:\n\n- Returns all dates inclusively in ascending order.\n- Returns `[]` when `end \u003c start`.\n- Correctly handles leap years and year boundaries.\n- Uses only Python’s standard library.\n- Returns without printing.\n\nValidation passed: 6 boundary cases plus Python compilation."
+    },
+    {
+      "case": "read-context",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 12516,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 60123,
+        "cachedInput": 39296,
+        "output": 141,
+        "total": 60264
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 60264,
+          "inputTokens": 60123,
+          "cachedInputTokens": 39296,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 141,
+          "reasoningOutputTokens": 46
+        },
+        "last": {
+          "totalTokens": 20447,
+          "inputTokens": 20432,
+          "cachedInputTokens": 19840,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 15,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "{\"title\":\"Eval read-context\",\"priority\":\"High\"}"
+    },
+    {
+      "case": "read-context",
+      "category": "task-manager",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 8866,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 60286,
+        "cachedInput": 52096,
+        "output": 133,
+        "total": 60419
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 60419,
+          "inputTokens": 60286,
+          "cachedInputTokens": 52096,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 133,
+          "reasoningOutputTokens": 40
+        },
+        "last": {
+          "totalTokens": 20490,
+          "inputTokens": 20475,
+          "cachedInputTokens": 19840,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 15,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "{\"title\":\"Eval read-context\",\"priority\":\"High\"}"
+    },
+    {
+      "case": "attach-pr",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 18354,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 103481,
+        "cachedInput": 88064,
+        "output": 415,
+        "total": 103896
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 103896,
+          "inputTokens": 103481,
+          "cachedInputTokens": 88064,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 415,
+          "reasoningOutputTokens": 152
+        },
+        "last": {
+          "totalTokens": 21302,
+          "inputTokens": 21248,
+          "cachedInputTokens": 20864,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 54,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Unable to attach the PR. Aycorn confirmed task 101 has no existing links, but `add_task_link` was blocked because it requires approval and this session’s approval policy is `never`.\n\nI did not access GitHub or modify the task."
+    },
+    {
+      "case": "attach-pr",
+      "category": "task-manager",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 24269,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 124319,
+        "cachedInput": 114816,
+        "output": 588,
+        "total": 124907
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 124907,
+          "inputTokens": 124319,
+          "cachedInputTokens": 114816,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 588,
+          "reasoningOutputTokens": 171
+        },
+        "last": {
+          "totalTokens": 21316,
+          "inputTokens": 21266,
+          "cachedInputTokens": 20864,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 50,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Unable to attach the PR: Aycorn’s `add_task_link` required approval, but this session’s approval policy is `never`.\n\nVerified final state: task 101 still has no attached links. GitHub was not accessed."
+    },
+    {
+      "case": "attach-branch",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 17580,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 72288,
+        "cachedInput": 49152,
+        "output": 330,
+        "total": 72618
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 72618,
+          "inputTokens": 72288,
+          "cachedInputTokens": 49152,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 330,
+          "reasoningOutputTokens": 108
+        },
+        "last": {
+          "totalTokens": 18697,
+          "inputTokens": 18585,
+          "cachedInputTokens": 18304,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 112,
+          "reasoningOutputTokens": 58
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "I couldn’t attach the branch because the Aycorn write operation requires approval, while this session’s approval policy is set to “never.”\n\nNo GitHub access occurred and no task link was created. Please enable Aycorn write approval and retry."
+    },
+    {
+      "case": "attach-branch",
+      "category": "task-manager",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 21668,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 125151,
+        "cachedInput": 109312,
+        "output": 525,
+        "total": 125676
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 125676,
+          "inputTokens": 125151,
+          "cachedInputTokens": 109312,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 525,
+          "reasoningOutputTokens": 130
+        },
+        "last": {
+          "totalTokens": 21517,
+          "inputTokens": 21468,
+          "cachedInputTokens": 21120,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 49,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Unable to attach the branch: Aycorn’s write call required approval, but this session’s approval policy is set to “never.”\n\nVerified final state: task 101 still has no attached links. GitHub was not accessed."
+    },
+    {
+      "case": "deduplicate-link",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 21212,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 104220,
+        "cachedInput": 88576,
+        "output": 514,
+        "total": 104734
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 104734,
+          "inputTokens": 104220,
+          "cachedInputTokens": 88576,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 514,
+          "reasoningOutputTokens": 195
+        },
+        "last": {
+          "totalTokens": 21567,
+          "inputTokens": 21497,
+          "cachedInputTokens": 21120,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 70,
+          "reasoningOutputTokens": 22
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Unable to attach the reference: Aycorn required write approval, but this read-only session’s approval policy is `never`.\n\nVerified task 101 still has **zero saved references**. GitHub was not accessed."
+    },
+    {
+      "case": "deduplicate-link",
+      "category": "task-manager",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 25448,
+      "grade": "expected one saved link, got 0",
+      "tokens": {
+        "input": 125356,
+        "cachedInput": 115584,
+        "output": 769,
+        "total": 126125
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 126125,
+          "inputTokens": 125356,
+          "cachedInputTokens": 115584,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 769,
+          "reasoningOutputTokens": 344
+        },
+        "last": {
+          "totalTokens": 21620,
+          "inputTokens": 21573,
+          "cachedInputTokens": 20992,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 47,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Unable to attach the reference: Aycorn rejected the write because this run is read-only and cannot request approval.\n\nVerified final state: ticket 101 still has **0 saved references**. GitHub was not accessed."
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "completed": 12,
+      "passed": 9,
+      "solveRate": 0.75,
+      "latencyMs": 404634,
+      "tokens": 1604178,
+      "usageReported": 12
+    },
+    "verify-first": {
+      "completed": 12,
+      "passed": 9,
+      "solveRate": 0.75,
+      "latencyMs": 464769,
+      "tokens": 1863384,
+      "usageReported": 12
+    }
+  },
+  "solveRateDeltaPoints": 0,
+  "costNote": "Native Codex reports token usage, not attributable dollar cost. costUsd=null means unavailable; subscription usage is not an API price estimate."
+}

@@ -7,7 +7,14 @@ UI_DIST  := $(SRV_DIR)/ui/dist
 # Falls back to "dev" when git isn't available or there are no tags yet.
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck test test-app test-server install upgrade stop clean backup restore backup-test restore-test
+.PHONY: dev dev-test build build-app build-app-dev build-md-convert build-mcp build-server typecheck test test-app test-server install upgrade stop clean backup restore backup-test restore-test sync-agents check-agents
+
+# Bundled Markdown is the single source for runtime and repository agents.
+sync-agents:
+	cd $(SRV_DIR) && go run ./cmd/sync-agents
+
+check-agents:
+	cd $(SRV_DIR) && go run ./cmd/sync-agents -check
 
 # Pick up the local cluster created by scripts/k8s-local.sh without changing
 # the user's global Kubernetes config. An explicit KUBECONFIG (even empty) wins.

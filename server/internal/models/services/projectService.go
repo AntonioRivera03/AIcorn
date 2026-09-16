@@ -59,11 +59,13 @@ var ErrNoOpenStage = errors.New("target workflow has no open stage")
 var ErrInvalidStageMapping = errors.New("stage mapping must map a current-workflow stage to a stage in the new workflow")
 
 var validProjectViews = map[string]struct{}{
-	"":       {},
-	"list":   {},
-	"kanban": {},
-	"month":  {},
-	"week":   {},
+	"":          {},
+	"list":      {},
+	"kanban":    {},
+	"month":     {},
+	"week":      {},
+	"documents": {},
+	"chats":     {},
 }
 
 var ErrInvalidProjectView = errors.New("invalid default view")

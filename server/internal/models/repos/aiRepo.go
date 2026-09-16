@@ -2,12 +2,12 @@ package repos
 
 import (
 	"encoding/json"
-	"errors"
 	"github.com/waseem-polus/aycorn/server/internal/models"
+	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	"strings"
 )
 
-var ErrActiveAIRun = errors.New("an AI run is already active for this task")
+var ErrActiveAIRun = taskownership.ErrBusy
 
 func (r *AgentJobRepo) AISettings() (models.AISettings, error) {
 	var s models.AISettings
@@ -18,7 +18,7 @@ func (r *AgentJobRepo) UpdateAISettings(s models.AISettings) error {
 	_, err := r.DB.Exec("UPDATE ai_settings SET model=?, executable=?, timeoutSeconds=? WHERE id=1", s.Model, s.Executable, s.TimeoutSeconds)
 	return err
 }
-func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunRequest) (*models.AgentJob, error) {
+func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunRequest, chatTurn ...int) (*models.AgentJob, error) {
 	raw, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
@@ -28,11 +28,32 @@ func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunReque
 		preset = presetID
 	}
 	var job models.AgentJob
-	err = scanAgentJob(r.DB.QueryRow(`INSERT INTO agent_job(task,persona,status,requestJson) VALUES(?,?,'pending',?) RETURNING `+agentJobColumns, taskID, preset, string(raw)), &job)
+	tx, err := taskownership.Begin(r.DB)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err = taskownership.Check(tx, taskID, 0, chatTurn...); err != nil {
+		return nil, err
+	}
+	// The project may have changed while the immutable snapshot was prepared.
+	if request.ProjectID > 0 {
+		var matches bool
+		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND c.project=?)", taskID, request.ProjectID).Scan(&matches); err != nil {
+			return nil, err
+		}
+		if !matches {
+			return nil, ErrConductorConflict
+		}
+	}
+	err = scanAgentJob(tx.QueryRow(`INSERT INTO agent_job(task,persona,status,requestJson) VALUES(?,?,'pending',?) RETURNING `+agentJobColumns, taskID, preset, string(raw)), &job)
 	if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: agent_job.task") {
 		return nil, ErrActiveAIRun
 	}
-	return &job, err
+	if err != nil {
+		return nil, err
+	}
+	return &job, tx.Commit()
 }
 func (r *AgentJobRepo) SetProgress(id int, text string) error {
 	_, err := r.DB.Exec("UPDATE agent_job SET progress=? WHERE id=? AND status IN ('claimed','running')", text, id)

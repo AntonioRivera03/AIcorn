@@ -1,0 +1,440 @@
+{
+  "version": 2,
+  "cases": [
+    {
+      "id": "slug",
+      "category": "coding",
+      "prompt": "Create a URL slug: first convert ASCII uppercase letters to lowercase, then preserve ASCII lowercase letters and digits, every run of other characters becomes one hyphen; trim edge hyphens. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": " Hello, WORLD! ",
+          "expected": "hello-world"
+        },
+        {
+          "input": "a___b / c",
+          "expected": "a-b-c"
+        },
+        {
+          "input": "!!!",
+          "expected": ""
+        },
+        {
+          "input": "Version 42",
+          "expected": "version-42"
+        }
+      ]
+    },
+    {
+      "id": "priorities",
+      "category": "coding",
+      "prompt": "Input is a list of tasks with id and priority. Return their ids ordered Urgent, High, Medium, Low, then all unknown/missing priorities. Preserve input order for ties. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": [
+            {
+              "id": 1,
+              "priority": "Low"
+            },
+            {
+              "id": 2,
+              "priority": "High"
+            },
+            {
+              "id": 3,
+              "priority": "High"
+            },
+            {
+              "id": 4
+            }
+          ],
+          "expected": [
+            2,
+            3,
+            1,
+            4
+          ]
+        },
+        {
+          "input": [],
+          "expected": []
+        },
+        {
+          "input": [
+            {
+              "id": 1,
+              "priority": "Urgent"
+            },
+            {
+              "id": 2,
+              "priority": "low"
+            },
+            {
+              "id": 3,
+              "priority": "Medium"
+            }
+          ],
+          "expected": [
+            1,
+            3,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mentions",
+      "category": "coding",
+      "prompt": "Input has tasks (id,title) and query. Return matching task ids in original order. Empty query matches all; all-digit query matches the start of the decimal id; otherwise match a case-insensitive substring of the title. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "tasks": [
+              {
+                "id": 12,
+                "title": "Fix login"
+              },
+              {
+                "id": 120,
+                "title": "Ship docs"
+              },
+              {
+                "id": 2,
+                "title": "LOGIN page"
+              }
+            ],
+            "query": "12"
+          },
+          "expected": [
+            12,
+            120
+          ]
+        },
+        {
+          "input": {
+            "tasks": [
+              {
+                "id": 1,
+                "title": "Fix login"
+              },
+              {
+                "id": 2,
+                "title": "Signup"
+              }
+            ],
+            "query": "LOGIN"
+          },
+          "expected": [
+            1
+          ]
+        },
+        {
+          "input": {
+            "tasks": [
+              {
+                "id": 1,
+                "title": "A"
+              }
+            ],
+            "query": ""
+          },
+          "expected": [
+            1
+          ]
+        },
+        {
+          "input": {
+            "tasks": [],
+            "query": "a"
+          },
+          "expected": []
+        }
+      ]
+    },
+    {
+      "id": "revision-patch",
+      "category": "coding",
+      "prompt": "Input has saved object and patch. If patch.revision differs from saved.revision return {conflict:true}. Otherwise return saved merged with patch, with revision incremented by one; explicit null values count as edits. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "saved": {
+              "title": "A",
+              "body": "B",
+              "revision": 3
+            },
+            "patch": {
+              "title": "C",
+              "revision": 3
+            }
+          },
+          "expected": {
+            "title": "C",
+            "body": "B",
+            "revision": 4
+          }
+        },
+        {
+          "input": {
+            "saved": {
+              "revision": 2
+            },
+            "patch": {
+              "revision": 1
+            }
+          },
+          "expected": {
+            "conflict": true
+          }
+        },
+        {
+          "input": {
+            "saved": {
+              "body": "B",
+              "revision": 1
+            },
+            "patch": {
+              "body": null,
+              "revision": 1
+            }
+          },
+          "expected": {
+            "body": null,
+            "revision": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow",
+      "category": "coding",
+      "prompt": "Input has stages [{id,type}], current id, and target id. Return {allowed:true,completed:boolean} for a target present in the supplied stages; completed is true only for type done. Missing target yields {allowed:false}. Stage names and id ordering must not affect the decision. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "stages": [
+              {
+                "id": 9,
+                "type": "done"
+              },
+              {
+                "id": 3,
+                "type": "doing"
+              }
+            ],
+            "current": 3,
+            "target": 9
+          },
+          "expected": {
+            "allowed": true,
+            "completed": true
+          }
+        },
+        {
+          "input": {
+            "stages": [
+              {
+                "id": 9,
+                "type": "open"
+              }
+            ],
+            "current": 9,
+            "target": 8
+          },
+          "expected": {
+            "allowed": false
+          }
+        },
+        {
+          "input": {
+            "stages": [
+              {
+                "id": 9,
+                "type": "open"
+              }
+            ],
+            "current": 9,
+            "target": 9
+          },
+          "expected": {
+            "allowed": true,
+            "completed": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "retry-delay",
+      "category": "coding",
+      "prompt": "Input has attempt (integer), base seconds, and cap seconds. Return min(cap, base * 2**max(0,attempt-1)). Handle very large attempt efficiently without constructing enormous integers. Base and cap are nonnegative integers. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "attempt": 1,
+            "base": 2,
+            "cap": 30
+          },
+          "expected": 2
+        },
+        {
+          "input": {
+            "attempt": 5,
+            "base": 2,
+            "cap": 30
+          },
+          "expected": 30
+        },
+        {
+          "input": {
+            "attempt": 0,
+            "base": 5,
+            "cap": 10
+          },
+          "expected": 5
+        },
+        {
+          "input": {
+            "attempt": 1000000000,
+            "base": 1,
+            "cap": 60
+          },
+          "expected": 60
+        },
+        {
+          "input": {
+            "attempt": 100,
+            "base": 0,
+            "cap": 60
+          },
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "dependency-order",
+      "category": "coding",
+      "prompt": "Input is a mapping from task ids (strings) to lists of prerequisite ids. Return the lexicographically smallest valid topological order, choosing the smallest available id at every step. Include ids mentioned only as prerequisites. Return null if any cycle exists. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "c": [
+              "a",
+              "b"
+            ],
+            "b": [
+              "a"
+            ]
+          },
+          "expected": [
+            "a",
+            "b",
+            "c"
+          ]
+        },
+        {
+          "input": {
+            "a": [
+              "b"
+            ],
+            "b": [
+              "a"
+            ]
+          },
+          "expected": null
+        },
+        {
+          "input": {},
+          "expected": []
+        },
+        {
+          "input": {
+            "z": [],
+            "a": [
+              "z"
+            ],
+            "b": []
+          },
+          "expected": [
+            "b",
+            "z",
+            "a"
+          ]
+        },
+        {
+          "input": {
+            "a": [
+              "a"
+            ]
+          },
+          "expected": null
+        }
+      ]
+    },
+    {
+      "id": "calendar-span",
+      "category": "coding",
+      "prompt": "Input has start and end in ISO YYYY-MM-DD. Return every date inclusively in ascending order. If end precedes start return an empty list. Support leap years. Implement solve(value) in solution.py using only the Python standard library. Preserve the function name. Return the result; do not print it.",
+      "starter": "def solve(value):\n    return value\n",
+      "checks": [
+        {
+          "input": {
+            "start": "2024-02-28",
+            "end": "2024-03-01"
+          },
+          "expected": [
+            "2024-02-28",
+            "2024-02-29",
+            "2024-03-01"
+          ]
+        },
+        {
+          "input": {
+            "start": "2025-01-02",
+            "end": "2025-01-01"
+          },
+          "expected": []
+        },
+        {
+          "input": {
+            "start": "2025-12-31",
+            "end": "2026-01-01"
+          },
+          "expected": [
+            "2025-12-31",
+            "2026-01-01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "read-context",
+      "category": "task-manager",
+      "prompt": "Read the assigned ticket using Aycorn MCP. Reply only with a JSON object containing its title and priority.",
+      "grader": "read"
+    },
+    {
+      "id": "attach-pr",
+      "category": "task-manager",
+      "prompt": "Attach https://github.com/AntonioRivera03/AIcorn/pull/16 to this task with label Enhancements. Use Aycorn MCP; do not access GitHub.",
+      "grader": "pr"
+    },
+    {
+      "id": "attach-branch",
+      "category": "task-manager",
+      "prompt": "Attach https://github.com/AntonioRivera03/AIcorn/tree/enhancements to this task with label Enhancements branch. Use Aycorn MCP; do not access GitHub.",
+      "grader": "branch"
+    },
+    {
+      "id": "deduplicate-link",
+      "category": "task-manager",
+      "prompt": "Attach https://github.com/AntonioRivera03/AIcorn/pull/16 with label Enhancements, then attach http://www.github.com/AntonioRivera03/AIcorn/pull/016?tab=files with that same label. Both refer to the same PR: finish with exactly one saved reference. Use Aycorn MCP; do not access GitHub.",
+      "grader": "dedupe"
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": 1,
+  "suiteSha256": "f3b5e23a248947be1610a16370962daacc3a855877deef2e3657b459df598ac4",
+  "sourceCommit": "4f039ee5591f82c8cb06b6a38a8073308d0d7f06",
+  "sourceDiffSha256": "f77210db92337682a6e9941a188f5f9bf49a25f0f2920fefc360c7dd16e0fdca",
+  "model": "gpt-5.6-sol",
+  "engineVersion": "codex-cli 0.153.4",
+  "startedAt": "2026-09-16T07:45:02Z",
+  "planned": 24,
+  "prompts": {
+    "baseline": "Complete the assigned task. Use the provided workspace and Aycorn tools. Do not delegate. Keep the final response concise.",
+    "verify-first": "Complete the assigned task. Do not delegate. Before acting, read the current ticket through Aycorn MCP and identify the exact acceptance conditions. For code, check empty inputs, boundaries, and preservation of existing data, then run a local check before answering. For ticket operations, verify the final state through the available tools and avoid duplicate references. Keep the final response concise."
+  },
+  "results": [
+    {
+      "case": "slug",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 42667,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 147237,
+        "cachedInput": 130560,
+        "output": 1399,
+        "total": 148636
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 148636,
+          "inputTokens": 147237,
+          "cachedInputTokens": 130560,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1399,
+          "reasoningOutputTokens": 586
+        },
+        "last": {
+          "totalTokens": 22328,
+          "inputTokens": 22231,
+          "cachedInputTokens": 21504,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 97,
+          "reasoningOutputTokens": 18
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/slug-baseline-1/workspace/solution.py:1).\n\nIt lowercases input, collapses non-ASCII-alphanumeric runs into one hyphen, and trims edge hyphens.\n\nValidation: compilation succeeded and 7 representative test cases passed."
+    },
+    {
+      "case": "slug",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 32003,
+      "grade": "grader: exit status 1: Traceback (most recent call last):\n  File \"\u003cstring\u003e\", line 7, in \u003cmodule\u003e\n    if actual != c[\"expected\"]: raise AssertionError(\"case %d: expected %r, got %r\" % (i,c[\"expected\"],actual))\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: case 0: expected 'hello-world', got 'ello'",
+      "tokens": {
+        "input": 152948,
+        "cachedInput": 120064,
+        "output": 1019,
+        "total": 153967
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 153967,
+          "inputTokens": 152948,
+          "cachedInputTokens": 120064,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1019,
+          "reasoningOutputTokens": 171
+        },
+        "last": {
+          "totalTokens": 22968,
+          "inputTokens": 22859,
+          "cachedInputTokens": 22400,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 109,
+          "reasoningOutputTokens": 19
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/slug-verify-first-1/workspace/solution.py).\n\nIt now:\n\n- Preserves lowercase ASCII letters and digits\n- Replaces other character runs with one hyphen\n- Trims edge hyphens\n- Returns without printing\n\nValidation: 9 edge cases passed, plus Python compilation succeeded."
+    },
+    {
+      "case": "priorities",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 34217,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 145965,
+        "cachedInput": 129536,
+        "output": 1184,
+        "total": 147149
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 147149,
+          "inputTokens": 145965,
+          "cachedInputTokens": 129536,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1184,
+          "reasoningOutputTokens": 178
+        },
+        "last": {
+          "totalTokens": 21924,
+          "inputTokens": 21819,
+          "cachedInputTokens": 21248,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 105,
+          "reasoningOutputTokens": 19
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/priorities-baseline-1/workspace/solution.py).\n\nIt now:\n\n- Orders priorities: Urgent, High, Medium, Low, then unknown/missing.\n- Preserves input order within ties.\n- Returns task IDs without printing.\n\nValidation: Python compilation and representative assertions passed."
+    },
+    {
+      "case": "priorities",
+      "category": "coding",
+      "variant": "verify-first",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 45764,
+      "grade": "grader: context canceled: ",
+      "error": "context canceled",
+      "tokens": {
+        "input": 130225,
+        "cachedInput": 113280,
+        "output": 1335,
+        "total": 131560
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 131560,
+          "inputTokens": 130225,
+          "cachedInputTokens": 113280,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1335,
+          "reasoningOutputTokens": 295
+        },
+        "last": {
+          "totalTokens": 23119,
+          "inputTokens": 22628,
+          "cachedInputTokens": 22016,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 491,
+          "reasoningOutputTokens": 24
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "The ticket’s acceptance conditions match the request exactly. The current function is only a passthrough; I’m replacing it with a stable priority ordering that leaves the input list untouched and groups every unrecognized or absent priority last."
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "completed": 2,
+      "passed": 2,
+      "solveRate": 1,
+      "latencyMs": 76884,
+      "tokens": 295785,
+      "usageReported": 2
+    },
+    "verify-first": {
+      "completed": 2,
+      "passed": 0,
+      "solveRate": 0,
+      "latencyMs": 77767,
+      "tokens": 285527,
+      "usageReported": 2
+    }
+  },
+  "solveRateDeltaPoints": -100,
+  "costNote": "Native Codex reports token usage, not attributable dollar cost. costUsd=null means unavailable; subscription usage is not an API price estimate."
+}

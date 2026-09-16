@@ -48,6 +48,14 @@ func (service *PersonaService) Get(id int) (*models.Persona, error) {
 	return service.PersonaRepo.FindOne(id)
 }
 
+func (service *PersonaService) UpdateModel(id int, model models.PersonaModel) (bool, error) {
+	model = models.PersonaModel(strings.TrimSpace(string(model)))
+	if !models.IsValidPersonaModel(model) {
+		return false, ErrInvalidPersonaModel
+	}
+	return service.PersonaRepo.UpdateModel(id, model)
+}
+
 func (service *PersonaService) Create(persona *models.Persona) (*models.Persona, error) {
 	if err := validatePersona(persona); err != nil {
 		return nil, err

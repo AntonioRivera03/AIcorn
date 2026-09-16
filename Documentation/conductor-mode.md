@@ -1,74 +1,48 @@
-# Conductor mode
+# Conductor and independent task sessions
 
-The local app-server integration and agent fleet are documented in [Local harnesses](local-harnesses.md). Conductor now stays the root agent throughout a cycle; the selected task agent configures its coder subagent.
+Conductor is the project's fixed dispatcher. It examines tasks explicitly handed to it and starts independent task sessions through Aycorn MCP. It does not perform the task, spawn Codex subagents, move cards, or supervise another conversation's completion. Server code owns the queue, task ownership, stages, and human review handoff.
 
-Conductor manages selected tasks on the project's existing board. The List and Kanban views share an animated orange frame and a **CONDUCTOR MANAGING** label. A Conductor-only filter provides a focused view of the same tasks, without copying them to another board or changing their checklist.
+## Project setup
 
-## Using it
+In Project settings → Conductor, choose distinct **In progress** and **Human review** stages from the project's workflow. Neither can be Done. Configure selection instructions, working instructions, handoff requirements, and whether tasks use the linked repository. Agent models remain editable on the AI page; bundled instructions and skills are read-only.
 
-1. On the **AI** page, create custom agents. Edit each name, OpenAI model, and rich-text instructions in place; changes autosave. Sign in to Codex on the server with `codex login`.
-2. Open **Project Settings → Conductor**. Choose three distinct stages from the project's workflow: planning, in progress, and human review. Done stages are excluded from all three roles.
-3. Edit each stage's prompt in place. The completion prompt tells the worker what to include in its handoff. Changes save on blur or selection.
-4. Select a **Conductor agent** and **Task agent** from your custom agents. Both selections are required before enabling Conductor. They may use different OpenAI models; the same agent can fill both roles if desired.
-5. Choose whether workers should use the project's repository. Repository tasks use the existing isolated worktree runner. Written-answer tasks can run without a repository.
-6. Use **Send to Conductor** in a task's menu, right-click menu, or selection toolbar. Start Conductor when ready. Sending while paused just marks the task for later.
+Send selected tasks to Conductor from the board or list. Turning Conductor on permits selection and queued work to start. Pausing stops new dispatch/start operations; an already-running task can finish. Scheduled Jobs and a user's confirmed request for more work are explicit operations and do not depend on this board toggle.
 
-The menus are accessible through their buttons and through Shift+F10. The animated border respects reduced-motion preferences. Orange is defined through the `conductor` semantic color token for both light and dark themes.
+## Dispatch and execution
 
-## Lifecycle and ownership
+1. The worker opens a short project-level Codex dispatcher session in an empty directory. Its MCP catalog contains exactly `list_conductor_tasks`, `start_conductor_task`, `defer_conductor_task`, `project_context`, and `read_project_document`. Inherited MCP connections, apps, shell execution, web search, and native agent delegation are disabled for this dispatcher.
+2. Conductor reads the available context and chooses a role: `coder`, `researcher`, `reviewer`, or `planner`. It calls `start_conductor_task` with the project ID, task ID, and role. It can defer a task with a concrete blocker.
+3. The server validates project scope, the active dispatcher, Conductor ownership, stage configuration, dependencies, and task contents. One SQLite transaction moves the task to In progress, assigns the selected agent, and queues its work. Duplicate starts return the existing queued/running job.
+4. The worker launches the selected agent as the root of its own persistent Codex session. The role's fixed instructions, selected model, workflow skill, scoped task/project MCP context, and task objective are supplied programmatically. Coder work with a repository uses an isolated worktree; research/planning/review sessions are read-only. Native subagents remain disabled.
+5. A successful work turn must return a validated structured handoff with `completed: true`. The controller preserves the user's task description, appends the handoff, and moves the task to Human review. Failures, cancellations, blockers, malformed answers, changed task content, and lost ownership do not enter review. Nothing goes directly to Done.
 
-| State | Behavior |
-| --- | --- |
-| Waiting | Selected by the user; awaits planning while the project is enabled. |
-| Planning | A read-only orchestration session checks context and acceptance criteria. |
-| Needs context | Specific questions or blockers are shown on the task. Planning questions and worker handoffs are appended to the body. Add information and explicitly choose Recheck. |
-| Queued | Conductor has appended its plan and assigned your task agent. The task stays in planning until the worker starts. |
-| Working | Starting the queued worker atomically moves the task into its configured in-progress stage. |
-| Human review | A successful, complete worker result is appended to the task body and the task moves to its configured handoff stage. |
-| Failed / Held | Provider errors, interruption, invalid decisions, changed workflow, or manual changes require attention and explicit recheck. |
+The worker still executes one queued task turn at a time. Sessions are independent and persistent; this change does not add a parallel worker pool. There is no automatic merge, push, deployment, or paid retry loop. Unselected tasks wait for an explicit recheck, and interrupted runs retain their history instead of silently replaying.
 
-A successful process exit alone does not complete a task: the worker must return a valid structured handoff stating that the task is complete. An incomplete result stays out of review. Unresolved blocking relationships prevent implementation from starting.
+## Continuing a task
 
-**Pause** prevents new planning and queue starts. A session already running may finish; a finished planner waits for resume before queuing implementation. **Release** removes Conductor ownership and cancels its pending or active run. Existing output and worktrees remain available in the AI panel.
+Open Task AI (or the ticket chat for a Chat-type task) to see its requests, responses, artifacts, and run history. Its composer resumes the saved Codex thread and worktree.
 
-Manual stage changes take precedence over automatic transitions. Editing content during planning or before a worker starts requires a recheck. A human moving reviewed work onward clears its Conductor badge while preserving run history. Conductor never moves a task to a Done stage and never merges a branch.
+- A confidently classified **question** runs read-only and leaves the stage unchanged. Shell execution, web search, write MCP tools, and native delegation are unavailable for that turn.
+- A request for **more work** opens a confirmation dialog. **Cancel** sends nothing. **Ask only** submits a question-only turn. **Resume work** atomically moves a managed task back to its captured In progress stage and queues work in the same session.
+- The chat is locked while queued/running/canceling. The backend also enforces single ownership, idempotency, and the latest conversation/stage cursor, including when two tabs submit together.
+- If the first run failed before a Codex thread existed, confirming Resume work creates the missing session. A failed provider call cannot permanently strand the composer.
 
-The selected agents’ names, models and converted instructions, settings, and stage contract are frozen for each planning cycle. Later edits apply to the next cycle; stages are still checked against the project's current workflow before execution and handoff. All task, stage, body, queue, and assignment changes at a handoff commit together. The persisted job cursor prevents duplicate notes or duplicate execution after a restart. Interrupted executions require explicit recheck.
+The router uses Jev only when `TYPESAFE_API_KEY` is configured on the server. Without it, or if classification is ambiguous/unavailable, the dialog asks the user to select question or work. See [intent routing](task-intent-routing.md) for setup, API contract, and research.
 
-Body updates append new Plate nodes, preserving existing formatting. The editor sends an `If-Match` body revision; a stale editor receives a conflict instead of silently overwriting a new handoff. Copy unsaved edits and reopen the task when a conflict is reported.
+## Goal-style execution and persistence
 
-## Integration choice
+Each work turn receives instructions to pursue the complete task objective, verify the result, make reasonable decisions, and report genuine blockers. Aycorn uses the [Codex app-server thread and turn APIs](https://learn.chatgpt.com/docs/app-server): `thread/start`, `thread/resume`, and `turn/start`. It does **not** call native `thread/goal/set`: the installed driver starts an autonomous turn immediately on that call, before Aycorn can submit its task input and structured output schema. Aycorn must own turn startup and termination to keep locking and review correct.
 
-The implementation uses a **durable state machine with structured agent decisions** and a **Codex adapter** behind the existing harness interface. The job queue, worktrees, and history remain owned by Aycorn.
+The existing timeout remains the execution limit. A timeout does not count as completion. The persisted thread ID, turn ID, worktree, branch, base commit, and artifacts support explicit continuation.
 
-Codex runs each job through `codex exec --json`, with a JSON output schema for Conductor phases. The final-message file separates the answer from intermediate progress, and both a completed turn and a successful process exit are required. The built-in OpenAI provider chooses the appropriate endpoint for saved ChatGPT sign-in or API-key authentication. No alternate provider or simulated production fallback is used. [Codex noninteractive mode](https://learn.chatgpt.com/docs/non-interactive-mode), [Codex authentication](https://learn.chatgpt.com/docs/auth)
+## Storage and compatibility
 
-The planner's MCP server exposes `search_tasks` and `read_task`, scoped server-side to the current project. Workers receive only `read_task` for their own task. These read tools are explicitly approved for unattended execution. Agents return a readiness decision or completion handoff; the backend validates it and commits task/queue/stage changes together. This keeps live context in MCP and durable workflow rules in application code. [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+Migration `00027_task_sessions.sql` adds dispatcher history, a handoff token protecting release/re-send races, and a task-message idempotency index. It updates only the old default selection prompt; customized prompts are retained. Existing `task.priority`, `task.type`, and `stage.type` CHECK constraints are unchanged. The former planning-stage field stays in stored settings for compatibility but is no longer required or shown.
 
-I considered Codex App Server and a direct Responses API integration. App Server offers richer session and account APIs, but the existing job lifecycle only needs one bounded run with progress and a final result. The direct API would require rebuilding command execution and workspace management. Noninteractive Codex therefore fits this release with less machinery; the harness interface leaves room for App Server later. [Codex App Server](https://learn.chatgpt.com/docs/app-server)
+`request.taskSession` records the role, question/work mode, and captured stage contract. `request.chat` retains the persistent session/worktree cursor. Old run history remains visible. Already queued legacy planning runs can finish their readiness check; their next execution uses a direct task agent. New scheduled Jobs immediately queue their selected independent task agent.
 
-User config and exec policy files are ignored for managed runs; repository config is untrusted. Explicit process overrides select the OpenAI provider, scoped MCP, disabled apps/plugins/subagents, and the sandbox. Planning and other non-implementation intents use read-only mode. Repository implementation uses workspace-write with a private temporary/cache directory, and can execute commands/tests. Commands do not inherit provider keys or Aycorn database settings; network access is disabled. The sandbox is not a task container: dependencies must already be available locally, and unavailable downloads must be reported honestly. [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
+## Verification
 
-Custom agents reuse the existing persona storage and endpoints. This preserves IDs, prompts and run history while changing the UI vocabulary. The historical role/tool-list fields remain stored for compatibility but do not grant runtime permissions; intent and Conductor phase determine access. Model inputs suggest OpenAI models and accept newer OpenAI model IDs without a schema change. Actual account/model access is determined by Codex.
+On 2026-09-16, `TestInstalledConductorSessionsAndMCP` passed against the installed Codex driver and a disposable database. Actual model/tool calls selected a research task through MCP, moved it to its working stage, executed it in a distinct task thread, retrieved a unique project-document token, and answered a follow-up in the same task thread. Native histories contained no subagent spawning. The conversations were archived after testing.
 
-## Schema and API
-
-Migration `00016_conductor.sql` adds `conductor_project` and `conductor_task`. It does not alter the allowed values of `stage.type`, `task.priority`, or `task.type`.
-
-Migration `00017_codex_agents.sql` preserves custom names/prompts and historical run snapshots, converts agent harnesses to Codex, preserves recognized OpenAI model names, and assigns `gpt-5.6-sol` to prior non-OpenAI choices. It clears the old executable setting, interrupts old queued/running jobs, pauses Conductor, and requires selecting custom agents before restarting. Persona model/harness columns are plain TEXT; no CHECK-constraint rebuild is needed.
-
-- `GET /api/project/{projectId}/settings/conductor`: settings, task states, and configuration problems.
-- `PUT /api/project/{projectId}/settings/conductor`: validated field patches, with optimistic protection against competing settings edits.
-- `POST /api/project/{projectId}/conductor/bulk`: `{ids, action}`, where action is `send`, `recheck`, or `release`. One transaction returns the standard `BulkResult`; cross-project, done, active, or already-managed items are skipped as appropriate.
-
-The UI shares one Conductor query per board. Cursor changes refresh task positions and AI results; active body editors keep their own revision until a successful save or reopen.
-
-## Validation and current limits
-
-Automated coverage includes planning → queue → execution → review; missing context; body preservation and concurrent edits; pause/release races; manual stage moves; restart recovery; provider failures and malformed results; unexpected model-assignment fields; dependencies and deleted stages; bulk and MCP project scope; MCP result-schema validation; settings patches; stale body saves; Codex process cancellation; migration preservation; and agent edits/deletion during an active cycle. The full Go suite, focused race tests, 75 frontend tests, production build, and focused lint checks are the acceptance checks.
-
-A live acceptance run used Codex CLI 0.153.4, a custom planning agent on `gpt-6-astra`, and a task agent on `gpt-5.6-sol`, with a disposable database and tiny Git repository. The planner read MCP task/project context and source files. The worker changed subtraction to addition, ran `node --test sum.test.cjs` successfully, and returned its structured handoff. Aycorn preserved the one-file patch, appended the summary, and moved the ticket to In review. An independent test rerun passed; the original checkout and test file remained unchanged. Nothing was merged or pushed.
-
-The live test also caught two integration details: forcing the API URL breaks saved ChatGPT authentication, and unattended read tools need explicit MCP approval settings. Regression checks cover the final configuration. Browser checks verified custom agent creation, name/model/prompt autosave, project agent selection, and the existing board. An existing hook-order crash in General settings was repaired because it prevented opening Project Settings on a fresh load.
-
-One agent runs at a time. There is no automatic retry, automatic merge, spending cap, or parallel worker pool. Codex execution remains on the host with command networking disabled. [Kubernetes environments](kubernetes-architecture.md) provide isolated test and application containers, including optional previews after successful Conductor code completions; they do not containerize the agents themselves. The [branch environments and task containers specification](branch-environments-spec.md) also describes future execution profiles. Manual runs still do not control workflow stages. Conductor never moves work directly to Done.
+Automated regressions cover scope, revocation, duplicate starts/messages, blockers, pause/claim races, canceled/failed/interrupted runs, stale task edits, manual stage changes, confirmation, question/work separation, and recovery when a thread was never created. The standard checks are the full Go suite, frontend tests/build, focused lint, and `make check-agents`.

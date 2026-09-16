@@ -7,11 +7,13 @@ export function AIMarkdown({ children }: { children: string }) {
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ children, href }) => (
+          // Native agents often cite local files. Those paths are not web routes;
+          // show them as file references instead of opening a broken app page.
+          a: ({ children, href }) => href && /^(https?:|mailto:)/i.test(href) ? (
             <a href={href} target="_blank" rel="noopener noreferrer">
               {children}
             </a>
-          ),
+          ) : <code title={href}>{children}</code>,
         }}
       >
         {children}

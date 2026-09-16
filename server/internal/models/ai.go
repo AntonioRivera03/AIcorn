@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // AIRunRequest is an immutable snapshot resolved before enqueueing. Manual runs
 // do not control task stages; only Conductor carries an explicit stage contract.
 type AgentSnapshot struct {
@@ -9,23 +11,56 @@ type AgentSnapshot struct {
 	Instructions string `json:"instructions"`
 }
 
+// ChatTurn is resolved only by the server from this ticket's prior run artifacts.
+// Client JSON never supplies a session ID or working directory.
+type ChatTurn struct {
+	ClientKey   string `json:"clientKey"`
+	PreviousJob int    `json:"previousJob"`
+	SessionID   string `json:"sessionId,omitempty"`
+	Workspace   string `json:"workspace,omitempty"`
+	Branch      string `json:"branch,omitempty"`
+	BaseCommit  string `json:"baseCommit,omitempty"`
+}
+
+type ProjectChatTurn struct {
+	ConversationID int             `json:"conversationId"`
+	TurnID         int             `json:"turnId"`
+	SessionID      string          `json:"sessionId,omitempty"`
+	Context        json.RawMessage `json:"context"`
+	TaskIDs        []int           `json:"taskIds"`
+}
+
+// TaskSession identifies a persistent, independent task agent. Chat holds its
+// server-resolved Codex thread and workspace cursor; user messages cannot set it.
+type TaskSession struct {
+	Role          string             `json:"role"`
+	Mode          string             `json:"mode"` // work or question
+	Settings      *ConductorSettings `json:"settings,omitempty"`
+	ExpectedStage int                `json:"expectedStage"`
+}
+
 type AIRunRequest struct {
-	Engine         string        `json:"engine"`
-	AgentID        int           `json:"agentId,omitempty"`
-	Conductor      *ConductorRun `json:"conductor,omitempty"`
-	Key            string        `json:"key"`
-	Intent         string        `json:"intent"`
-	Instruction    string        `json:"instruction"`
-	TaskName       string        `json:"taskName"`
-	TaskBody       string        `json:"taskBody"`
-	PresetName     string        `json:"presetName,omitempty"`
-	SystemPrompt   string        `json:"systemPrompt,omitempty"`
-	Model          string        `json:"model"`
-	Executable     string        `json:"executable"`
-	EngineVersion  string        `json:"engineVersion"`
-	RepoPath       string        `json:"repoPath,omitempty"`
-	ProjectID      int           `json:"projectId"`
-	TimeoutSeconds int           `json:"timeoutSeconds"`
+	DispatchID     int               `json:"dispatchId,omitempty"`
+	TaskSession    *TaskSession      `json:"taskSession,omitempty"`
+	AgentModels    map[string]string `json:"agentModels,omitempty"`
+	ProjectChat    *ProjectChatTurn  `json:"projectChat,omitempty"`
+	Chat           *ChatTurn         `json:"chat,omitempty"`
+	Engine         string            `json:"engine"`
+	AgentID        int               `json:"agentId,omitempty"`
+	Conductor      *ConductorRun     `json:"conductor,omitempty"`
+	Key            string            `json:"key"`
+	Intent         string            `json:"intent"`
+	Instruction    string            `json:"instruction"`
+	TaskName       string            `json:"taskName"`
+	TaskBody       string            `json:"taskBody"`
+	PresetName     string            `json:"presetName,omitempty"`
+	SystemPrompt   string            `json:"systemPrompt,omitempty"`
+	Model          string            `json:"model"`
+	Executable     string            `json:"executable"`
+	EngineVersion  string            `json:"engineVersion"`
+	RepoPath       string            `json:"repoPath,omitempty"`
+	ProjectID      int               `json:"projectId"`
+	TimeoutSeconds int               `json:"timeoutSeconds"`
 }
 
 type AISettings struct {
@@ -35,6 +70,8 @@ type AISettings struct {
 }
 
 type AIRunArtifacts struct {
+	TurnDiff   string   `json:"turnDiff,omitempty"`
+	TurnFiles  []string `json:"turnFiles,omitempty"`
 	Provider   string   `json:"provider,omitempty"`
 	SessionID  string   `json:"sessionId,omitempty"`
 	TurnID     string   `json:"turnId,omitempty"`

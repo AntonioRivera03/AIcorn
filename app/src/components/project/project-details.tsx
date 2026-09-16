@@ -1,4 +1,6 @@
 import { ListView } from "@/components/project/views/listView/list-view";
+import { ProjectChat } from "@/features/project-chat/project-chat";
+import { DocumentsView } from "@/features/documents/documents-view";
 import { ProjectContentHeader } from "@/components/project/project-details-content-header";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
@@ -13,12 +15,17 @@ import { useSharedSelection } from "@/hooks/useSelection";
 import { BulkActionsToolbar } from "@/features/task/bulk-actions-toolbar";
 import { useConductor } from "@/features/conductor/use-conductor";
 import { ConductorContext } from "@/features/conductor/conductor-context";
-import { ConductorControls, ConductorFrame } from "@/features/conductor/conductor-board";
+import {
+  ConductorControls,
+  ConductorFrame,
+} from "@/features/conductor/conductor-board";
 import {
   CalendarDaysIcon,
   CalendarIcon,
   LayoutDashboardIcon,
   Rows3Icon,
+  FileTextIcon,
+  MessageSquareIcon,
 } from "lucide-react";
 
 export function ProjectDetails({
@@ -72,76 +79,116 @@ export function ProjectDetails({
   const visibleContext = useMemo(() => {
     if (!conductorOnly) return projectContext;
     const ids = new Set(conductor.data?.tasks.map((task) => task.taskId));
-    return { ...projectContext, Tasks: Tasks.filter((task) => ids.has(task.ID)) };
+    return {
+      ...projectContext,
+      Tasks: Tasks.filter((task) => ids.has(task.ID)),
+    };
   }, [conductorOnly, conductor.data?.tasks, projectContext, Tasks]);
 
   return (
     <ConductorContext.Provider value={conductor}>
-    <ProjectContext.Provider value={visibleContext}>
-    <div className="flex flex-col gap-4 grow min-h-0 overflow-visible">
-      <ProjectContentHeader />
+      <ProjectContext.Provider value={visibleContext}>
+        <div className="flex flex-col gap-4 grow min-h-0 overflow-visible">
+          <ProjectContentHeader />
 
-      <div className="flex grow flex-col gap-4 overflow-visible min-h-0">
-        <CalendarProvider events={[]} users={[]} view="month">
-          <DndProvider>
-            <Tabs value={view} onValueChange={setView} className="h-full">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-              <TabsList>
-                <TabsTrigger value="list">
-                  <Rows3Icon />
-                  List
-                </TabsTrigger>
-                <TabsTrigger value="kanban">
-                  <LayoutDashboardIcon />
-                  Kanban
-                </TabsTrigger>
-                <TabsTrigger value="month">
-                  <CalendarDaysIcon />
-                  Month
-                </TabsTrigger>
-                <TabsTrigger value="week">
-                  <CalendarIcon />
-                  Week
-                </TabsTrigger>
-              </TabsList>
-              <ConductorControls projectId={projectId} only={conductorOnly} onOnlyChange={(value) => { setConductorOnly(value); selection.clearSelection(); }} />
-              </div>
+          <div className="flex grow flex-col gap-4 overflow-visible min-h-0">
+            <CalendarProvider events={[]} users={[]} view="month">
+              <DndProvider>
+                <Tabs
+                  value={view}
+                  onValueChange={(value) => {
+                    selection.clearSelection();
+                    setView(value);
+                  }}
+                  className="h-full"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <TabsList className="max-w-full overflow-x-auto">
+                      <TabsTrigger value="list">
+                        <Rows3Icon />
+                        List
+                      </TabsTrigger>
+                      <TabsTrigger value="kanban">
+                        <LayoutDashboardIcon />
+                        Kanban
+                      </TabsTrigger>
+                      <TabsTrigger value="month">
+                        <CalendarDaysIcon />
+                        Month
+                      </TabsTrigger>
+                      <TabsTrigger value="week">
+                        <CalendarIcon />
+                        Week
+                      </TabsTrigger>
+                      <TabsTrigger value="documents">
+                        <FileTextIcon />
+                        Documents
+                      </TabsTrigger>
+                      <TabsTrigger value="chats">
+                        <MessageSquareIcon />
+                        Chats
+                      </TabsTrigger>
+                    </TabsList>
+                    {view !== "documents" && view !== "chats" && (
+                      <ConductorControls
+                        projectId={projectId}
+                        only={conductorOnly}
+                        onOnlyChange={(value) => {
+                          setConductorOnly(value);
+                          selection.clearSelection();
+                        }}
+                      />
+                    )}
+                  </div>
 
-              <TabsContent
-                value="list"
-                className="h-full overflow-visible min-h-0"
-              >
-                <ConductorFrame only={conductorOnly}><ListView setTaskDrawerOpen={setNewTaskOpen} /></ConductorFrame>
-              </TabsContent>
-              <TabsContent
-                value="kanban"
-                className="h-full overflow-visible min-h-0"
-              >
-                <ConductorFrame only={conductorOnly}><KanbanView setTaskDrawerOpen={setNewTaskOpen} /></ConductorFrame>
-              </TabsContent>
-              <TabsContent
-                value="month"
-                className="h-full overflow-visible min-h-0"
-              >
-                <MonthView setTaskDrawerOpen={setNewTaskOpen} />
-              </TabsContent>
-              <TabsContent
-                value="week"
-                className="h-full overflow-visible min-h-0"
-              >
-                <WeekView setTaskDrawerOpen={setNewTaskOpen} />
-              </TabsContent>
-            </Tabs>
-          </DndProvider>
-        </CalendarProvider>
-      </div>
+                  <TabsContent
+                    value="list"
+                    className="h-full overflow-visible min-h-0"
+                  >
+                    <ConductorFrame only={conductorOnly}>
+                      <ListView setTaskDrawerOpen={setNewTaskOpen} />
+                    </ConductorFrame>
+                  </TabsContent>
+                  <TabsContent
+                    value="kanban"
+                    className="h-full overflow-visible min-h-0"
+                  >
+                    <ConductorFrame only={conductorOnly}>
+                      <KanbanView setTaskDrawerOpen={setNewTaskOpen} />
+                    </ConductorFrame>
+                  </TabsContent>
+                  <TabsContent
+                    value="month"
+                    className="h-full overflow-visible min-h-0"
+                  >
+                    <MonthView setTaskDrawerOpen={setNewTaskOpen} />
+                  </TabsContent>
+                  <TabsContent
+                    value="week"
+                    className="h-full overflow-visible min-h-0"
+                  >
+                    <WeekView setTaskDrawerOpen={setNewTaskOpen} />
+                  </TabsContent>
+                  <TabsContent value="chats" className="min-h-0 flex-1">
+                    <ProjectChat key={projectId} projectId={projectId} />
+                  </TabsContent>
+                  <TabsContent
+                    value="documents"
+                    className="flex min-h-0 flex-1"
+                  >
+                    <DocumentsView key={projectId} projectId={projectId} />
+                  </TabsContent>
+                </Tabs>
+              </DndProvider>
+            </CalendarProvider>
+          </div>
 
-      <BulkActionsToolbar
-        selectedTasks={selectedTasks}
-        onClear={selection.clearSelection}
-      />
-    </div>
-    </ProjectContext.Provider>
+          <BulkActionsToolbar
+            selectedTasks={selectedTasks}
+            onClear={selection.clearSelection}
+          />
+        </div>
+      </ProjectContext.Provider>
     </ConductorContext.Provider>
   );
 }

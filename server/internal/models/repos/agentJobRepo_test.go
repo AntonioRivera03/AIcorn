@@ -16,7 +16,7 @@ func setupAgentJobTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	// Minimal parent tables to satisfy FKs
-	if _, err := db.Exec(`CREATE TABLE persona (id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE persona (builtin_role TEXT NOT NULL DEFAULT '',id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
 		t.Fatalf("create persona: %v", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE task (id INTEGER PRIMARY KEY);`); err != nil {
@@ -271,7 +271,7 @@ func setupAgentJobProjectTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(`CREATE TABLE checklist (id INTEGER PRIMARY KEY, project INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE);`); err != nil {
 		t.Fatalf("create checklist: %v", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE persona (id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE persona (builtin_role TEXT NOT NULL DEFAULT '',id INTEGER PRIMARY KEY AUTOINCREMENT);`); err != nil {
 		t.Fatalf("create persona: %v", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE task (id INTEGER PRIMARY KEY, checklist INTEGER NOT NULL REFERENCES checklist(id) ON DELETE CASCADE);`); err != nil {

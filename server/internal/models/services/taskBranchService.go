@@ -19,6 +19,13 @@ func (s *AIService) TaskBranches(ctx context.Context, taskID int) ([]models.Task
 	}
 	for i := range branches {
 		b := &branches[i]
+		active, err := s.Jobs.BranchHasActiveRun(b.RepoPath, b.Branch)
+		if err != nil {
+			return nil, err
+		}
+		if active {
+			b.Status = "running"
+		}
 		state, err := worktree.InspectBranch(ctx, b.RepoPath, b.Branch, b.BaseCommit)
 		if err != nil {
 			b.Problem = err.Error()
@@ -38,6 +45,13 @@ func (s *AIService) taskBranch(taskID, jobID int) (*models.TaskBranch, error) {
 		if branch.JobID == jobID {
 			switch branch.Status {
 			case "completed", "failed", "canceled", "interrupted":
+				active, err := s.Jobs.BranchHasActiveRun(branch.RepoPath, branch.Branch)
+				if err != nil {
+					return nil, err
+				}
+				if active {
+					return nil, fmt.Errorf("%w: wait for the active chat turn to finish", worktree.ErrMergeBlocked)
+				}
 				return &branch, nil
 			default:
 				return nil, fmt.Errorf("%w: wait for the agent run to finish before merging", worktree.ErrMergeBlocked)

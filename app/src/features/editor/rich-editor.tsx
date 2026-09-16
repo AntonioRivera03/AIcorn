@@ -34,12 +34,14 @@ import { LinkKit } from "@/features/editor/plugins/link-kit";
 export function RichEditor({
   initialValue = DEFAULT_VALUE,
   onDebounceChange,
+  onValueChange,
   onEditorReady,
   debounceDuration = 250,
   className = "",
 }: {
   initialValue?: Value;
   onDebounceChange?: (value: Value) => void;
+  onValueChange?: (value: Value) => void;
   onEditorReady?: (editor: PlateEditor) => void;
   debounceDuration?: number;
   className?: string;
@@ -87,6 +89,7 @@ export function RichEditor({
 
   const handleChange = ({ value }: { value: Value }) => {
     setValue(value);
+    onValueChange?.(value);
   };
 
   const debouncedValue = useDebounce(value, debounceDuration);

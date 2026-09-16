@@ -65,7 +65,9 @@ export function AIRunCard({
 
   const artifacts = run?.artifacts;
   const legacy = !job.request;
-  const output = job.request?.conductor ? conductorOutput(run?.output ?? "") : run?.output;
+  const output = job.request?.conductor
+    ? conductorOutput(run?.output ?? "")
+    : run?.output;
   return (
     <article
       className="rounded-xl border border-border bg-card p-4"
@@ -75,7 +77,11 @@ export function AIRunCard({
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Codex conversation</span>
           <code className="break-all">{artifacts.sessionId}</code>
-          <Button variant="ghost" size="sm" onClick={() => void copy(`codex resume ${artifacts.sessionId}`)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void copy(`codex resume ${artifacts.sessionId}`)}
+          >
             <Copy className="size-3" /> Copy resume command
           </Button>
         </div>
@@ -91,7 +97,11 @@ export function AIRunCard({
           {statusLabels[job.status] || job.status}
         </Badge>
         <span className="text-sm capitalize">
-          {job.request?.conductor ? `Conductor · ${job.request.conductor.phase}` : job.request?.intent || "Previous run"}
+          {job.request?.taskSession
+            ? `${job.request.presetName || "Task agent"} · ${job.request.taskSession.mode === "work" ? "Work" : "Question"}`
+            : job.request?.conductor
+              ? `Conductor · ${job.request.conductor.phase}`
+              : job.request?.intent || "Previous run"}
         </span>
         {elapsed && (
           <span
@@ -172,8 +182,14 @@ export function AIRunCard({
             <Square className="size-3" />{" "}
             {job.status === "canceling" ? "Stopping…" : "Stop"}
           </Button>
+        ) : job.request?.taskSession ? (
+          <span className="text-xs text-muted-foreground">
+            Continue this session below.
+          </span>
         ) : job.request?.conductor ? (
-          <span className="text-xs text-muted-foreground">Manage this task from its Conductor badge on the project board.</span>
+          <span className="text-xs text-muted-foreground">
+            Manage this task from its Conductor badge on the project board.
+          </span>
         ) : (
           <Button variant="ghost" size="sm" onClick={onRetry} disabled={busy}>
             <RotateCcw className="size-3" /> Use request again
@@ -200,7 +216,10 @@ export function AIRunCard({
           {job.request && (
             <>
               <dt>Engine</dt>
-              <dd>{job.request.engine === "codex" ? "Codex" : "Previous engine"} {job.request.engineVersion}</dd>
+              <dd>
+                {job.request.engine === "codex" ? "Codex" : "Previous engine"}{" "}
+                {job.request.engineVersion}
+              </dd>
               <dt>Model</dt>
               <dd>{job.request.model}</dd>
               <dt>Agent</dt>

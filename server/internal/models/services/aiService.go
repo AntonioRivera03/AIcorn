@@ -10,6 +10,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
+	"github.com/waseem-polus/aycorn/server/internal/taskintent"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"os"
 	"os/exec"
@@ -21,20 +22,21 @@ var ErrAISetup = errors.New("AI setup needs attention")
 
 type AIRunInput struct {
 	Engine        string                `json:"engine,omitempty"`
-	Agent         *models.AgentSnapshot `json:"-"` // Frozen custom agent for a Conductor cycle.
+	Agent         *models.AgentSnapshot `json:"-"` // Frozen agent model/instructions for a Conductor cycle.
 	Intent        string                `json:"intent"`
 	Instruction   string                `json:"instruction"`
 	PresetID      int                   `json:"presetId"`
 	UseRepository bool                  `json:"useRepository"`
 }
 type AIService struct {
-	Jobs          *repos.AgentJobRepo
-	Tasks         *repos.TaskRepo
-	Projects      *repos.ProjectRepo
-	Presets       *repos.PersonaRepo
-	Converter     *markdown.Converter
-	MCPExecutable string
-	Probe         func(context.Context, string) harness.EngineHealth
+	IntentClassifier taskintent.Classifier
+	Jobs             *repos.AgentJobRepo
+	Tasks            *repos.TaskRepo
+	Projects         *repos.ProjectRepo
+	Presets          *repos.PersonaRepo
+	Converter        *markdown.Converter
+	MCPExecutable    string
+	Probe            func(context.Context, string) harness.EngineHealth
 }
 
 func (s *AIService) Health(ctx context.Context, executable string) harness.EngineHealth {
@@ -68,7 +70,40 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 	if err != nil {
 		return nil, err
 	}
-	return s.Jobs.EnqueueAI(taskID, in.PresetID, *req)
+	latest, artifacts, err := s.Jobs.LatestChat(taskID)
+	if err != nil {
+		return nil, err
+	}
+	role := "coder"
+	if in.PresetID > 0 {
+		p, e := s.Presets.FindOne(in.PresetID)
+		if e != nil {
+			return nil, e
+		}
+		if p.BuiltinRole != "" {
+			role = p.BuiltinRole
+		}
+	}
+	if role == "conductor" || role == "chatter" {
+		return nil, fmt.Errorf("%w: choose a task agent", ErrInvalidAIRun)
+	}
+	task, err := s.Tasks.FindOneWithProject(taskID)
+	if err != nil {
+		return nil, err
+	}
+	mode := "work"
+	if req.Intent == "ask" {
+		mode = "question"
+	}
+	req.TaskSession = &models.TaskSession{Role: role, Mode: mode, ExpectedStage: task.Stage}
+	req.Chat = &models.ChatTurn{ClientKey: req.Key}
+	if latest != nil {
+		req.Chat.PreviousJob = latest.ID
+	}
+	if latest != nil && latest.Request.TaskSession != nil && latest.Request.RepoPath == req.RepoPath && latest.Request.AgentID == req.AgentID {
+		req.Chat = resumeCursor(latest, artifacts, req.Key)
+	}
+	return s.Jobs.EnqueueChat(taskID, *req)
 }
 
 // Prepare resolves an immutable request without enqueueing it. Conductor uses
@@ -93,6 +128,27 @@ func (s *AIService) Prepare(ctx context.Context, taskID int, in AIRunInput) (*mo
 	if err != nil {
 		return nil, err
 	}
+	return s.PrepareSnapshot(ctx, task, in)
+}
+
+// PrepareSnapshot resolves a template before its task is inserted, allowing a
+// scheduler to commit the new task and its queued run in one transaction.
+func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithProject, in AIRunInput) (*models.AIRunRequest, error) {
+	if in.Engine != "" && in.Engine != "codex" {
+		return nil, ErrInvalidAIRun
+	}
+	if in.Intent == "" {
+		in.Intent = "ask"
+	}
+	switch in.Intent {
+	case "ask", "plan", "implement", "review":
+	default:
+		return nil, ErrInvalidAIRun
+	}
+	in.Instruction = strings.TrimSpace(in.Instruction)
+	if task == nil || len(in.Instruction) > 32000 || in.PresetID < 0 {
+		return nil, ErrInvalidAIRun
+	}
 	settings, err := s.Jobs.AISettings()
 	if err != nil {
 		return nil, err
@@ -116,6 +172,12 @@ func (s *AIService) Prepare(ctx context.Context, taskID int, in AIRunInput) (*mo
 	}
 	req := models.AIRunRequest{Engine: "codex", Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
 
+	if s.Presets != nil {
+		req.AgentModels, err = s.Presets.FleetModels()
+		if err != nil {
+			return nil, err
+		}
+	}
 	if agent != nil {
 		req.AgentID = agent.ID
 		req.PresetName = agent.Name
@@ -156,10 +218,11 @@ func (s *AIService) Cancel(id int) (bool, error) {
 	return s.Jobs.CancelAI(id)
 }
 
-// ResolveAgent snapshots editable instructions and model once per planning cycle.
+// ResolveAgent snapshots the bundled instructions and editable model. Legacy
+// custom agents retain their saved instructions for existing task/Job references.
 func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnapshot, error) {
 	if id <= 0 {
-		return nil, fmt.Errorf("%w: select a custom agent from the AI page", ErrAISetup)
+		return nil, fmt.Errorf("%w: select an agent from the AI page", ErrAISetup)
 	}
 	p, err := s.Presets.FindOne(id)
 	if err != nil {
@@ -168,9 +231,23 @@ func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnap
 	if p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
 		return nil, fmt.Errorf("%w: selected agent must use Codex and an OpenAI model", ErrAISetup)
 	}
+	if p.BuiltinRole != "" {
+		return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: p.Instructions}, nil
+	}
 	prompts, err := s.Converter.ToMarkdown(ctx, []string{p.SystemPrompt})
 	if err != nil {
 		return nil, err
 	}
 	return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: prompts[0]}, nil
+}
+
+func (s *AIService) ResolveRole(ctx context.Context, role string) (*models.AgentSnapshot, error) {
+	if s.Presets == nil {
+		return nil, fmt.Errorf("%w: bundled agents unavailable", ErrAISetup)
+	}
+	p, err := s.Presets.FindRole(role)
+	if err != nil {
+		return nil, fmt.Errorf("%w: bundled %s agent unavailable", ErrAISetup, role)
+	}
+	return s.ResolveAgent(ctx, p.ID)
 }

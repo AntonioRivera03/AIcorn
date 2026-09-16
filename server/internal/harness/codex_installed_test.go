@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/models"
 	_ "modernc.org/sqlite"
 	"os"
 	"path/filepath"
@@ -36,12 +37,7 @@ func TestInstalledCodexProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := h.sessionConfig(spec)
-	// The smoke test has an empty task DB: server startup is enough, no tool call.
-	for _, role := range fleetRoles {
-		config["agents."+role+".config_file"] = filepath.Join(dir, role+".toml")
-		config["agents."+role+".description"] = "Aycorn " + role
-	}
+	config := h.agentConfig(spec, dir)
 	open := func() *rpcClient {
 		client, err := startRPC(ctx, executable, []string{"app-server", "--listen", "stdio://"}, codexEnvironment(root), root, func(rpcMessage) {})
 		if err != nil {
@@ -73,6 +69,7 @@ func TestInstalledCodexProtocol(t *testing.T) {
 		client.close()
 		t.Fatal("session not persisted", started)
 	}
+
 	err = client.call(ctx, "thread/name/set", map[string]string{"threadId": started.Thread.ID, "name": "Aycorn protocol verification"}, nil)
 	client.close()
 	if err != nil {
@@ -94,7 +91,7 @@ func TestInstalledCodexProtocol(t *testing.T) {
 	}
 }
 
-// A single real model turn verifies MCP, the bundled fleet/config, event mapping
+// Real model turns verify MCP, the bundled fleet/config, event mapping, resume
 // and default native session listing. It is opt-in because it uses local login.
 func TestInstalledCodexTurn(t *testing.T) {
 	if os.Getenv("AYCORN_CODEX_LIVE") != "1" {
@@ -123,7 +120,7 @@ func TestInstalledCodexTurn(t *testing.T) {
 	req.TimeoutSeconds = 120
 	req.TaskName = "Protocol verification"
 	req.ProjectID = 1
-	req.Instruction = "Delegate exactly one bounded task to the custom planner agent: read task 1 through Aycorn MCP and report its title. Wait for that agent, then reply exactly AYCORN_HARNESS_OK. Do not edit files."
+	req.Instruction = "Read task 1 through Aycorn MCP, then reply exactly AYCORN_HARNESS_OK. Work directly without delegation. Do not edit files."
 	h := &Codex{MCPExecutable: mcp, DBPath: dbPath, FleetDir: filepath.Join(root, "fleet")}
 	result, err := h.Run(context.Background(), RunSpec{Request: req, TaskID: 1, WorkDir: root})
 	if err != nil {
@@ -131,6 +128,12 @@ func TestInstalledCodexTurn(t *testing.T) {
 	}
 	if strings.TrimSpace(result.Output) != "AYCORN_HARNESS_OK" || result.SessionID == "" || result.TurnID == "" {
 		t.Fatalf("unexpected live result: %+v", result)
+	}
+	req.Chat = &models.ChatTurn{SessionID: result.SessionID}
+	req.Instruction = "Reply with exactly the final answer you gave to my previous message in this conversation. Do not delegate or edit anything."
+	continued, err := h.Run(context.Background(), RunSpec{Request: req, TaskID: 1, WorkDir: root})
+	if err != nil || continued.SessionID != result.SessionID || continued.TurnID == result.TurnID || strings.TrimSpace(continued.Output) != "AYCORN_HARNESS_OK" {
+		t.Fatalf("conversation did not resume: %+v %v", continued, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -164,8 +167,8 @@ func TestInstalledCodexTurn(t *testing.T) {
 	if err = client.call(ctx, "thread/read", map[string]any{"threadId": result.SessionID, "includeTurns": true}, &history); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(history), "collabAgentToolCall") && !strings.Contains(string(history), "subAgentActivity") {
-		t.Fatal("run did not exercise subagent delegation")
+	if strings.Contains(string(history), "collabAgentToolCall") || strings.Contains(string(history), "subAgentActivity") {
+		t.Fatal("independent session spawned a subagent")
 	}
 	// Archive only the disposable conversation created by this test.
 	if err = client.call(ctx, "thread/archive", map[string]string{"threadId": result.SessionID}, nil); err != nil {

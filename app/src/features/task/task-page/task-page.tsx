@@ -1,3 +1,6 @@
+import { TaskOwnershipNotice } from "@/features/ai/task-ownership";
+import { TaskGitHubLinks } from "@/features/task/links/task-github-links";
+import { TicketChat } from "@/features/chat/ticket-chat";
 import { TaskBranches } from "@/features/task/branches/task-branches";
 import { AskAIButton } from "@/features/ai/ask-ai-button";
 import { useContext, useEffect, useRef, useState } from "react";
@@ -156,8 +159,10 @@ export function TaskPage({ projectId }: { projectId: number }) {
               />
             </Button>
           </CollapsibleTrigger>
-          <AskAIButton taskId={task.ID} taskName={task.Name} />
-            <DropdownMenu>
+          {task.Type.ViewMode !== "chat" && (
+            <AskAIButton taskId={task.ID} taskName={task.Name} />
+          )}
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 size="icon"
@@ -178,13 +183,15 @@ export function TaskPage({ projectId }: { projectId: number }) {
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
+                  <DropdownMenuSubTrigger
+                    disabled={task.Type.ViewMode === "chat"}
+                  >
                     <ClipboardIcon className="text-muted-foreground" />
                     Copy as
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     <DropdownMenuItem
-                      disabled={!editorReady}
+                      disabled={!editorReady || task.Type.ViewMode === "chat"}
                       onClick={handleCopyAsMarkdown}
                     >
                       Markdown
@@ -199,7 +206,7 @@ export function TaskPage({ projectId }: { projectId: number }) {
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={() => openAI({ id: task.ID, name: task.Name })}
-                  disabled={task.ID === 0}
+                  disabled={task.ID === 0 || task.Type.ViewMode === "chat"}
                 >
                   <Bot className="size-4" />
                   Ask AI
@@ -280,6 +287,8 @@ export function TaskPage({ projectId }: { projectId: number }) {
         </CollapsibleContent>
       </Collapsible>
 
+      <TaskOwnershipNotice projectId={projectId} taskId={task.ID} />
+      <TaskGitHubLinks key={`links-${task.ID}`} taskId={task.ID} />
       <TaskBranches key={task.ID} taskId={task.ID} />
 
       <DeleteTaskDialog
@@ -290,17 +299,21 @@ export function TaskPage({ projectId }: { projectId: number }) {
         onDeleted={() => window.history.back()}
       />
 
-      <RichEditor
-        key={task.ID}
-        onDebounceChange={handleEditorValueChange}
-        onEditorReady={(editor) => {
-          editorRef.current = editor;
-          setEditorReady(true);
-        }}
-        debounceDuration={250}
-        initialValue={task.Body && task.Body.length > 0 ? task.Body : []}
-        className="px-2"
-      />
+      {task.Type.ViewMode === "chat" ? (
+        <TicketChat key={task.ID} taskId={task.ID} />
+      ) : (
+        <RichEditor
+          key={task.ID}
+          onDebounceChange={handleEditorValueChange}
+          onEditorReady={(editor) => {
+            editorRef.current = editor;
+            setEditorReady(true);
+          }}
+          debounceDuration={250}
+          initialValue={task.Body && task.Body.length > 0 ? task.Body : []}
+          className="px-2"
+        />
+      )}
     </div>
   );
 }

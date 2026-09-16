@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 )
 
 const (
@@ -58,15 +60,35 @@ var openAIModel = regexp.MustCompile(`^(gpt-[0-9][a-z0-9.-]*|o[0-9][a-z0-9.-]*|c
 func IsOpenAIModel(model string) bool { return len(model) <= 100 && openAIModel.MatchString(model) }
 
 type Persona struct {
-	ID           int
-	Name         string
-	SystemPrompt string
-	Harness      PersonaHarness
-	Model        PersonaModel
-	Agent        PersonaAgent
-	AllowedTools []string
-	TimeCreated  *time.Time
-	TimeModified *time.Time
+	BuiltinRole     string
+	Description     string
+	Instructions    string
+	InstructionPath string
+	Skills          []AgentSkill
+	ID              int
+	Name            string
+	SystemPrompt    string
+	Harness         PersonaHarness
+	Model           PersonaModel
+	Agent           PersonaAgent
+	AllowedTools    []string
+	TimeCreated     *time.Time
+	TimeModified    *time.Time
+}
+
+type AgentSkill struct{ Name, Path, Content string }
+
+// Bundled definitions override legacy editable fields without destroying them
+// in storage. Every reader sees the same authoritative role and Markdown.
+func (p *Persona) ApplyBuiltin() {
+	if d, ok := fleet.Lookup(p.BuiltinRole); ok {
+		p.Name, p.Description, p.Instructions = d.Name, d.Description, d.Instructions()
+		p.Harness = PersonaHarnessCodex
+		p.InstructionPath = "server/internal/harness/fleet/" + d.Role + "-instructions.md"
+		p.Skills = []AgentSkill{{Name: "aycorn-workflow", Path: "server/internal/harness/fleet/" + fleet.WorkflowPath, Content: fleet.Workflow()}}
+		body, _ := json.Marshal([]any{map[string]any{"type": "p", "children": []any{map[string]string{"text": p.Instructions}}}})
+		p.SystemPrompt = string(body)
+	}
 }
 
 type PersonaSummary struct {

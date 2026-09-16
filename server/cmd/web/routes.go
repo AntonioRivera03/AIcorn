@@ -4,6 +4,19 @@ import "net/http"
 
 func (app *app) routes() http.Handler {
 	mux := http.NewServeMux()
+	if app.projectChatService != nil {
+		app.projectChatRoutes(mux)
+	}
+	if app.projectRepo != nil {
+		app.documentRoutes(mux)
+	}
+	if app.taskService != nil {
+		app.taskLinkRoutes(mux)
+		mux.HandleFunc("GET /api/task-ownership/project/{projectId}", app.projectTaskOwners)
+	}
+	if app.jobService != nil {
+		app.jobRoutes(mux)
+	}
 	mux.HandleFunc("GET /api/health/ready", app.readiness)
 	mux.HandleFunc("GET /api/preview", app.getPreviewInfo)
 	if app.environmentService != nil {
@@ -130,6 +143,8 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/ai/settings", app.getAISettings)
 	mux.HandleFunc("PUT /api/ai/settings", app.putAISettings)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/runs", app.startAIRun)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/chat", app.startChatTurn)
+	mux.HandleFunc("POST /api/ai/tasks/{taskId}/session/messages", app.taskSessionMessage)
 	mux.HandleFunc("POST /api/ai/runs/{jobId}/cancel", app.cancelAIRun)
 	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches", app.getTaskBranches)
 	mux.HandleFunc("GET /api/ai/tasks/{taskId}/branches/{jobId}/merge", app.previewTaskMerge)

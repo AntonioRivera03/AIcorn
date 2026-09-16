@@ -69,7 +69,7 @@ func personaAgentTestApp(t *testing.T) (*sql.DB, *services.PersonaService) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if _, err := db.Exec(`
-		CREATE TABLE persona (
+		CREATE TABLE persona (builtin_role TEXT NOT NULL DEFAULT '',
 		    id            INTEGER PRIMARY KEY AUTOINCREMENT,
 		    name          TEXT NOT NULL DEFAULT '',
 		    system_prompt TEXT NOT NULL DEFAULT '[]',

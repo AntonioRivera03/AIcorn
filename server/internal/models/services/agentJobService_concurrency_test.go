@@ -48,7 +48,7 @@ func setupConcurrentServiceDB(t *testing.T) (*sql.DB, *sql.DB, *AgentJobService,
 
 	// Schema via db1 (shared cache)
 	if _, err := db1.Exec(`
-		CREATE TABLE persona (
+		CREATE TABLE persona (builtin_role TEXT NOT NULL DEFAULT '',
 		    id            INTEGER PRIMARY KEY AUTOINCREMENT,
 		    name          TEXT NOT NULL DEFAULT '',
 		    system_prompt TEXT NOT NULL DEFAULT '',

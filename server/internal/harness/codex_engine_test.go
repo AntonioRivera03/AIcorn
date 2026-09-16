@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 )
 
@@ -38,8 +39,16 @@ func TestAppServerPeer(t *testing.T) {
 		switch m.Method {
 		case "initialized":
 			continue
-		case "thread/start":
-			if m.Params["ephemeral"] != false || m.Params["modelProvider"] != "openai" {
+		case "config/read":
+			result = map[string]any{"config": map[string]any{"mcp_servers": map[string]any{"unrelated": map[string]any{}}, "apps": map[string]any{"explicit-app": map[string]any{"enabled": true}}}}
+		case "thread/start", "thread/resume":
+			if m.Method == "thread/start" && (mode == "resume" || m.Params["ephemeral"] != false) {
+				os.Exit(3)
+			}
+			if m.Method == "thread/resume" && (m.Params["threadId"] != "thread-root" || m.Params["excludeTurns"] != true || m.Params["ephemeral"] != nil) {
+				os.Exit(3)
+			}
+			if m.Params["modelProvider"] != "openai" {
 				os.Exit(3)
 			}
 			result = map[string]any{"thread": map[string]string{"id": "thread-root"}}
@@ -164,19 +173,55 @@ func TestCodexContextAndScope(t *testing.T) {
 				t.Fatal(params)
 			}
 			config := params["config"].(map[string]any)
-			if config["agents.enabled"] != true {
-				t.Fatal("subagents disabled")
+			if config["agents.enabled"] != false {
+				t.Fatal("native subagents must be disabled")
+			}
+			for _, key := range []string{"mcp_servers.unrelated.enabled", "apps._default.enabled", "apps.explicit-app.enabled"} {
+				if config[key] != false {
+					t.Fatal("inherited tool access retained", key)
+				}
+			}
+			if config["mcp_servers.aycorn.required"] != true || config["mcp_servers.aycorn.command"] != "/bin/mcp" {
+				t.Fatal("missing native orchestration or MCP configuration", config)
+			}
+			for _, role := range fleet.All() {
+				path, ok := config["agents."+role.Role+".config_file"].(string)
+				if !ok || !filepath.IsAbs(path) {
+					t.Fatalf("missing executable profile for %s", role.Role)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || !strings.Contains(string(body), "developer_instructions = ") {
+					t.Fatalf("profile %s unavailable: %v", role.Role, err)
+				}
+			}
+			for _, name := range []string{"read_task", "search_tasks", "project_context", "read_project_document"} {
+				exposed := false
+				for _, tool := range config["mcp_servers.aycorn.enabled_tools"].([]any) {
+					exposed = exposed || tool == name
+				}
+				if !exposed || config["mcp_servers.aycorn.tools."+name+".approval_mode"] != "approve" {
+					t.Fatal("MCP tool unavailable", name)
+				}
+			}
+			skills := config["skills.config"].([]any)
+			skill := skills[0].(map[string]any)
+			if _, err := os.Stat(skill["path"].(string)); err != nil || skill["enabled"] != true {
+				t.Fatal("root workflow skill unavailable", skill, err)
 			}
 			env := config["mcp_servers.aycorn.env"].(map[string]any)
 			if env["AYCORN_RUN_TASK"] != "42" || env["AYCORN_CONDUCTOR_PROJECT"] != "7" {
 				t.Fatal(env)
 			}
 			developer := params["developerInstructions"].(string)
-			for _, want := range []string{"custom instructions", "planning=11, doing=12, review=13", "Only you manage the ticket"} {
+			if strings.Contains(developer, "custom instructions") {
+				t.Fatal("legacy prompt escaped fixed task role")
+			}
+			for _, want := range []string{"independent task agent", "working stage 12", "review stage 13", "Do not move tasks or spawn subagents"} {
 				if !strings.Contains(developer, want) {
-					t.Fatal(developer)
+					t.Fatal("missing task contract", want)
 				}
 			}
+
 		})
 	}
 }
@@ -190,6 +235,27 @@ func TestCodexRejectsIncompatibleRequests(t *testing.T) {
 		t.Fatal("OpenCode must be disabled")
 	}
 }
+
+func TestCodexResumesChatWithCurrentContextAndScope(t *testing.T) {
+	path := fakeAppServer(t, "resume")
+	req := testRequest(path)
+	req.Chat = &models.ChatTurn{SessionID: "thread-root"}
+	result, err := (&Codex{FleetDir: t.TempDir()}).Run(context.Background(), RunSpec{Request: req, TaskID: 42, WorkDir: t.TempDir()})
+	if err != nil || result.SessionID != "thread-root" || result.Output != "final answer" {
+		t.Fatalf("resume: %+v %v", result, err)
+	}
+	raw, err := os.ReadFile(os.Getenv("TEST_PEER_RECORD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]any
+	if err = json.Unmarshal(raw, &params); err != nil {
+		t.Fatal(err)
+	}
+	if params["sandbox"] != "read-only" || !strings.Contains(params["developerInstructions"].(string), "human-led ticket chat") {
+		t.Fatalf("lost chat contract: %s", raw)
+	}
+}
 func makeFakeScript(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "fake.sh")
@@ -197,4 +263,31 @@ func makeFakeScript(t *testing.T, body string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestMCPApprovalsAreLimitedToExposedScopedTools(t *testing.T) {
+	h := &Codex{}
+	spec := RunSpec{TaskID: 42, JobID: 7, Request: &models.AIRunRequest{ProjectID: 1}}
+	config := h.sessionConfig(spec)
+	if config["mcp_servers.aycorn.tools.add_task_link.approval_mode"] != "approve" {
+		t.Fatal("authorized local writes would be rejected")
+	}
+	if _, ok := config["mcp_servers.aycorn.tools.update_task.approval_mode"]; ok {
+		t.Fatal("task agent gained project mutations")
+	}
+	spec.Request.ProjectChat = &models.ProjectChatTurn{TurnID: 8, ConversationID: 2}
+	spec.TaskID = 0
+	spec.JobID = 0
+	config = h.sessionConfig(spec)
+	env := config["mcp_servers.aycorn.env"].(map[string]string)
+	if env["AYCORN_CHAT_TURN"] != "8" || env["AYCORN_CHAT_PROJECT"] != "1" || env["AYCORN_RUN_TASK"] != "" {
+		t.Fatal(env)
+	}
+	if config["mcp_servers.aycorn.tools.create_task.approval_mode"] != "approve" {
+		t.Fatal(config)
+	}
+	developer, _ := BuildContext(spec)
+	if strings.Contains(developer, "human-led ticket chat") || !strings.Contains(developer, "Chatter") {
+		t.Fatal(developer)
+	}
 }
