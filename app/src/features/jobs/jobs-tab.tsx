@@ -10,7 +10,16 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarClock, FilePlus2, Play, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  FilePlus2,
+  Play,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,10 +43,13 @@ import {
   jobRequest,
   useJobEdit,
   useJobResources,
+  useRunJob,
   type JobRun,
   type ScheduledJob,
   type TaskTemplate,
 } from "./use-jobs";
+import { JobGridCard } from "./job-grid-card";
+import { jobGridItems } from "./job-grid-items";
 
 // Track every field independently: saving a name must not dismiss a failed cron edit.
 const PendingFields = createContext<
@@ -201,18 +213,23 @@ export function JobsTab({ projectId }: { projectId: number }) {
   const client = useQueryClient();
   const { templates, jobs } = useJobResources(projectId);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [search, setSearch] = useState("");
+  const editorPanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selection) editorPanel.current?.focus();
+  }, [selection]);
   const create = useMutation({
     mutationFn: () =>
       jobRequest<TaskTemplate>(
         `/api/project/${projectId}/automation/templates`,
         "POST",
       ),
-    onSuccess: (t) => {
+    onSuccess: (template) => {
       client.setQueryData<TaskTemplate[]>(
         ["task-templates", projectId],
-        (old) => [t, ...(old ?? [])],
+        (old) => [template, ...(old ?? [])],
       );
-      setSelection({ kind: "templates", id: t.id });
+      setSelection({ kind: "templates", id: template.id });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -237,78 +254,17 @@ export function JobsTab({ projectId }: { projectId: number }) {
         </Button>
       </div>
     );
-  const selected =
-    selection ??
-    (jobs.data[0]
-      ? { kind: "jobs", id: jobs.data[0].id }
-      : templates.data[0]
-        ? { kind: "templates", id: templates.data[0].id }
-        : null);
   const template =
-    selected?.kind === "templates"
-      ? templates.data.find((t) => t.id === selected.id)
+    selection?.kind === "templates"
+      ? templates.data.find((t) => t.id === selection.id)
       : undefined;
   const job =
-    selected?.kind === "jobs"
-      ? jobs.data.find((j) => j.id === selected.id)
+    selection?.kind === "jobs"
+      ? jobs.data.find((j) => j.id === selection.id)
       : undefined;
-  return (
-    <section className="space-y-5 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Jobs & templates</h2>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Create reusable tasks, then run them yourself or assign an agent and
-            a schedule. Jobs run even when the board’s Conductor is paused.
-          </p>
-        </div>
-        <Button onClick={() => create.mutate()} disabled={create.isPending}>
-          <Plus className="size-4" />
-          New template
-        </Button>
-      </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[16rem_1fr]">
-        <nav
-          aria-label="Jobs and templates"
-          className="space-y-5 rounded-lg border p-3"
-        >
-          {(
-            [
-              { kind: "jobs", label: "Jobs", items: jobs.data },
-              { kind: "templates", label: "Templates", items: templates.data },
-            ] as const
-          ).map((group) => (
-            <div key={group.kind}>
-              <h3 className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.label}
-              </h3>
-              {group.items.length === 0 && (
-                <p className="px-2 text-sm text-muted-foreground">None yet</p>
-              )}
-              {group.items.map((item) => (
-                <button
-                  key={item.id}
-                  aria-current={
-                    selected?.kind === group.kind && selected.id === item.id
-                      ? "true"
-                      : undefined
-                  }
-                  onClick={() =>
-                    setSelection({ kind: group.kind, id: item.id })
-                  }
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=true]:bg-accent aria-[current=true]:font-medium"
-                >
-                  {group.kind === "jobs" ? (
-                    <CalendarClock className="size-4 shrink-0" />
-                  ) : (
-                    <FilePlus2 className="size-4 shrink-0" />
-                  )}
-                  <span className="truncate">{item.name || "Untitled"}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
+  if (template || job)
+    return (
+      <div ref={editorPanel} tabIndex={-1} className="pb-8 outline-none">
         {template ? (
           <TemplateEditor
             key={`template-${template.id}`}
@@ -316,24 +272,95 @@ export function JobsTab({ projectId }: { projectId: number }) {
             select={setSelection}
             removed={() => setSelection(null)}
           />
-        ) : job ? (
-          <JobEditor
-            key={`job-${job.id}`}
-            job={job}
-            template={templates.data.find((t) => t.id === job.templateId)}
-            select={setSelection}
-            removed={() => setSelection(null)}
-          />
         ) : (
-          <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            Start with a template, such as a weekly repository audit. Each run
-            creates a fresh task.
-          </div>
+          job && (
+            <JobEditor
+              key={`job-${job.id}`}
+              job={job}
+              template={templates.data.find((t) => t.id === job.templateId)}
+              select={setSelection}
+              removed={() => setSelection(null)}
+            />
+          )
         )}
       </div>
+    );
+  const items = jobGridItems(templates.data, jobs.data, search);
+  const total = jobGridItems(templates.data, jobs.data, "").length;
+  return (
+    <section className="space-y-6 pb-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Jobs & templates
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Reusable tasks and automated work, all in one place.
+          </p>
+        </div>
+        <Button onClick={() => create.mutate()} disabled={create.isPending}>
+          <Plus className="size-4" />
+          New template
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search jobs and templates"
+            placeholder="Search jobs and templates…"
+            className="pl-9 pr-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2"
+              aria-label="Clear search"
+              onClick={() => setSearch("")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
+        </div>
+        <p role="status" className="text-xs text-muted-foreground">
+          {search ? `${items.length} of ${total}` : total}{" "}
+          {total === 1 ? "item" : "items"}
+        </p>
+      </div>
+      {items.length ? (
+        <div
+          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          aria-label="Jobs and templates"
+        >
+          {items.map((item) => (
+            <JobGridCard
+              key={`${item.kind}-${item.kind === "jobs" ? item.job.id : item.template.id}`}
+              item={item}
+              projectId={projectId}
+              edit={setSelection}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
+          <FilePlus2 className="mx-auto mb-3 size-7 text-muted-foreground" />
+          <h3 className="font-medium">
+            {search ? "No matches" : "Start with a template"}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {search
+              ? "Try a different name or task detail."
+              : "Create a reusable task, then convert it to a job whenever you’re ready."}
+          </p>
+        </div>
+      )}
     </section>
   );
 }
+
 function TemplateEditor({
   template: t,
   select,
@@ -420,6 +447,16 @@ function TemplateEditor({
     <PendingFields.Provider value={fields.update}>
       <Card>
         <CardHeader>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-3 w-fit -ml-2"
+            disabled={edit.isPending || fields.pending || action.isPending}
+            onClick={removed}
+          >
+            <ArrowLeft className="size-4" />
+            All templates & jobs
+          </Button>
           <CardTitle>Task template</CardTitle>
           <p className="text-sm text-muted-foreground">
             Fields save when you leave them. Changes apply to future tasks only.
@@ -561,38 +598,7 @@ function JobEditor({
     queryFn: () => jobRequest<JobRun[]>(`${url}/runs`),
     refetchInterval: 3000,
   });
-  const key = useRef<string | null>(null);
-  const run = useMutation({
-    mutationFn: () => {
-      key.current ??= crypto.randomUUID();
-      return jobRequest<{ taskId: number }>(`${url}/run`, "POST", {
-        key: key.current,
-      });
-    },
-    onSuccess: (result) => {
-      key.current = null;
-      toast.success("Job queued", {
-        description: (
-          <Link
-            to="/task/$taskId"
-            params={{ taskId: String(result.taskId) }}
-            className="underline"
-          >
-            Open task #{result.taskId}
-          </Link>
-        ),
-      });
-      void history.refetch();
-      void client.invalidateQueries({
-        queryKey: ["scheduled-jobs", j.projectId],
-      });
-      void client.invalidateQueries({
-        queryKey: ["projectDetails", j.projectId],
-      });
-      void client.invalidateQueries({ queryKey: ["conductor", j.projectId] });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const run = useRunJob(j.projectId, j.id);
   const remove = useMutation({
     mutationFn: () => jobRequest<void>(url, "DELETE"),
     onSuccess: () => {
@@ -611,6 +617,21 @@ function JobEditor({
     <PendingFields.Provider value={fields.update}>
       <Card>
         <CardHeader>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-3 w-fit -ml-2"
+            disabled={
+              edit.isPending ||
+              fields.pending ||
+              run.isPending ||
+              remove.isPending
+            }
+            onClick={removed}
+          >
+            <ArrowLeft className="size-4" />
+            All templates & jobs
+          </Button>
           <CardTitle>Job</CardTitle>
           <p className="text-sm text-muted-foreground">
             Each run creates a task and keeps its results and branch there for
@@ -628,6 +649,7 @@ function JobEditor({
             <Button
               variant="link"
               className="h-auto p-0"
+              disabled={edit.isPending || fields.pending}
               onClick={() => select({ kind: "templates", id: j.templateId })}
             >
               {template?.name || "Open template"}

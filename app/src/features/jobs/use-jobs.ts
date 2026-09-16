@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useRef } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 export type TaskTemplate = {
   id: number;
@@ -51,18 +53,66 @@ export async function jobRequest<T>(
   if (!res.ok) throw new Error((await res.text()).trim());
   return res.status === 204 ? (undefined as T) : (res.json() as Promise<T>);
 }
+export function useTaskTemplates(projectId: number, enabled = true) {
+  return useQuery({
+    queryKey: ["task-templates", projectId],
+    queryFn: () =>
+      jobRequest<TaskTemplate[]>(
+        `/api/project/${projectId}/automation/templates`,
+      ),
+    enabled: enabled && projectId > 0,
+  });
+}
 export function useJobResources(projectId: number) {
   const url = `/api/project/${projectId}/automation`;
-  const templates = useQuery({
-    queryKey: ["task-templates", projectId],
-    queryFn: () => jobRequest<TaskTemplate[]>(`${url}/templates`),
-  });
+  const templates = useTaskTemplates(projectId);
   const jobs = useQuery({
     queryKey: ["scheduled-jobs", projectId],
     queryFn: () => jobRequest<ScheduledJob[]>(`${url}/jobs`),
     refetchInterval: 10000,
   });
   return { templates, jobs };
+}
+
+// Grid cards and the editor share dispatch, retry identity and cache updates.
+export function useRunJob(projectId: number, jobId: number) {
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const key = useRef<string | null>(null);
+  return useMutation({
+    mutationKey: ["run-scheduled-job", jobId],
+    mutationFn: () => {
+      key.current ??= crypto.randomUUID();
+      return jobRequest<{ taskId: number }>(
+        `/api/project/${projectId}/automation/jobs/${jobId}/run`,
+        "POST",
+        { key: key.current },
+      );
+    },
+    onSuccess: (result) => {
+      key.current = null;
+      toast.success("Job queued", {
+        description: `Task #${result.taskId} is ready for Conductor.`,
+        action: {
+          label: "Open task",
+          onClick: () =>
+            void navigate({
+              to: "/task/$taskId",
+              params: { taskId: String(result.taskId) },
+            }),
+        },
+      });
+      for (const queryKey of [
+        ["scheduled-job-runs", jobId],
+        ["scheduled-jobs", projectId],
+        ["projectDetails", projectId],
+        ["conductor", projectId],
+      ]) {
+        void client.invalidateQueries({ queryKey });
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 }
 
 // Serialize edits for each entity, reading the latest revision when execution

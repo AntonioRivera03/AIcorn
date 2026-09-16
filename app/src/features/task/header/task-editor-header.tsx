@@ -28,6 +28,7 @@ import {
   ClipboardIcon,
   CopyCheckIcon,
   Ellipsis,
+  FileText,
   Maximize2,
   PinIcon,
   Trash2Icon,
@@ -49,12 +50,14 @@ export function TaskEditorHeader({
   onCopyAsPlainText,
   taskStage,
   isEditorReady = false,
+  onLoadTemplate,
 }: {
   setOpen: (open: boolean) => void;
   onCopyAsMarkdown?: () => void;
   onCopyAsPlainText?: () => void;
   taskStage: Stage;
   isEditorReady?: boolean;
+  onLoadTemplate?: () => void;
 }) {
   const { state: task } = useContext(TaskContext);
   const { Project } = useContext(ProjectContext);
@@ -77,6 +80,7 @@ export function TaskEditorHeader({
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground hidden sm:flex"
+              aria-label="Close task"
             >
               <ChevronsRightIcon className={isMobile ? "rotate-90" : ""} />
             </Button>
@@ -86,6 +90,7 @@ export function TaskEditorHeader({
             variant="ghost"
             size="icon-sm"
             className="text-muted-foreground"
+            aria-label="Open full task"
             onClick={() => {
               setOpen(false);
               navigate({
@@ -107,7 +112,10 @@ export function TaskEditorHeader({
         <div className="flex gap-1 sm:gap-2 items-center">
           <Badge
             variant="outline"
-            className={cn("sm:hidden", priorityOutlineBadgeClass(task.Priority))}
+            className={cn(
+              "sm:hidden",
+              priorityOutlineBadgeClass(task.Priority),
+            )}
           >
             <TaskPriorityIcon variant={task.Priority} />
             {task.Priority}
@@ -116,19 +124,31 @@ export function TaskEditorHeader({
           {taskStage && (
             <WorkflowStageChip className="rounded-full" stage={taskStage} />
           )}
-          {task.Type.ViewMode !== "chat" && <AskAIButton taskId={task.ID} taskName={task.Name} />}
-            <DropdownMenu>
+          {task.Type.ViewMode !== "chat" && (
+            <AskAIButton taskId={task.ID} taskName={task.Name} />
+          )}
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7 data-[state=open]:bg-muted text-muted-foreground flex"
+                aria-label="Task actions"
               >
                 <Ellipsis className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="mr-2">
               <DropdownMenuGroup>
+                {onLoadTemplate && (
+                  <DropdownMenuItem
+                    onSelect={onLoadTemplate}
+                    disabled={task.ID === 0}
+                  >
+                    <FileText className="text-muted-foreground" />
+                    Template…
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem>
                   <PinIcon className="text-muted-foreground" />
                   Pin
@@ -138,7 +158,9 @@ export function TaskEditorHeader({
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger disabled={task.Type.ViewMode === "chat"}>
+                  <DropdownMenuSubTrigger
+                    disabled={task.Type.ViewMode === "chat"}
+                  >
                     <ClipboardIcon className="text-muted-foreground" />
                     Copy as
                   </DropdownMenuSubTrigger>

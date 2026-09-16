@@ -59,6 +59,7 @@ export function NewTaskEditorDrawer({
 
   return (
     <TaskEditorDrawer
+      allowTemplate
       onOpenChange={(open) => {
         setTaskDrawerOpen(open);
         if (!open) {
