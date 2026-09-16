@@ -78,48 +78,52 @@ export function JobGridCard({
   return (
     <article
       aria-label={`${job ? "Job" : "Template"}: ${name}`}
-      className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+      className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center"
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           {job ? (
             <CalendarClock className="size-5" />
           ) : (
             <FileText className="size-5" />
           )}
         </div>
-        <Badge variant="outline" className="font-normal">
-          {job ? "Job" : "Template"}
-        </Badge>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-semibold" title={name}>
+              {name}
+            </h3>
+            <Badge variant="outline" className="shrink-0 font-normal">
+              {job ? "Job" : "Template"}
+            </Badge>
+          </div>
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground sm:line-clamp-1">
+            {summary}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>{status}</span>
+            {job?.schedule && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono">{job.schedule}</span>
+                <span>{job.timezone}</span>
+              </>
+            )}
+            {!job && template?.priority && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{template.priority} priority</span>
+              </>
+            )}
+          </div>
+          {job?.lastError && (
+            <p className="mt-2 line-clamp-2 text-xs text-destructive">
+              {job.lastError}
+            </p>
+          )}
+        </div>
       </div>
-      <h3 className="truncate text-base font-semibold" title={name}>
-        {name}
-      </h3>
-      <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
-        {summary}
-      </p>
-      <div className="mb-5 mt-4 flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span>{status}</span>
-        {job?.schedule && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono">{job.schedule}</span>
-            <span>{job.timezone}</span>
-          </>
-        )}
-        {!job && template?.priority && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span>{template.priority} priority</span>
-          </>
-        )}
-      </div>
-      {job?.lastError && (
-        <p className="mb-3 line-clamp-2 text-xs text-destructive">
-          {job.lastError}
-        </p>
-      )}
-      <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+      <div className="flex shrink-0 items-center justify-end gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -176,7 +180,6 @@ export function JobGridCard({
         {job && (
           <Button
             size="sm"
-            className="ml-auto"
             disabled={run.isPending || convert.isPending || !job.agentId}
             onClick={() => run.mutate()}
             aria-label={`Run ${name}`}

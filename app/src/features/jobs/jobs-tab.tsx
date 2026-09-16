@@ -331,19 +331,19 @@ export function JobsTab({ projectId }: { projectId: number }) {
         </p>
       </div>
       {items.length ? (
-        <div
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-          aria-label="Jobs and templates"
-        >
+        <ul className="flex flex-col gap-3" aria-label="Jobs and templates">
           {items.map((item) => (
-            <JobGridCard
+            <li
               key={`${item.kind}-${item.kind === "jobs" ? item.job.id : item.template.id}`}
-              item={item}
-              projectId={projectId}
-              edit={setSelection}
-            />
+            >
+              <JobGridCard
+                item={item}
+                projectId={projectId}
+                edit={setSelection}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       ) : (
         <div className="rounded-xl border border-dashed border-border px-6 py-16 text-center">
           <FilePlus2 className="mx-auto mb-3 size-7 text-muted-foreground" />
