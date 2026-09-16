@@ -41,3 +41,7 @@ go test ./internal/evals
 ```
 
 These verify that broken starter implementations fail, known-correct behavior passes, a claimed success without a saved link fails, unwanted task edits fail, and missing token usage stays unknown.
+
+## Recorded measurements
+
+The [September 16 experiment report](../evals/results/README.md) includes completed JSON/CSV baselines, an interleaved prompt comparison, and a measured MCP configuration fix. The prompt change remained at 9/12 passes; the configuration fix reached 10/12, with all scoped link writes passing and two timeouts retained as failures. The report includes the isolated patch, executable fingerprints, reproduction commands, and the interrupted pilot for auditability.
