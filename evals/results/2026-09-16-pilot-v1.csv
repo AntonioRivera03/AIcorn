@@ -1,0 +1,9 @@
+case,category,variant,trial,passed,latency_ms,input_tokens,cached_input_tokens,output_tokens,total_tokens,cost_usd,grade,error
+slug,coding,baseline,1,true,42667,147237,130560,1399,148636,,all postconditions passed,
+slug,coding,verify-first,1,false,32003,152948,120064,1019,153967,,"grader: exit status 1: Traceback (most recent call last):
+  File ""<string>"", line 7, in <module>
+    if actual != c[""expected""]: raise AssertionError(""case %d: expected %r, got %r"" % (i,c[""expected""],actual))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: case 0: expected 'hello-world', got 'ello'",
+priorities,coding,baseline,1,true,34217,145965,129536,1184,147149,,all postconditions passed,
+priorities,coding,verify-first,1,false,45764,130225,113280,1335,131560,,grader: context canceled: ,context canceled

@@ -44,6 +44,11 @@ func (w *Worker) Start(ctx context.Context, interval time.Duration) error {
 		return nil
 	}
 
+	if w.Conductor != nil {
+		if err := w.Conductor.Repo.InterruptDispatches(); err != nil {
+			return err
+		}
+	}
 	if w.JobService != nil {
 		if err := w.JobService.JobRepo.InterruptInFlight(); err != nil {
 			return err
@@ -145,6 +150,9 @@ func (w *Worker) RunOnce(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if job == nil {
+		if w.Conductor != nil {
+			return w.runDispatch(ctx)
+		}
 		return false, nil
 	}
 

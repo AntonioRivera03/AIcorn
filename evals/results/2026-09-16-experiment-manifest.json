@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-16",
+  "issue": 17,
+  "suiteVersion": 2,
+  "suiteSha256": "7fe0612558b0d912bffa3151f739b7de1d522a8bac5d4c695c3a3628eb4ad523",
+  "model": "gpt-5.6-sol",
+  "engineVersion": "codex-cli 0.153.4",
+  "timeoutSeconds": 120,
+  "trialsPerCase": 1,
+  "commands": {
+    "promptExperiment": "/tmp/aycorn-eval -live -mcp /tmp/aycorn-eval-mcp -model gpt-5.6-sol -variant both -repeat 1 -timeout 120 -output /home/hal/Projects/AIcorn/evals/results/2026-09-16-prompt-experiment",
+    "routingExperiment": "/tmp/aycorn-eval-routing-runner -live -mcp /tmp/aycorn-eval-mcp -model gpt-5.6-sol -variant baseline -repeat 1 -timeout 120 -output /home/hal/Projects/AIcorn/evals/results/2026-09-16-scoped-routing"
+  },
+  "executables": [
+    {
+      "path": "/tmp/aycorn-eval",
+      "sha256": "9bcce568512aec9e00ee338ad4520799191d5a810e72a1d75f72bf85e002514a"
+    },
+    {
+      "path": "/tmp/aycorn-eval-routing-runner",
+      "sha256": "529cf1d053fbf2a9f96efcc9d4a744d6fff43c8578fddcf13eee86f9710a7297"
+    },
+    {
+      "path": "/tmp/aycorn-eval-mcp",
+      "sha256": "2fcca34c7f35b80aff99936bf2c89e67348f47b8fb94604c17ca12be8a7ded15"
+    }
+  ],
+  "source": {
+    "before": "7164cd0c100e9e30bce32f881b926ba1718a0fe0",
+    "routingBase": "9234534d9837812ab1cd8e53028ed3aaa6fa4bfb",
+    "routingPatch": "2026-09-16-routing-change.patch",
+    "productionFix": "3000657"
+  },
+  "artifacts": [
+    {
+      "file": "2026-09-16-pilot-v1.csv",
+      "sha256": "72aff14f1a0816e6e1a797aeb40cdf3da38eeacc8905fbb2c60c6252dfcb0edd"
+    },
+    {
+      "file": "2026-09-16-pilot-v1.json",
+      "sha256": "a84e5f220a8e018dd54901d9c991284453703ef4a7af96f1d12b67799e15b006"
+    },
+    {
+      "file": "2026-09-16-prompt-experiment.csv",
+      "sha256": "af791b19cb6d1a89d4412a9723172e12ebad59c8e942b4bf3c65a4e47a49009f"
+    },
+    {
+      "file": "2026-09-16-prompt-experiment.json",
+      "sha256": "d34d29d6803d3308627f256cff8b0f6b4590a2e05cdf2b43cf019d9e19d85cb2"
+    },
+    {
+      "file": "2026-09-16-routing-change.patch",
+      "sha256": "335439ac34b229ef606b59b50a8db2eca18548e02b7cf5e9a50fa5aec408bb78"
+    },
+    {
+      "file": "2026-09-16-scoped-routing.csv",
+      "sha256": "124e4d74264b68c1d3a2c52a51963440e15a07f6ca4bae99b68a1f1c3f829581"
+    },
+    {
+      "file": "2026-09-16-scoped-routing.json",
+      "sha256": "21acb05270bf59d29cd63249272edbf261f0642684bc5cfe40e45f02cb77a1e1"
+    }
+  ],
+  "promptComparison": {
+    "baselinePassed": 9,
+    "treatmentPassed": 9,
+    "casesPerVariant": 12,
+    "solveRateDeltaPoints": 0
+  },
+  "routingComparison": {
+    "baselinePassed": 9,
+    "treatmentPassed": 10,
+    "casesPerVariant": 12,
+    "solveRateDeltaPoints": 8.333333333333337,
+    "retainedTimeoutFailures": [
+      "retry-delay",
+      "calendar-span"
+    ]
+  },
+  "limitations": [
+    "One trial per case; descriptive, not statistically significant.",
+    "Routing comparison ran after the interleaved prompt comparison; cache state and service load may differ.",
+    "Token totals include cached input; dollar cost is unavailable.",
+    "Interrupted suite-v1 pilot is preserved but excluded from comparisons.",
+    "Source metadata describes runtime checkout state; executable SHA-256 values identify the frozen binaries."
+  ]
+}

@@ -11,10 +11,10 @@ type TaskTypeRepo struct {
 	DB *sql.DB
 }
 
-const taskTypeColumns = "id, name, COALESCE(description, ''), icon, color, isDefault, category"
+const taskTypeColumns = "id, name, COALESCE(description, ''), icon, color, isDefault, category, viewMode"
 
 func scanTaskType(scanner interface{ Scan(...any) error }, tt *models.TaskType) error {
-	return scanner.Scan(&tt.ID, &tt.Name, &tt.Description, &tt.Icon, &tt.Color, &tt.IsDefault, &tt.Category)
+	return scanner.Scan(&tt.ID, &tt.Name, &tt.Description, &tt.Icon, &tt.Color, &tt.IsDefault, &tt.Category, &tt.ViewMode)
 }
 
 func (repo *TaskTypeRepo) All() ([]models.TaskType, error) {
@@ -68,7 +68,7 @@ func (repo *TaskTypeRepo) AllWithCounts(filter string) ([]models.TaskTypeGlobal,
 	for rows.Next() {
 		g := models.TaskTypeGlobal{}
 		if err := rows.Scan(
-			&g.ID, &g.Name, &g.Description, &g.Icon, &g.Color, &g.IsDefault, &g.Category,
+			&g.ID, &g.Name, &g.Description, &g.Icon, &g.Color, &g.IsDefault, &g.Category, &g.ViewMode,
 			&g.ProjectCount, &g.TaskCount,
 		); err != nil {
 			return nil, err
@@ -96,7 +96,7 @@ func (repo *TaskTypeRepo) AllWithProjectTaskCounts(projectId int) ([]models.Task
 	for rows.Next() {
 		tc := models.TaskTypeWithCount{}
 		if err := rows.Scan(
-			&tc.ID, &tc.Name, &tc.Description, &tc.Icon, &tc.Color, &tc.IsDefault, &tc.Category,
+			&tc.ID, &tc.Name, &tc.Description, &tc.Icon, &tc.Color, &tc.IsDefault, &tc.Category, &tc.ViewMode,
 			&tc.TaskCount,
 		); err != nil {
 			return nil, err
@@ -370,7 +370,7 @@ func (repo *TaskTypeRepo) IDsByCategory(categoryID int) ([]int, error) {
 func (repo *TaskTypeRepo) AddDefaultTypeToProject(projectId int) error {
 	_, err := repo.DB.Exec(`
 		INSERT OR IGNORE INTO project_task_type (project, task_type)
-		SELECT ?, id FROM task_type WHERE isDefault = 1;
+		SELECT ?, id FROM task_type WHERE isDefault = 1 OR viewMode='chat';
 	`, projectId)
 	return err
 }

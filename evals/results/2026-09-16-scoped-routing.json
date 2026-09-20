@@ -1,0 +1,462 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": 2,
+  "suiteSha256": "7fe0612558b0d912bffa3151f739b7de1d522a8bac5d4c695c3a3628eb4ad523",
+  "sourceCommit": "9234534d9837812ab1cd8e53028ed3aaa6fa4bfb",
+  "sourceDiffSha256": "322448d160af2224637d939c01a6a39de3ab8cd2c9a0f85fdce4366ffbb23459",
+  "model": "gpt-5.6-sol",
+  "engineVersion": "codex-cli 0.153.4",
+  "startedAt": "2026-09-16T08:05:26Z",
+  "completedAt": "2026-09-16T08:14:35Z",
+  "planned": 12,
+  "prompts": {
+    "baseline": "Complete the assigned task. Use the provided workspace and Aycorn tools. Do not delegate. Keep the final response concise."
+  },
+  "results": [
+    {
+      "case": "slug",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 36090,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 171904,
+        "cachedInput": 160768,
+        "output": 1087,
+        "total": 172991
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 172991,
+          "inputTokens": 171904,
+          "cachedInputTokens": 160768,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1087,
+          "reasoningOutputTokens": 156
+        },
+        "last": {
+          "totalTokens": 22654,
+          "inputTokens": 22589,
+          "cachedInputTokens": 22144,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 65,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/slug-baseline-1/workspace/solution.py:1).\n\nValidation passed:\n\n- 10 representative cases, including Unicode and repeated separators\n- `python -m py_compile solution.py`"
+    },
+    {
+      "case": "priorities",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 37275,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 146561,
+        "cachedInput": 130176,
+        "output": 1176,
+        "total": 147737
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 147737,
+          "inputTokens": 146561,
+          "cachedInputTokens": 130176,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1176,
+          "reasoningOutputTokens": 189
+        },
+        "last": {
+          "totalTokens": 22017,
+          "inputTokens": 21893,
+          "cachedInputTokens": 21248,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 124,
+          "reasoningOutputTokens": 35
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/priorities-baseline-1/workspace/solution.py:1).\n\nIt now:\n\n- Orders Urgent → High → Medium → Low → unknown/missing\n- Preserves input order within equal priorities\n- Returns task IDs without printing\n\nValidation: compilation succeeded and 3 representative test cases passed."
+    },
+    {
+      "case": "mentions",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 35741,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 150068,
+        "cachedInput": 111616,
+        "output": 1296,
+        "total": 151364
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 151364,
+          "inputTokens": 150068,
+          "cachedInputTokens": 111616,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1296,
+          "reasoningOutputTokens": 311
+        },
+        "last": {
+          "totalTokens": 22715,
+          "inputTokens": 22614,
+          "cachedInputTokens": 22016,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 101,
+          "reasoningOutputTokens": 20
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/mentions-baseline-1/workspace/solution.py).\n\nIt handles:\n\n- Empty queries matching all tasks\n- Digit queries matching ID prefixes\n- Case-insensitive title substring matching\n- Original task order preservation\n\nValidation passed with representative assertions and `py_compile`."
+    },
+    {
+      "case": "revision-patch",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 38894,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149654,
+        "cachedInput": 139008,
+        "output": 1265,
+        "total": 150919
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 150919,
+          "inputTokens": 149654,
+          "cachedInputTokens": 139008,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1265,
+          "reasoningOutputTokens": 266
+        },
+        "last": {
+          "totalTokens": 22572,
+          "inputTokens": 22438,
+          "cachedInputTokens": 21888,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 134,
+          "reasoningOutputTokens": 32
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/revision-patch-baseline-1/workspace/solution.py).\n\nBehavior:\n\n- Returns `{\"conflict\": True}` on revision mismatch.\n- Otherwise shallow-merges the patch into saved data.\n- Preserves explicit `None` edits.\n- Increments the saved revision.\n- Does not mutate the input.\n\nValidation: compilation succeeded and 3 targeted cases passed."
+    },
+    {
+      "case": "workflow",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 35962,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 149141,
+        "cachedInput": 129664,
+        "output": 1332,
+        "total": 150473
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 150473,
+          "inputTokens": 149141,
+          "cachedInputTokens": 129664,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1332,
+          "reasoningOutputTokens": 334
+        },
+        "last": {
+          "totalTokens": 22547,
+          "inputTokens": 22358,
+          "cachedInputTokens": 21760,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 189,
+          "reasoningOutputTokens": 80
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/workflow-baseline-1/workspace/solution.py).\n\nBehavior:\n\n- Finds the target by ID, independent of ordering, names, or current stage.\n- Returns `{\"allowed\": True, \"completed\": ...}` when found.\n- Returns `{\"allowed\": False}` when absent.\n- Marks completed only when `type == \"done\"`.\n\nValidation: syntax check and 3 focused cases passed."
+    },
+    {
+      "case": "retry-delay",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 120023,
+      "grade": "postconditions passed but agent run failed",
+      "error": "context deadline exceeded",
+      "tokens": {
+        "input": 107577,
+        "cachedInput": 97664,
+        "output": 1026,
+        "total": 108603
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 108603,
+          "inputTokens": 107577,
+          "cachedInputTokens": 97664,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1026,
+          "reasoningOutputTokens": 393
+        },
+        "last": {
+          "totalTokens": 22920,
+          "inputTokens": 22269,
+          "cachedInputTokens": 21888,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 651,
+          "reasoningOutputTokens": 342
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "The current file is only a passthrough. I’ll implement the capped exponential using a bit-length threshold, so even an enormous `attempt` never triggers construction of `2**attempt`."
+    },
+    {
+      "case": "dependency-order",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 63389,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 199238,
+        "cachedInput": 170496,
+        "output": 2155,
+        "total": 201393
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 201393,
+          "inputTokens": 199238,
+          "cachedInputTokens": 170496,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 2155,
+          "reasoningOutputTokens": 493
+        },
+        "last": {
+          "totalTokens": 25213,
+          "inputTokens": 25111,
+          "cachedInputTokens": 24448,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 102,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Implemented `solve(value)` in [solution.py](\u003ceval-workspace\u003e/dependency-order-baseline-1/workspace/solution.py).\n\n- Produces the lexicographically smallest topological order.\n- Includes prerequisite-only IDs.\n- Returns `None` for cycles.\n- Handles duplicate prerequisite entries.\n- Uses only the Python standard library.\n\nValidation: syntax check, 8 targeted cases, and all 65,536 directed graphs on four tasks passed."
+    },
+    {
+      "case": "calendar-span",
+      "category": "coding",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": false,
+      "latencyMs": 120035,
+      "grade": "postconditions passed but agent run failed",
+      "error": "context deadline exceeded",
+      "tokens": {
+        "input": 152283,
+        "cachedInput": 141568,
+        "output": 1214,
+        "total": 153497
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 153497,
+          "inputTokens": 152283,
+          "cachedInputTokens": 141568,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 1214,
+          "reasoningOutputTokens": 159
+        },
+        "last": {
+          "totalTokens": 23096,
+          "inputTokens": 22665,
+          "cachedInputTokens": 22144,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 431,
+          "reasoningOutputTokens": 18
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "The workspace contains only a stub `solve(value)`. I’m implementing the direct dictionary contract (`start`/`end`) with `datetime.date`, which handles month boundaries and leap years correctly."
+    },
+    {
+      "case": "read-context",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 10297,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 60213,
+        "cachedInput": 39296,
+        "output": 173,
+        "total": 60386
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 60386,
+          "inputTokens": 60213,
+          "cachedInputTokens": 39296,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 173,
+          "reasoningOutputTokens": 81
+        },
+        "last": {
+          "totalTokens": 20479,
+          "inputTokens": 20464,
+          "cachedInputTokens": 19840,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 15,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "{\"title\":\"Eval read-context\",\"priority\":\"High\"}"
+    },
+    {
+      "case": "attach-pr",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 13337,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 82330,
+        "cachedInput": 73344,
+        "output": 247,
+        "total": 82577
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 82577,
+          "inputTokens": 82330,
+          "cachedInputTokens": 73344,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 247,
+          "reasoningOutputTokens": 37
+        },
+        "last": {
+          "totalTokens": 21217,
+          "inputTokens": 21188,
+          "cachedInputTokens": 20736,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 29,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Attached PR #16 to task 101 with label **Enhancements** using Aycorn MCP. GitHub was not accessed."
+    },
+    {
+      "case": "attach-branch",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 13362,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 82400,
+        "cachedInput": 73344,
+        "output": 300,
+        "total": 82700
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 82700,
+          "inputTokens": 82400,
+          "cachedInputTokens": 73344,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 300,
+          "reasoningOutputTokens": 87
+        },
+        "last": {
+          "totalTokens": 21279,
+          "inputTokens": 21219,
+          "cachedInputTokens": 20736,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 60,
+          "reasoningOutputTokens": 27
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Attached the `enhancements` branch to Aycorn task 101 with label **Enhancements branch**. GitHub was not accessed."
+    },
+    {
+      "case": "deduplicate-link",
+      "category": "task-manager",
+      "variant": "baseline",
+      "trial": 1,
+      "passed": true,
+      "latencyMs": 23730,
+      "grade": "all postconditions passed",
+      "tokens": {
+        "input": 125051,
+        "cachedInput": 115328,
+        "output": 488,
+        "total": 125539
+      },
+      "costUsd": null,
+      "usage": {
+        "total": {
+          "totalTokens": 125539,
+          "inputTokens": 125051,
+          "cachedInputTokens": 115328,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 488,
+          "reasoningOutputTokens": 72
+        },
+        "last": {
+          "totalTokens": 21485,
+          "inputTokens": 21416,
+          "cachedInputTokens": 21120,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 69,
+          "reasoningOutputTokens": 0
+        },
+        "modelContextWindow": 258400
+      },
+      "output": "Attached both URLs via Aycorn. They were deduplicated into exactly one saved reference:\n\n- `antoniorivera03/aicorn #16`\n- Label: `Enhancements`\n- Canonical URL: https://github.com/antoniorivera03/aicorn/pull/16\n\nGitHub was not accessed."
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "completed": 12,
+      "passed": 10,
+      "solveRate": 0.8333333333333334,
+      "latencyMs": 548135,
+      "tokens": 1588179,
+      "usageReported": 12
+    }
+  },
+  "costNote": "Native Codex reports token usage, not attributable dollar cost. costUsd=null means unavailable; subscription usage is not an API price estimate."
+}

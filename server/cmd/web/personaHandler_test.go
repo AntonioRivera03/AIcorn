@@ -85,153 +85,90 @@ func decodeBulkResult(t *testing.T, recorder *httptest.ResponseRecorder) models.
 	return result
 }
 
-func TestPersonaAPI_supports_full_lifecycle(t *testing.T) {
-	// Given
-	testApp, _ := personaTestApp(t)
-	handler := testApp.routes()
-	request := personaRequester(t, handler)
-
-	// When
-	createdResponse := request(http.MethodPost, "/api/persona", testPersona("Researcher"))
-
-	// Then
-	if createdResponse.Code != http.StatusOK {
-		t.Fatalf("create status = %d; want 200: %s", createdResponse.Code, createdResponse.Body.String())
+func TestPersonaAPIOnlyModelsAreEditable(t *testing.T) {
+	a, db := personaTestApp(t)
+	request := personaRequester(t, a.routes())
+	response := request(http.MethodGet, "/api/persona", nil)
+	if response.Code != 200 {
+		t.Fatal(response.Code, response.Body.String())
 	}
-	created := decodePersona(t, createdResponse)
-	if created.ID == 0 || created.Name != "Researcher" || len(created.AllowedTools) != 2 {
-		t.Fatalf("created persona = %#v; want persisted fields", created)
+	var agents []models.Persona
+	if err := json.Unmarshal(response.Body.Bytes(), &agents); err != nil {
+		t.Fatal(err)
 	}
-
-	// When
-	getResponse := request(http.MethodGet, "/api/persona/"+jsonNumber(created.ID), nil)
-	listResponse := request(http.MethodGet, "/api/persona", nil)
-
-	// Then
-	if getResponse.Code != http.StatusOK || listResponse.Code != http.StatusOK {
-		t.Fatalf("get/list statuses = %d/%d; want 200/200", getResponse.Code, listResponse.Code)
-	}
-	var listed []models.Persona
-	if err := json.Unmarshal(listResponse.Body.Bytes(), &listed); err != nil {
-		t.Fatalf("decode persona list: %v", err)
-	}
-	// Migration 00013 seeds a Coder persona, so list contains at least the seeded one plus created.
-	found := false
-	for _, p := range listed {
-		if p.ID == created.ID {
-			found = true
-			break
+	roles := map[string]bool{}
+	for _, agent := range agents {
+		if agent.BuiltinRole == "" {
+			continue
+		}
+		roles[agent.BuiltinRole] = true
+		if agent.Instructions == "" || agent.InstructionPath == "" || len(agent.Skills) != 1 || agent.Skills[0].Content == "" {
+			t.Fatalf("missing read-only docs: %+v", agent)
+		}
+		path := "/api/persona/" + jsonNumber(agent.ID)
+		response = request(http.MethodPut, path, map[string]string{"Model": "gpt-5.5"})
+		if response.Code != 200 {
+			t.Fatal(response.Code, response.Body.String())
+		}
+		updated := decodePersona(t, request(http.MethodGet, path, nil))
+		if updated.Model != "gpt-5.5" || updated.Instructions != agent.Instructions || updated.Name != agent.Name {
+			t.Fatal("model update changed definition", updated)
+		}
+		for _, field := range []string{"Name", "SystemPrompt", "Harness", "Agent", "AllowedTools", "BuiltinRole", "Instructions"} {
+			response = request(http.MethodPut, path, map[string]any{"Model": "gpt-5.6-sol", field: "replace"})
+			if response.Code != 400 {
+				t.Fatalf("accepted fixed field %s: %d", field, response.Code)
+			}
+		}
+		response = request(http.MethodPut, path, map[string]string{"Model": "invalid"})
+		if response.Code != 400 {
+			t.Fatal("accepted invalid model", response.Code)
+		}
+		response = request(http.MethodDelete, path, nil)
+		if response.Code != 403 {
+			t.Fatal("allowed agent deletion", response.Code)
 		}
 	}
-	if !found {
-		t.Fatalf("listed personas = %#v; want created ID %d", listed, created.ID)
+	for _, role := range []string{"conductor", "planner", "researcher", "coder", "reviewer", "chatter"} {
+		if !roles[role] {
+			t.Fatal("missing role", role)
+		}
 	}
-
-	// When
-	updated := created
-	updated.Name = "Lead Researcher"
-	updated.Model = models.PersonaModelAstra
-	updateResponse := request(http.MethodPut, "/api/persona/"+jsonNumber(created.ID), updated)
-
-	// Then
-	if updateResponse.Code != http.StatusOK {
-		t.Fatalf("update status = %d; want 200: %s", updateResponse.Code, updateResponse.Body.String())
+	for _, op := range []struct {
+		method, path string
+		body         any
+	}{
+		{"POST", "/api/persona", testPersona("New")},
+		{"POST", "/api/persona/bulk", []models.Persona{testPersona("New")}},
+		{"PUT", "/api/persona/bulk", agents},
+		{"POST", "/api/persona/bulk/delete", []int{agents[0].ID}},
+	} {
+		response = request(op.method, op.path, op.body)
+		if response.Code != 403 {
+			t.Fatalf("allowed fixed agent mutation %s %s: %d", op.method, op.path, response.Code)
+		}
 	}
-	readUpdated := decodePersona(t, request(http.MethodGet, "/api/persona/"+jsonNumber(created.ID), nil))
-	if readUpdated.Name != updated.Name || readUpdated.Model != models.PersonaModelAstra {
-		t.Fatalf("updated persona = %#v; want name/model update", readUpdated)
-	}
-
-	// When
-	deleteResponse := request(http.MethodDelete, "/api/persona/"+jsonNumber(created.ID), nil)
-
-	// Then
-	if deleteResponse.Code != http.StatusOK {
-		t.Fatalf("delete status = %d; want 200: %s", deleteResponse.Code, deleteResponse.Body.String())
-	}
-	missingResponse := request(http.MethodGet, "/api/persona/"+jsonNumber(created.ID), nil)
-	if missingResponse.Code != http.StatusNotFound {
-		t.Fatalf("deleted persona status = %d; want 404", missingResponse.Code)
+	var count int
+	if err := db.QueryRow("SELECT count(*) FROM persona WHERE builtin_role<>''").Scan(&count); err != nil || count != 6 {
+		t.Fatal(count, err)
 	}
 }
 
-func TestPersonaAPI_rejects_invalid_harness_and_model(t *testing.T) {
-	// Given
-	testApp, _ := personaTestApp(t)
-	request := personaRequester(t, testApp.routes())
-	persona := testPersona("Invalid")
-	persona.Harness = "other"
-	persona.Model = "future-model"
-
-	// When
-	response := request(http.MethodPost, "/api/persona", persona)
-
-	// Then
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("invalid persona status = %d; want 400: %s", response.Code, response.Body.String())
+func TestLegacyPersonaModelUpdatePreservesSavedDefinition(t *testing.T) {
+	a, db := personaTestApp(t)
+	original := testPersona("Existing custom agent")
+	p, err := a.personaRepo.Create(&original)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestPersonaAPI_bulk_operations_report_counts_and_delete_bindings(t *testing.T) {
-	// Given
-	testApp, db := personaTestApp(t)
-	handler := testApp.routes()
-	request := personaRequester(t, handler)
-	personas := []models.Persona{testPersona("One"), testPersona("Two")}
-
-	// When
-	createResponse := request(http.MethodPost, "/api/persona/bulk", personas)
-
-	// Then
-	if createResponse.Code != http.StatusOK {
-		t.Fatalf("bulk create status = %d; want 200: %s", createResponse.Code, createResponse.Body.String())
+	request := personaRequester(t, a.routes())
+	response := request("PUT", "/api/persona/"+jsonNumber(p.ID), map[string]string{"Model": "gpt-5.5"})
+	if response.Code != 200 {
+		t.Fatal(response.Code, response.Body.String())
 	}
-	if got := decodeBulkResult(t, createResponse); got != (models.BulkResult{Success: 2}) {
-		t.Fatalf("bulk create result = %#v; want 2 successes", got)
-	}
-
-	var stored []models.Persona
-	listResponse := request(http.MethodGet, "/api/persona", nil)
-	if err := json.Unmarshal(listResponse.Body.Bytes(), &stored); err != nil {
-		t.Fatalf("decode personas: %v", err)
-	}
-	var target models.Persona
-	for _, p := range stored {
-		if p.Name == "One" || p.Name == "Two" {
-			target = p
-			break
-		}
-	}
-	if target.ID == 0 {
-		t.Fatalf("stored personas = %#v; want One/Two present", stored)
-	}
-	updates := []models.Persona{target, testPersona("Missing")}
-	updates[0].Name = "Updated"
-	updates[1].ID = 999999
-
-	updateResponse := request(http.MethodPut, "/api/persona/bulk", updates)
-
-	if got := decodeBulkResult(t, updateResponse); got != (models.BulkResult{Success: 1, Skipped: 1}) {
-		t.Fatalf("bulk update result = %#v; want 1 success and 1 skipped", got)
-	}
-
-	stageID := insertPersonaTestStage(t, db)
-	if _, err := db.Exec("INSERT INTO stage_persona (stage_id, persona_id) VALUES (?, ?)", stageID, target.ID); err != nil {
-		t.Fatalf("bind persona to stage: %v", err)
-	}
-
-	deleteResponse := request(http.MethodPost, "/api/persona/bulk/delete", []int{target.ID, 999999})
-
-	// Then
-	if got := decodeBulkResult(t, deleteResponse); got != (models.BulkResult{Success: 1, Skipped: 1}) {
-		t.Fatalf("bulk delete result = %#v; want 1 success and 1 skipped", got)
-	}
-	var bindings int
-	if err := db.QueryRow("SELECT COUNT(*) FROM stage_persona WHERE persona_id = ?", target.ID).Scan(&bindings); err != nil {
-		t.Fatalf("count persona bindings: %v", err)
-	}
-	if bindings != 0 {
-		t.Fatalf("binding count after persona deletion = %d; want 0", bindings)
+	var name, prompt, model string
+	if err = db.QueryRow("SELECT name,system_prompt,model FROM persona WHERE id=?", p.ID).Scan(&name, &prompt, &model); err != nil || name != p.Name || prompt != original.SystemPrompt || model != "gpt-5.5" {
+		t.Fatal(name, prompt, model, err)
 	}
 }
 

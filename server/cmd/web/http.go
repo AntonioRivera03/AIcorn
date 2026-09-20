@@ -5,7 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/waseem-polus/aycorn/server/internal/environments"
+	"github.com/waseem-polus/aycorn/server/internal/jobs"
+	"github.com/waseem-polus/aycorn/server/internal/knowledge"
+	"github.com/waseem-polus/aycorn/server/internal/projectchat"
+	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
+	"io"
 	"log"
 	"net/http"
 
@@ -53,7 +58,7 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidPersona),
 		errors.Is(err, services.ErrJobNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, worktree.ErrBranchUnavailable),
+	case errors.Is(err, projectchat.ErrInvalid), errors.Is(err, knowledge.ErrInvalid), errors.Is(err, repos.ErrChatType), errors.Is(err, jobs.ErrInvalid), errors.Is(err, worktree.ErrBranchUnavailable),
 		errors.Is(err, environments.ErrInvalid),
 		errors.Is(err, repos.ErrConductorConfig),
 		errors.Is(err, services.ErrInvalidAIRun),
@@ -75,7 +80,7 @@ func httpStatusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, services.ErrStageHasTasks):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, repos.ErrActiveAIRun),
+	case errors.Is(err, projectchat.ErrConflict), errors.Is(err, taskownership.ErrBusy), errors.Is(err, taskownership.ErrNotOwner), errors.Is(err, knowledge.ErrConflict), errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
 		errors.Is(err, environments.ErrConflict),
 		errors.Is(err, repos.ErrConductorConflict),
 		errors.Is(err, repos.ErrConductorPaused),
@@ -106,4 +111,20 @@ func respondErr(w http.ResponseWriter, err error) {
 		msg = "not found"
 	}
 	http.Error(w, msg, httpStatusForError(err))
+}
+
+// decodeJSONInput bounds request size and rejects unknown fields and trailing JSON.
+func decodeJSONInput(w http.ResponseWriter, r *http.Request, value any) bool {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 400000))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		http.Error(w, "invalid request", 400)
+		return false
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		http.Error(w, "expected one request", 400)
+		return false
+	}
+	return true
 }

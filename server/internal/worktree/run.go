@@ -40,30 +40,11 @@ func CreateRun(ctx context.Context, root, key string) (*Worktree, string, error)
 // Capture uses a private index: include new files and agent commits without
 // modifying the worktree's real staging area or creating a commit.
 func (w *Worktree) Capture(ctx context.Context, base string) (string, []string, error) {
-	temp, err := os.MkdirTemp("", "aycorn-patch-")
+	run, cleanup, err := w.stagedIndex(ctx)
 	if err != nil {
 		return "", nil, err
 	}
-	defer os.RemoveAll(temp)
-	run := func(args ...string) (string, error) {
-		cmd := exec.CommandContext(ctx, "git", args...)
-		cmd.Dir = w.Path
-		env := []string{}
-		for _, v := range os.Environ() {
-			if !strings.HasPrefix(v, "GIT_INDEX_FILE=") {
-				env = append(env, v)
-			}
-		}
-		cmd.Env = append(env, "GIT_INDEX_FILE="+filepath.Join(temp, "index"))
-		raw, err := cmd.Output()
-		return string(raw), err
-	}
-	if _, err = run("read-tree", "HEAD"); err != nil {
-		return "", nil, err
-	}
-	if _, err = run("add", "-A", "--", "."); err != nil {
-		return "", nil, err
-	}
+	defer cleanup()
 	diff, err := run("diff", "--cached", "--no-ext-diff", "--no-color", base, "--")
 	if err != nil {
 		return "", nil, err
@@ -82,4 +63,65 @@ func (w *Worktree) Capture(ctx context.Context, base string) (string, []string, 
 		return "", files, fmt.Errorf("patch exceeds 4 MiB; inspect the preserved workspace")
 	}
 	return diff, files, nil
+}
+
+// SnapshotTree records a turn's starting content without a commit or index edit.
+func (w *Worktree) SnapshotTree(ctx context.Context) (string, error) {
+	run, cleanup, err := w.stagedIndex(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+	tree, err := run("write-tree")
+	return strings.TrimSpace(tree), err
+}
+func (w *Worktree) stagedIndex(ctx context.Context) (func(...string) (string, error), func(), error) {
+	temp, err := os.MkdirTemp("", "aycorn-patch-")
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(temp) }
+	run := func(args ...string) (string, error) {
+		cmd := exec.CommandContext(ctx, "git", args...)
+		cmd.Dir = w.Path
+		env := []string{}
+		for _, v := range os.Environ() {
+			if !strings.HasPrefix(v, "GIT_INDEX_FILE=") {
+				env = append(env, v)
+			}
+		}
+		cmd.Env = append(env, "GIT_INDEX_FILE="+filepath.Join(temp, "index"))
+		raw, err := cmd.Output()
+		return string(raw), err
+	}
+	if _, err = run("read-tree", "HEAD"); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if _, err = run("add", "-A", "--", "."); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return run, cleanup, nil
+}
+
+// ResumeRun verifies the preserved checkout is still the recorded branch in the
+// recorded repository. A deleted or moved worktree requires a new conversation.
+func ResumeRun(ctx context.Context, root, directory, branch string) (*Worktree, error) {
+	actual, err := branchWorkspace(ctx, root, branch)
+	if err != nil {
+		return nil, err
+	}
+	expected, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		return nil, err
+	}
+	actual, err = filepath.EvalSymlinks(actual)
+	if err != nil || actual != expected {
+		return nil, fmt.Errorf("chat workspace changed or is missing; start a new conversation")
+	}
+	if err = workspaceReady(ctx, actual, false); err != nil {
+		return nil, err
+	}
+	return &Worktree{Path: actual, RepoRoot: root, Branch: branch}, nil
 }

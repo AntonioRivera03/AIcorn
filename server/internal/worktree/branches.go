@@ -20,6 +20,22 @@ var ErrMergeBlocked = errors.New("merge blocked")
 // Serialize app-initiated merges. Git's own locks still protect against other processes.
 var mergeMu sync.Mutex
 
+// Active harness checkouts cannot be merged or snapshotted while files change.
+// The existing process database lock ensures one production worker per database.
+var activeRunBranches = map[string]bool{}
+
+func branchUseKey(root, branch string) string { return filepath.Clean(root) + "\x00" + branch }
+func ReserveRun(root, branch string) (func(), error) {
+	mergeMu.Lock()
+	defer mergeMu.Unlock()
+	key := branchUseKey(root, branch)
+	if activeRunBranches[key] {
+		return nil, fmt.Errorf("%w: an agent is already using this branch", ErrMergeBlocked)
+	}
+	activeRunBranches[key] = true
+	return func() { mergeMu.Lock(); delete(activeRunBranches, key); mergeMu.Unlock() }, nil
+}
+
 type BranchState struct {
 	Commit     string   `json:"commit"`
 	Workspace  string   `json:"workspace"`
@@ -280,6 +296,9 @@ func PreviewMerge(ctx context.Context, root, branch, target string) (*MergePrevi
 func MergeBranch(ctx context.Context, root, branch, target, token string, taskID, jobID int) (_ *MergeResult, returnErr error) {
 	mergeMu.Lock()
 	defer mergeMu.Unlock()
+	if activeRunBranches[branchUseKey(root, branch)] || activeRunBranches[branchUseKey(root, target)] {
+		return nil, fmt.Errorf("%w: wait for active agent turns to finish", ErrMergeBlocked)
+	}
 	p, err := PreviewMerge(ctx, root, branch, target)
 	if err != nil {
 		return nil, err

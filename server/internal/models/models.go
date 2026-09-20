@@ -48,6 +48,7 @@ type TaskTypeCategory struct {
 }
 
 type TaskType struct {
+	ViewMode    string `json:"ViewMode"`
 	ID          int    `json:"ID"`
 	Name        string `json:"Name"`
 	Description string `json:"Description"`
