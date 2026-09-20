@@ -3,3 +3,30 @@ command = "/home/hal/Projects/AIcorn/server/bin/aycorn-mcp"
 
 [mcp_servers.aycorn.env]
 AYCORN_DB = "/home/hal/.config/aycorn/app.db"
+
+[agents]
+enabled = false
+
+[agents.conductor]
+description = "Aycorn conductor; independent task sessions; lifecycle belongs to server code"
+config_file = "agents/conductor.toml"
+
+[agents.planner]
+description = "Aycorn planner; independent task sessions; lifecycle belongs to server code"
+config_file = "agents/planner.toml"
+
+[agents.researcher]
+description = "Aycorn researcher; independent task sessions; lifecycle belongs to server code"
+config_file = "agents/research.toml"
+
+[agents.coder]
+description = "Aycorn coder; independent task sessions; lifecycle belongs to server code"
+config_file = "agents/coder.toml"
+
+[agents.reviewer]
+description = "Aycorn reviewer; independent task sessions; lifecycle belongs to server code"
+config_file = "agents/reviewer.toml"
+
+[agents.chatter]
+description = "Aycorn project conversation and task coordination"
+config_file = "agents/chatter.toml"

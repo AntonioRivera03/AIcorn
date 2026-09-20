@@ -12,12 +12,14 @@ import { ProjectWorkflowTab } from "@/features/settings/project-workflow/project
 import { ProjectTaskTypesTab } from "@/features/settings/project-task-types/project-task-types-tab";
 import { ProjectGeneralTab } from "@/features/settings/project-general/project-general-tab";
 import { ConductorSettingsTab } from "@/features/conductor/conductor-settings";
+import { JobsTab } from "@/features/jobs/jobs-tab";
 import { EnvironmentsTab } from "@/features/environments/environments-tab";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   LandPlotIcon,
   AudioLines,
   Box,
+  CalendarClock,
   Settings2Icon,
   TagsIcon,
   WorkflowIcon,
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/project/settings/$projectId")({
 function RouteComponent() {
   const { projectId } = Route.useParams();
   const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const id = Number.parseInt(projectId, 10);
   const { data } = useProjectWorkflowSettingsQuery(id);
   const projectName = data?.Project?.Name ?? "";
@@ -56,8 +59,9 @@ function RouteComponent() {
           description="Manage your project's behavior and settings."
         />
 
-        <Tabs defaultValue={tab} className="flex-1 min-h-0">
+        <Tabs value={tab} onValueChange={(tab) => void navigate({ search: { tab }, replace: true })} className="flex-1 min-h-0">
           <TabsList className="h-auto flex-wrap justify-start gap-1 [&>button]:h-8">
+            <TabsTrigger value="jobs"><CalendarClock />Jobs & templates</TabsTrigger>
             <TabsTrigger value="conductor"><AudioLines />Conductor</TabsTrigger>
             <TabsTrigger value="environments"><Box />Environments</TabsTrigger>
             <TabsTrigger value="general">
@@ -80,6 +84,7 @@ function RouteComponent() {
 
           <Separator />
 
+          <TabsContent value="jobs"><JobsTab projectId={id} /></TabsContent>
           <TabsContent value="conductor"><ConductorSettingsTab projectId={id} /></TabsContent>
           <TabsContent value="environments"><EnvironmentsTab projectId={id} /></TabsContent>
 

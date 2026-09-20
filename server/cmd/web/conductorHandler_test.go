@@ -40,12 +40,14 @@ func TestConductorSettingsAndBulkHTTP(t *testing.T) {
 	}
 	url := "/api/project/1/settings/conductor"
 	call("GET", url, "", 200)
+	call("PUT", url, `{"conductorAgentId":1}`, 400)
+	call("PUT", url, `{"taskAgentId":1}`, 400)
 	call("PUT", url, `{"enabled":true}`, 400)
-	call("PUT", url, `{"planningStage":2,"workingStage":3,"completionStage":4,"useRepository":false,"conductorAgentId":1,"taskAgentId":1}`, 200)
+	call("PUT", url, `{"planningStage":2,"workingStage":3,"completionStage":4,"useRepository":false}`, 200)
 	call("PUT", url, `{"enabled":true}`, 200)
 	call("PUT", url, `{"completionStage":5}`, 400)
 	call("PUT", url, `{"completionStage":6}`, 400)
-	call("PUT", url, `{"workingStage":2}`, 400)
+	call("PUT", url, `{"workingStage":4}`, 400)
 	call("PUT", url, `{"workerModels":["invalid model"]}`, 400)
 	call("PUT", url, `{"workerModels":null}`, 400)
 	call("PUT", url, `{"fullAccess":true}`, 400)
@@ -55,6 +57,10 @@ func TestConductorSettingsAndBulkHTTP(t *testing.T) {
 	var board services.ConductorBoard
 	if err := json.Unmarshal(r.Body.Bytes(), &board); err != nil {
 		t.Fatal(err)
+	}
+	root, err := a.aiService.Presets.FindRole("conductor")
+	if err != nil || root.ID != board.Settings.ConductorAgentID {
+		t.Fatalf("missing default orchestrator: %+v %v", board, err)
 	}
 	if board.Settings.PlanningPrompt != "Custom planning rules" || board.Settings.WorkingPrompt != "Custom worker rules" {
 		t.Fatal("field patches overwrote one another")

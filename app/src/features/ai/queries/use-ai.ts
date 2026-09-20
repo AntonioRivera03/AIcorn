@@ -23,6 +23,7 @@ export const useAISettings = () =>
 export const useAIContext = (taskId: number) => {
   const task = useQuery({
     queryKey: ["ai-task", taskId],
+    refetchInterval: 2000,
     queryFn: () => request<Task & { ProjectID: number }>(`/api/task/${taskId}`),
     enabled: taskId > 0,
   });
@@ -40,6 +41,7 @@ export const useAIContext = (taskId: number) => {
 export const useAIMutations = (taskId: number) => {
   const client = useQueryClient();
   const invalidate = () => {
+    void client.invalidateQueries({ queryKey: ["task-ownership"] });
     void client.invalidateQueries({ queryKey: ["agent-jobs"] });
     void client.invalidateQueries({ queryKey: ["task-branches", taskId] });
     void client.invalidateQueries({ queryKey: ["active-agent-jobs"] });

@@ -14,7 +14,7 @@ import (
 type SearchTasksInput struct {
 	Query      string   `json:"query,omitempty" jsonschema:"free-text search over the task name"`
 	ProjectIDs []int    `json:"projectIds,omitempty"`
-	StageIDs   []int    `json:"stageIds,omitempty" jsonschema:"stage ids — call list_workflow_stages for valid ids"`
+	StageIDs   []int    `json:"stageIds,omitempty" jsonschema:"stage ids — use project_context in scoped runs or list_workflow_stages in interactive sessions"`
 	Priorities []string `json:"priorities,omitempty" jsonschema:"Urgent, High, Medium, or Low"`
 	Assignees  []string `json:"assignees,omitempty"`
 	Limit      int      `json:"limit,omitempty" jsonschema:"default 25, max 100"`
@@ -95,7 +95,7 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 		return nil, nil, err
 	}
 	if t.runProjectID > 0 && task.ProjectID != t.runProjectID {
-		return nil, nil, errors.New("Conductor may only read tasks in its project")
+		return nil, nil, errors.New("this run may only read tasks in its project")
 	}
 
 	body, err := t.bodyToMarkdown(ctx, task.Body)
@@ -139,6 +139,9 @@ type CreateTaskInput struct {
 }
 
 func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in CreateTaskInput) (*mcp.CallToolResult, *models.ChecklistTask, error) {
+	if in.Priority == "" {
+		in.Priority = "Medium"
+	}
 	task := &models.ChecklistTask{
 		Task: models.Task{
 			Checklist: in.ChecklistID,
@@ -167,6 +170,10 @@ func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in C
 		task.HasTimePlannedEnd = true
 	}
 
+	if t.runChatTurnID > 0 {
+		newTask, err := t.taskService.TaskRepo.CreateFromChat(t.runProjectID, t.runChatTurnID, task)
+		return nil, newTask, err
+	}
 	newTask, err := t.taskService.CreateChecklistTask(task)
 	if err != nil {
 		return nil, nil, err
@@ -190,63 +197,19 @@ type UpdateTaskInput struct {
 }
 
 func (t *toolset) updateTask(ctx context.Context, req *mcp.CallToolRequest, in UpdateTaskInput) (*mcp.CallToolResult, OkOutput, error) {
-	current, err := t.taskService.GetTask(in.TaskID)
-	if err != nil {
-		return nil, OkOutput{}, err
-	}
-
-	// Convert before writing anything: a malformed body should leave the task
-	// entirely untouched rather than half-applying the property changes.
-	body := ""
+	// Convert before locking so slow conversion never holds SQLite's writer lock.
+	patch := repos.AgentTaskPatch{Name: in.Name, Priority: in.Priority, Assignee: in.Assignee, ChecklistID: in.ChecklistID, TypeID: in.TypeID}
 	if in.Body != nil {
-		converted, err := t.bodyToBody(ctx, *in.Body)
+		body, err := t.bodyToBody(ctx, *in.Body)
 		if err != nil {
 			return nil, OkOutput{}, err
 		}
-		body = converted
+		patch.Body = &body
 	}
-
-	if in.Name != nil {
-		current.Name = *in.Name
+	if t.runTaskID > 0 {
+		return nil, OkOutput{}, errors.New("task runs cannot change ticket properties")
 	}
-	if in.Priority != nil {
-		current.Priority = *in.Priority
-	}
-	if in.Assignee != nil {
-		current.Assignee = *in.Assignee
-	}
-	if in.ChecklistID != nil {
-		if t.checklistService == nil || t.checklistService.ChecklistRepo == nil {
-			return nil, OkOutput{}, errors.New("checklist service not configured")
-		}
-		ch, err := t.checklistService.ChecklistRepo.FindOne(int64(*in.ChecklistID))
-		if err != nil {
-			return nil, OkOutput{}, err
-		}
-		current.Checklist = ch.ID
-	}
-	if in.TypeID != nil {
-		if t.taskTypeService == nil || t.taskTypeService.TaskTypeRepo == nil {
-			return nil, OkOutput{}, errors.New("task type service not configured")
-		}
-		tt, err := t.taskTypeService.TaskTypeRepo.FindOne(*in.TypeID)
-		if err != nil {
-			return nil, OkOutput{}, err
-		}
-		current.Type = *tt
-	}
-	ok, err := t.taskService.UpdateTaskProperties(&current.ChecklistTask)
-	if err != nil || !ok {
-		return nil, OkOutput{Ok: ok}, err
-	}
-
-	if in.Body != nil {
-		// Written through UpdateTaskBody, not the UpdateTask call above — same
-		// separation the app itself relies on (taskRepo.go's UpdateTask never
-		// touches the body column, precisely so a property-only edit can't
-		// clobber it).
-		ok, err = t.taskService.UpdateTaskBody(in.TaskID, body)
-	}
+	ok, err := t.taskService.TaskRepo.UpdateByAgent(in.TaskID, t.runProjectID, 0, patch, t.runChatTurnID)
 	return nil, OkOutput{Ok: ok}, err
 }
 
@@ -257,7 +220,13 @@ type MoveTaskStageInput struct {
 }
 
 func (t *toolset) moveTaskStage(ctx context.Context, req *mcp.CallToolRequest, in MoveTaskStageInput) (*mcp.CallToolResult, OkOutput, error) {
-	ok, err := t.taskService.TransitionStage(in.TaskID, in.FromStage, in.ToStage)
+	if t.runTaskID > 0 {
+		return nil, OkOutput{}, errors.New("task runs cannot move tickets")
+	}
+	ok, err := t.taskService.TaskRepo.MoveByAgent(in.TaskID, t.runProjectID, 0, in.FromStage, in.ToStage, t.runChatTurnID)
+	if err == nil && !ok {
+		err = services.ErrStageConflict
+	}
 	if errors.Is(err, services.ErrStageConflict) {
 		// Return this as a tool error with an actionable message, not a bare
 		// conflict — the calling model should re-read the task and retry, not give up.

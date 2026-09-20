@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"net/http"
@@ -14,7 +15,7 @@ func (app *app) getAISettings(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.Health(r.Context(), settings.Executable)})
+	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.Health(r.Context(), settings.Executable), "providers": harness.Providers()})
 }
 func (app *app) putAISettings(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -69,4 +70,40 @@ func (app *app) cancelAIRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, true)
+}
+
+func (app *app) startChatTurn(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid task", 400)
+		return
+	}
+	var input services.ChatInput
+	if !decodeJSONInput(w, r, &input) {
+		return
+	}
+	job, err := app.aiService.StartChat(r.Context(), id, input)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, 201, job)
+}
+
+func (app *app) taskSessionMessage(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("taskId"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid task", 400)
+		return
+	}
+	var input services.TaskMessageInput
+	if !decodeJSONInput(w, r, &input) {
+		return
+	}
+	result, err := app.aiService.TaskMessage(r.Context(), id, input)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }

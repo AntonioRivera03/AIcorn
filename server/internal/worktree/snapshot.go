@@ -119,6 +119,9 @@ func safeSnapshotName(name string) bool {
 func SnapshotSource(ctx context.Context, root, branch, commit string, includeChanges bool, destination string) (*SourceSnapshot, error) {
 	mergeMu.Lock()
 	defer mergeMu.Unlock()
+	if activeRunBranches[branchUseKey(root, branch)] {
+		return nil, fmt.Errorf("%w: wait for the active agent turn before previewing", ErrMergeBlocked)
+	}
 	current, err := localRef(ctx, root, branch)
 	if err != nil {
 		return nil, err

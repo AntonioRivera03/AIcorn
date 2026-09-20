@@ -80,7 +80,7 @@ export function KanbanColumn({
           </div>
       <ItemGroup
         className={cn(
-          "h-full overflow-y-scroll w-full min-w-0 overflow-x-visible flex flex-col gap-2 p-2 rounded-xl",
+          "h-full overflow-y-auto scrollbar-hide w-full min-w-0 overflow-x-visible flex flex-col gap-2 p-2 rounded-xl",
           isOver && tint,
         )}
         ref={setNodeRef}

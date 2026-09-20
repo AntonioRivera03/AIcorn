@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
-import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -8,35 +7,36 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { PersonaCard } from "@/features/persona/persona-card";
-import { PersonasBulkActionsToolbar } from "@/features/persona/personas-bulk-actions-toolbar";
 import { PersonaEditorDrawer } from "@/features/persona/persona-editor-drawer";
-import { usePersonaMutations } from "@/features/persona/queries/use-persona-mutations";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 
 export function PersonasPage() {
   const [search, setSearch] = useState("");
   const [drawerPersonaId, setDrawerPersonaId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { data: personas = [], isFetching } = usePersonasQuery();
-  const { createPersona } = usePersonaMutations();
+  const {
+    data: personas = [],
+    isFetching,
+    isError,
+    refetch,
+  } = usePersonasQuery();
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (query === "") return personas;
-    return personas.filter((persona) =>
+    const ordered = [...personas].sort(
+      (a, b) =>
+        Number(Boolean(b.BuiltinRole)) - Number(Boolean(a.BuiltinRole)) ||
+        (a.BuiltinRole === "conductor"
+          ? -1
+          : b.BuiltinRole === "conductor"
+            ? 1
+            : a.ID - b.ID),
+    );
+    if (query === "") return ordered;
+    return ordered.filter((persona) =>
       [persona.Name].some((value) => value.toLowerCase().includes(query)),
     );
   }, [personas, search]);
-
-  const handleCreate = () => {
-    createPersona.mutate(undefined, {
-      onSuccess: (persona) => {
-        setDrawerPersonaId(persona.ID);
-        setDrawerOpen(true);
-      },
-      onError: () => toast.error("Failed to create persona."),
-    });
-  };
 
   const handleOpenPersona = (personaId: number) => {
     setDrawerPersonaId(personaId);
@@ -62,17 +62,16 @@ export function PersonasPage() {
             {filtered.length} {filtered.length === 1 ? "agent" : "agents"}
           </InputGroupAddon>
         </InputGroup>
-        <Button
-          className="w-full md:w-auto"
-          onClick={handleCreate}
-          disabled={createPersona.isPending}
-        >
-          <Plus />
-          New agent
-        </Button>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div role="alert" className="text-sm text-destructive">
+          Could not load agents.{" "}
+          <Button variant="outline" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-sm text-muted-foreground">
           Loading agents...
         </div>
@@ -81,16 +80,6 @@ export function PersonasPage() {
           <p className="text-sm text-muted-foreground">
             {search ? "No agents match your search." : "No agents yet."}
           </p>
-          {!search && (
-            <Button
-              variant="outline"
-              onClick={handleCreate}
-              disabled={createPersona.isPending}
-            >
-              <Plus />
-              Create your first agent
-            </Button>
-          )}
         </div>
       ) : (
         <div className="grid content-start grid-cols-1 gap-3 p-1 md:grid-cols-2 lg:grid-cols-3">
@@ -103,8 +92,6 @@ export function PersonasPage() {
           ))}
         </div>
       )}
-
-      <PersonasBulkActionsToolbar personas={personas} />
 
       <PersonaEditorDrawer
         personaId={drawerPersonaId}

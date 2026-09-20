@@ -15,6 +15,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
+	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	_ "modernc.org/sqlite"
 )
 
@@ -71,6 +72,27 @@ func main() {
 		converter:        &markdown.Converter{},
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	toolset.aiService = &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: toolset.converter, MCPExecutable: executable}
+	toolset.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: toolset.aiService, Runs: agentRunRepo}
+	if raw, scoped := os.LookupEnv("AYCORN_DISPATCH"); scoped {
+		id, err := strconv.Atoi(raw)
+		if err != nil || id <= 0 {
+			log.Fatal("invalid dispatcher scope")
+		}
+		project, err := strconv.Atoi(os.Getenv("AYCORN_DISPATCH_PROJECT"))
+		if err != nil || project <= 0 {
+			log.Fatal("invalid dispatcher project")
+		}
+		if err = repos.CheckDispatch(db, project, id); err != nil {
+			log.Fatal(err)
+		}
+		toolset.runDispatchID = id
+		toolset.runProjectID = project
+	}
 	if raw, scoped := os.LookupEnv("AYCORN_RUN_TASK"); scoped {
 		taskID, err := strconv.Atoi(raw)
 		if err != nil || taskID <= 0 {
@@ -88,6 +110,37 @@ func main() {
 			log.Fatal("Conductor task does not belong to project scope")
 		}
 		toolset.runProjectID = projectID
+	}
+	if raw, scoped := os.LookupEnv("AYCORN_RUN_JOB"); scoped {
+		jobID, err := strconv.Atoi(raw)
+		if err != nil || jobID <= 0 || toolset.runTaskID <= 0 {
+			log.Fatal("invalid run job scope")
+		}
+		job, err := agentJobRepo.FindOne(jobID)
+		if err != nil || job.Task != toolset.runTaskID {
+			log.Fatal("run job does not belong to task scope")
+		}
+		toolset.runJobID = jobID
+	}
+	if raw, scoped := os.LookupEnv("AYCORN_CHAT_TURN"); scoped {
+		turn, err := strconv.Atoi(raw)
+		if err != nil || turn <= 0 || toolset.runTaskID != 0 {
+			log.Fatal("invalid Chatter turn scope")
+		}
+		project, err := strconv.Atoi(os.Getenv("AYCORN_CHAT_PROJECT"))
+		if err != nil || project <= 0 {
+			log.Fatal("invalid Chatter project scope")
+		}
+		if err = taskownership.CheckChat(db, project, turn); err != nil {
+			log.Fatal(err)
+		}
+		toolset.runProjectID = project
+		toolset.runChatTurnID = turn
+		executable, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+		toolset.aiService = &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: toolset.converter, MCPExecutable: executable}
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "aycorn-mcp", Version: "0.1.0"}, nil)
 	toolset.register(srv)

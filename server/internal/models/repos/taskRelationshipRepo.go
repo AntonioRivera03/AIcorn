@@ -79,7 +79,7 @@ func (repo *TaskRelationshipRepo) ForTask(taskId int) ([]models.TaskRelationship
 		       ot.id, COALESCE(ot.name, ''), c.project, p.name, c.name,
 		       COALESCE(ot.priority, ''), (s.type = 'done'),
 		       s.id, s.workflow, s.name, COALESCE(s.description, ''), s.color, s.icon, s.position, s.type,
-		       tt.id, tt.name, COALESCE(tt.description, ''), tt.icon, tt.color, tt.isDefault
+		       tt.id, tt.name, COALESCE(tt.description, ''), tt.icon, tt.color, tt.isDefault, tt.viewMode
 		  FROM task_relationship tr
 		  JOIN task_relationship_type trt ON trt.id = tr.relationshipType
 		  JOIN task ot ON ot.id = CASE WHEN tr.fromTask = ? THEN tr.toTask ELSE tr.fromTask END
@@ -129,7 +129,7 @@ func (repo *TaskRelationshipRepo) ForTask(taskId int) ([]models.TaskRelationship
 			&r.Other.Type.Description,
 			&r.Other.Type.Icon,
 			&r.Other.Type.Color,
-			&r.Other.Type.IsDefault,
+			&r.Other.Type.IsDefault, &r.Other.Type.ViewMode,
 		); err != nil {
 			return nil, err
 		}

@@ -42,11 +42,11 @@ const taskTypeSelect = `
 	COALESCE(tt.description, ''),
 	tt.icon,
 	tt.color,
-	tt.isDefault`
+	tt.isDefault, tt.viewMode`
 
-// scanTaskTypeInto scans the 6 task_type columns (produced by taskTypeSelect) into tt.
+// scanTaskTypeInto scans the 7 task_type columns (produced by taskTypeSelect) into tt.
 func scanTaskTypeInto(scanner interface{ Scan(...any) error }, tt *models.TaskType) error {
-	return scanner.Scan(&tt.ID, &tt.Name, &tt.Description, &tt.Icon, &tt.Color, &tt.IsDefault)
+	return scanner.Scan(&tt.ID, &tt.Name, &tt.Description, &tt.Icon, &tt.Color, &tt.IsDefault, &tt.ViewMode)
 }
 
 func appendTaskFilterClauses(query string, args []any, f *TaskFilters) (string, []any) {
@@ -176,7 +176,7 @@ func (repo *TaskRepo) InProject(projectId int, taskFilters *TaskFilters) ([]mode
 			&ct.Type.Description,
 			&ct.Type.Icon,
 			&ct.Type.Color,
-			&ct.Type.IsDefault,
+			&ct.Type.IsDefault, &ct.Type.ViewMode,
 		); err != nil {
 			return nil, err
 		}
@@ -422,7 +422,7 @@ func (repo *TaskRepo) FindOne(taskId int64) (*models.ChecklistTask, error) {
 		&task.Type.Description,
 		&task.Type.Icon,
 		&task.Type.Color,
-		&task.Type.IsDefault,
+		&task.Type.IsDefault, &task.Type.ViewMode,
 	)
 	if err != nil {
 		return nil, err
@@ -575,7 +575,7 @@ func (repo *TaskRepo) FindOneWithProject(taskId int) (*models.TaskWithProject, e
 		&task.Type.Description,
 		&task.Type.Icon,
 		&task.Type.Color,
-		&task.Type.IsDefault,
+		&task.Type.IsDefault, &task.Type.ViewMode,
 	)
 	if err != nil {
 		return nil, err
@@ -656,7 +656,7 @@ func (repo *TaskRepo) AllTasks(taskFilters *TaskFilters) ([]models.TaskWithProje
 			&t.Type.Description,
 			&t.Type.Icon,
 			&t.Type.Color,
-			&t.Type.IsDefault,
+			&t.Type.IsDefault, &t.Type.ViewMode,
 		); err != nil {
 			return nil, err
 		}

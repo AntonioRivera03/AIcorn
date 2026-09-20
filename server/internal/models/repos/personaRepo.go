@@ -12,7 +12,7 @@ type PersonaRepo struct {
 	DB *sql.DB
 }
 
-const personaColumns = "id, name, system_prompt, harness, model, agent, allowed_tools, timeCreated, timeModified"
+const personaColumns = "id, name, system_prompt, harness, model, agent, allowed_tools, timeCreated, timeModified, builtin_role"
 
 func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Persona) error {
 	var allowedTools string
@@ -28,6 +28,7 @@ func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Person
 		&allowedTools,
 		&timeCreated,
 		&timeModified,
+		&persona.BuiltinRole,
 	); err != nil {
 		return err
 	}
@@ -47,7 +48,40 @@ func scanPersona(scanner interface{ Scan(...any) error }, persona *models.Person
 	}
 	persona.AllowedTools = tools
 	persona.SystemPrompt = models.NormalizeBody(persona.SystemPrompt)
+	persona.ApplyBuiltin()
 	return nil
+}
+
+func (repo *PersonaRepo) FindRole(role string) (*models.Persona, error) {
+	var p models.Persona
+	err := scanPersona(repo.DB.QueryRow("SELECT "+personaColumns+" FROM persona WHERE builtin_role=?", role), &p)
+	return &p, err
+}
+
+func (repo *PersonaRepo) FleetModels() (map[string]string, error) {
+	rows, err := repo.DB.Query("SELECT builtin_role,model FROM persona WHERE builtin_role<>''")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	models := map[string]string{}
+	for rows.Next() {
+		var role, model string
+		if err = rows.Scan(&role, &model); err != nil {
+			return nil, err
+		}
+		models[role] = model
+	}
+	return models, rows.Err()
+}
+
+func (repo *PersonaRepo) UpdateModel(id int, model models.PersonaModel) (bool, error) {
+	res, err := repo.DB.Exec("UPDATE persona SET model=? WHERE id=?", model, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 func personaWriteArgs(persona *models.Persona) ([]any, error) {
