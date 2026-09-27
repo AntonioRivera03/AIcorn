@@ -140,3 +140,15 @@ export function useLeaveWorkspaceMutation(workspaceId: number, fallbackWorkspace
     },
   });
 }
+
+// Deleting reloads the app into another workspace (normally the personal
+// one), for the same reason as leaving.
+export function useDeleteOrganizationMutation(workspaceId: number, fallbackWorkspaceId: number) {
+  return useMutation({
+    mutationFn: () => apiJson<void>(`/api/workspaces/${workspaceId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      selectWorkspace(fallbackWorkspaceId);
+      window.location.assign("/app");
+    },
+  });
+}

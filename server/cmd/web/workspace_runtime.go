@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -38,7 +40,10 @@ import (
 type workspaceRuntime struct {
 	app     *app
 	handler http.Handler
-	stop    func()
+	// stop ends the background work, takes a final backup, and closes the
+	// database. With destroy set it also tears down the cluster resources the
+	// workspace's branch environments created, for a deleted workspace.
+	stop func(destroy bool)
 }
 
 type runtimeConfig struct {
@@ -231,10 +236,17 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 	}
 
 	var stopOnce sync.Once
-	stop := func() {
+	stop := func(destroy bool) {
 		stopOnce.Do(func() {
 			for i := len(cleanups) - 1; i >= 0; i-- {
 				cleanups[i]()
+			}
+			// The environment loop has stopped, so nothing restarts what this
+			// tears down.
+			if destroy && app.environmentService != nil {
+				if err := app.environmentService.Teardown(context.Background()); err != nil {
+					log.Printf("tearing down environments (%s): %v", dbPath, err)
+				}
 			}
 			if err := appdb.BackupOnShutdown(db, dbPath); err != nil {
 				log.Printf("shutdown backup (%s): %v", dbPath, err)
@@ -252,11 +264,14 @@ type workspaceRegistry struct {
 	dataDir string
 	cfg     runtimeConfig
 
-	// mu guards the map only. Starting a runtime (migrations, goroutines)
+	// mu guards the maps only. Starting a runtime (migrations, goroutines)
 	// happens outside it, so a workspace being created never stalls requests
 	// to the others.
 	mu      sync.Mutex
 	entries map[int64]*runtimeEntry
+	// retired holds deleted workspaces, so a request that raced the deletion
+	// can't start one back up. Workspace IDs are never reused.
+	retired map[int64]bool
 }
 
 // runtimeEntry is one workspace's runtime, possibly still starting. ready is
@@ -269,7 +284,7 @@ type runtimeEntry struct {
 }
 
 func newWorkspaceRegistry(ctx context.Context, dataDir string, cfg runtimeConfig) *workspaceRegistry {
-	return &workspaceRegistry{ctx: ctx, dataDir: dataDir, cfg: cfg, entries: map[int64]*runtimeEntry{}}
+	return &workspaceRegistry{ctx: ctx, dataDir: dataDir, cfg: cfg, entries: map[int64]*runtimeEntry{}, retired: map[int64]bool{}}
 }
 
 func (r *workspaceRegistry) dbPath(id int64) string {
@@ -280,6 +295,10 @@ func (r *workspaceRegistry) dbPath(id int64) string {
 // work runs under the registry's context, never the caller's request.
 func (r *workspaceRegistry) get(id int64) (*workspaceRuntime, error) {
 	r.mu.Lock()
+	if r.retired[id] {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("workspace %d was deleted", id)
+	}
 	if entry, ok := r.entries[id]; ok {
 		r.mu.Unlock()
 		<-entry.ready
@@ -325,11 +344,38 @@ func (r *workspaceRegistry) unprovision(id int64) {
 	if ok {
 		<-entry.ready
 		if entry.rt != nil {
-			entry.rt.stop()
+			entry.rt.stop(false)
 		}
 	}
 	if err := os.RemoveAll(filepath.Dir(r.dbPath(id))); err != nil {
 		log.Printf("removing rolled-back workspace %d: %v", id, err)
+	}
+}
+
+// retire shuts down a deleted organization for good, as the accounts
+// service's Retire hook. Its runtime stops, its branch environments are torn
+// down, and its directory moves to <data dir>/deleted-workspaces/<id>-<time>,
+// where whoever runs the server can still recover it, or delete it for good.
+func (r *workspaceRegistry) retire(id int64) {
+	r.mu.Lock()
+	r.retired[id] = true
+	entry, ok := r.entries[id]
+	delete(r.entries, id)
+	r.mu.Unlock()
+	if ok {
+		<-entry.ready
+		if entry.rt != nil {
+			entry.rt.stop(true)
+		}
+	}
+	trash := filepath.Join(r.dataDir, "deleted-workspaces")
+	if err := os.MkdirAll(trash, 0o700); err != nil {
+		log.Printf("setting aside deleted workspace %d: %v", id, err)
+		return
+	}
+	dest := filepath.Join(trash, fmt.Sprintf("%d-%s", id, time.Now().UTC().Format("20060102-150405")))
+	if err := os.Rename(filepath.Dir(r.dbPath(id)), dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Printf("setting aside deleted workspace %d: %v", id, err)
 	}
 }
 
@@ -346,7 +392,7 @@ func (r *workspaceRegistry) stopAll() {
 			defer wg.Done()
 			<-entry.ready
 			if entry.rt != nil {
-				entry.rt.stop()
+				entry.rt.stop(false)
 			}
 		}()
 	}

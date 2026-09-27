@@ -190,7 +190,7 @@ Binding to your Tailscale IP keeps Aycorn reachable only over your private tailn
 
 Over Tailscale, plain HTTP stays inside your tailnet (and `tailscale serve` can add HTTPS). Anywhere beyond a private network, serve HTTPS: either set the two TLS variables, or put a proxy such as [Caddy](https://caddyserver.com/) in front (`caddy reverse-proxy --from aycorn.example.com --to 127.0.0.1:8000`) and set `AYCORN_TRUST_PROXY=1`.
 
-Login, signup, and password reset attempts are rate limited per address and per account.
+Login, signup, and password reset attempts are rate limited per address and per account. When an owner deletes an organization, its data is moved to `deleted-workspaces/` inside the data directory rather than erased, so whoever runs the server can recover it or delete it for good.
 
 **To check the version:**
 ```bash

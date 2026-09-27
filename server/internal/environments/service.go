@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -215,6 +216,26 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 func (s *Service) Wait() { s.wg.Wait(); s.Runtime.Close() }
+
+// Teardown destroys the cluster resources and images of every environment,
+// for a workspace that's being deleted. Call it after Wait, so the reconcile
+// loop can't start anything back up. It tries every environment and reports
+// all failures together.
+func (s *Service) Teardown(ctx context.Context) error {
+	environments, err := s.Store.List(0, 0, false)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for i := range environments {
+		bounded, cancel := context.WithTimeout(ctx, 90*time.Second)
+		if err := s.Runtime.Destroy(bounded, &environments[i]); err != nil {
+			errs = append(errs, fmt.Errorf("environment %d: %w", environments[i].ID, err))
+		}
+		cancel()
+	}
+	return errors.Join(errs...)
+}
 
 func (s *Service) tick(ctx context.Context) error {
 	if err := s.Store.Expire(ctx); err != nil {

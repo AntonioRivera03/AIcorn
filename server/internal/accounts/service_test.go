@@ -320,3 +320,43 @@ func TestSuccessfulCreationIsNotUnprovisioned(t *testing.T) {
 	svc.Unprovision = func(id int64) { t.Fatalf("workspace %d unprovisioned after a successful signup", id) }
 	mustSignup(t, svc, "Owner", "owner@example.com")
 }
+
+func TestDeleteOrganization(t *testing.T) {
+	svc, _, _ := newTestService(t)
+	ctx := context.Background()
+	var retired []int64
+	svc.Retire = func(id int64) { retired = append(retired, id) }
+	owner := mustSignup(t, svc, "Owner", "owner@example.com")
+	org, _ := svc.CreateOrganization(ctx, owner.ID, "Acme")
+	invite, _ := svc.Invite(ctx, owner.ID, org.ID, "bea@example.com", RoleAdmin, "")
+	bea := mustSignup(t, svc, "Bea", "bea@example.com")
+	if _, err := svc.AcceptInvite(ctx, bea.ID, invite.Code); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.DeleteOrganization(ctx, bea.ID, org.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("an admin deleted the organization: %v", err)
+	}
+	personal, _ := svc.Workspaces(ctx, owner.ID)
+	if err := svc.DeleteOrganization(ctx, owner.ID, personal[0].ID); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("a personal workspace was deleted: %v", err)
+	}
+	if len(retired) != 0 {
+		t.Fatalf("nothing should be retired yet, got %v", retired)
+	}
+
+	if err := svc.DeleteOrganization(ctx, owner.ID, org.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(retired) != 1 || retired[0] != org.ID {
+		t.Fatalf("deleted organization not retired: %v", retired)
+	}
+	for _, member := range []Account{owner, bea} {
+		if _, err := svc.WorkspaceForMember(ctx, org.ID, member.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s still has access to a deleted organization: %v", member.Name, err)
+		}
+	}
+	if ids, _ := svc.AllWorkspaceIDs(ctx); len(ids) != 2 {
+		t.Fatalf("expected only the two personal workspaces left, got %v", ids)
+	}
+}

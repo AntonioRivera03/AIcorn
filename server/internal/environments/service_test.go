@@ -370,3 +370,20 @@ func TestDeploymentSetsBothDataDirAndLegacyDBEnv(t *testing.T) {
 		t.Fatalf("AYCORN_DB = %q; want /data/app.db", env["AYCORN_DB"])
 	}
 }
+
+func TestTeardownDestroysEnvironments(t *testing.T) {
+	store := testStore(t)
+	root := repoFixture(t, map[string]string{"app.txt": "hello"})
+	configureFixture(t, store, root)
+	runtime := &fakeRuntime{}
+	s := &Service{Store: store, Runtime: runtime, Root: t.TempDir(), operations: map[int]operation{}, builds: make(chan struct{}, 1)}
+	if _, err := s.Create(context.Background(), 1, CreateInput{Branch: "main"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Teardown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.deletes != 1 {
+		t.Fatalf("expected the environment to be destroyed, got %d destroys", runtime.deletes)
+	}
+}

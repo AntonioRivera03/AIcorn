@@ -29,6 +29,7 @@ func withCommon(next http.Handler) http.Handler {
 		}
 		if origin := r.Header.Get("Origin"); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Expose-Headers", workspaceAccessHeader)
 			w.Header().Add("Vary", "Origin")
 		}
 		log.Println(r.Method, r.RequestURI)

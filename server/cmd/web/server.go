@@ -19,6 +19,11 @@ const (
 	// it on every API call from the workspace open in that tab, so two tabs on
 	// different workspaces never write into each other's data.
 	workspaceHeader = "X-Aycorn-Workspace"
+	// workspaceAccessHeader marks a workspace request refused because the
+	// caller isn't a member (they were removed, or the organization was
+	// deleted), so the app can move the tab elsewhere instead of treating it
+	// like any other 404.
+	workspaceAccessHeader = "X-Aycorn-Workspace-Access"
 )
 
 // server is the multi-user front door. It serves the public pages' API
@@ -64,6 +69,7 @@ func (s *server) routes() http.Handler {
 	// confirmed email address. Accepting an invite doesn't: it confirms it.
 	mux.HandleFunc("POST /api/workspaces", s.withVerifiedAccount(s.postOrganization))
 	mux.HandleFunc("PUT /api/workspaces/{workspaceId}", s.withVerifiedAccount(s.putWorkspace))
+	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}", s.withVerifiedAccount(s.deleteWorkspace))
 	mux.HandleFunc("GET /api/workspaces/{workspaceId}/members", s.withVerifiedAccount(s.getMembers))
 	mux.HandleFunc("PUT /api/workspaces/{workspaceId}/members/{accountId}", s.withVerifiedAccount(s.putMember))
 	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}/members/{accountId}", s.withVerifiedAccount(s.deleteMember))
@@ -187,6 +193,9 @@ func (s *server) forwardToWorkspace(w http.ResponseWriter, r *http.Request, acco
 		return
 	}
 	if _, err := s.accounts.WorkspaceForMember(r.Context(), id, account.ID); err != nil {
+		if errors.Is(err, accounts.ErrNotFound) {
+			w.Header().Set(workspaceAccessHeader, "none")
+		}
 		respondErr(w, err)
 		return
 	}

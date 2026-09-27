@@ -252,6 +252,13 @@ func (s *Store) RenameWorkspace(ctx context.Context, workspaceID int64, name str
 	return err
 }
 
+// DeleteWorkspace deletes the workspace row; its memberships and invites go
+// with it.
+func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID int64) error {
+	res, err := s.q.ExecContext(ctx, `DELETE FROM workspace WHERE id = ?`, workspaceID)
+	return requireRow(res, err)
+}
+
 func (s *Store) AllWorkspaceIDs(ctx context.Context) ([]int64, error) {
 	rows, err := s.q.QueryContext(ctx, `SELECT id FROM workspace ORDER BY id`)
 	if err != nil {

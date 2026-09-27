@@ -218,6 +218,7 @@ func main() {
 		Mailer:       mailer,
 		Provision:    workspaces.provision,
 		Unprovision:  workspaces.unprovision,
+		Retire:       workspaces.retire,
 		VerifyEmails: verifyEmails,
 	}
 

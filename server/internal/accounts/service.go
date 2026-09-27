@@ -26,12 +26,14 @@ const (
 // Service holds the account and workspace rules. Provision is called inside
 // the transaction that creates a workspace, so a workspace row never exists
 // without its database; Unprovision undoes it if that transaction then rolls
-// back, so no database outlives its row.
+// back, so no database outlives its row. Retire is called once a deleted
+// organization's row is gone, to stop its runtime and set its data aside.
 type Service struct {
 	Store       *Store
 	Mailer      Mailer
 	Provision   func(ctx context.Context, workspaceID int64) error
 	Unprovision func(workspaceID int64)
+	Retire      func(workspaceID int64)
 	// VerifyEmails makes new accounts confirm their email address before they
 	// can use a workspace. It needs a working Mailer; without one there's no
 	// way to send the link, so accounts start out verified.
@@ -491,6 +493,31 @@ func (s *Service) createWorkspace(ctx context.Context, tx *Store, provision prov
 		return Workspace{}, fmt.Errorf("provisioning workspace %d: %w", id, err)
 	}
 	return Workspace{ID: id, Kind: kind, Name: name, Role: RoleOwner}, nil
+}
+
+// DeleteOrganization deletes an organization for everyone in it. Only owners
+// may, and personal workspaces can't be deleted.
+func (s *Service) DeleteOrganization(ctx context.Context, actorID, workspaceID int64) error {
+	err := s.Store.InTx(ctx, func(tx *Store) error {
+		ws, err := tx.WorkspaceForMember(ctx, workspaceID, actorID)
+		if err != nil {
+			return err
+		}
+		if ws.Kind != KindOrganization {
+			return invalidInput("personal workspaces can't be deleted")
+		}
+		if ws.Role != RoleOwner {
+			return ErrForbidden
+		}
+		return tx.DeleteWorkspace(ctx, workspaceID)
+	})
+	if err != nil {
+		return err
+	}
+	if s.Retire != nil {
+		s.Retire(workspaceID)
+	}
+	return nil
 }
 
 func (s *Service) RenameWorkspace(ctx context.Context, actorID, workspaceID int64, name string) error {

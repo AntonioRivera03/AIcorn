@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
 } from "@/features/workspaces/queries/workspace-queries";
 import { canManageMembers } from "@/features/workspaces/types";
 import { useWorkspace } from "@/features/workspaces/workspace-context";
+import { DeleteOrganizationDialog } from "@/features/workspaces/members/delete-organization-dialog";
 import { InviteMemberForm } from "@/features/workspaces/members/invite-member-form";
 import { MemberRow } from "@/features/workspaces/members/member-row";
 import { OrganizationName } from "@/features/workspaces/members/organization-name";
@@ -25,6 +27,7 @@ export function MembersPanel() {
   const manager = canManageMembers(workspace);
   const { data: members = [], isPending } = useMembersQuery(workspace.id);
   const { data: invites = [] } = useInvitesQuery(workspace.id, manager);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (workspace.kind === "personal") {
     return (
@@ -103,6 +106,24 @@ export function MembersPanel() {
               ))}
             </TableBody>
           </Table>
+        </section>
+      )}
+
+      {workspace.role === "owner" && (
+        <section className="flex flex-col items-start gap-3 rounded-lg border border-destructive/40 p-4">
+          <SectionHeading
+            title="Delete organization"
+            description="Removes the organization and all of its work for every member. Only owners can do this."
+          />
+          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+            Delete organization
+          </Button>
+          <DeleteOrganizationDialog
+            workspace={workspace}
+            fallbackWorkspaceId={fallbackWorkspaceId}
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+          />
         </section>
       )}
     </div>

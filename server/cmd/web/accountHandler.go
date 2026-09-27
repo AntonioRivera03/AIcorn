@@ -237,6 +237,18 @@ func (s *server) putWorkspace(w http.ResponseWriter, r *http.Request, account ac
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *server) deleteWorkspace(w http.ResponseWriter, r *http.Request, account accounts.Account) {
+	id, ok := pathID(w, r, "workspaceId")
+	if !ok {
+		return
+	}
+	if err := s.accounts.DeleteOrganization(r.Context(), account.ID, id); err != nil {
+		respondErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // --- members ---
 
 func (s *server) getMembers(w http.ResponseWriter, r *http.Request, account accounts.Account) {

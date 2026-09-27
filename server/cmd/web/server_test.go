@@ -37,7 +37,7 @@ func testServerWith(t *testing.T, configure func(s *server)) (*httptest.Server, 
 		t.Fatal(err)
 	}
 	workspaces := newWorkspaceRegistry(ctx, dataDir, runtimeConfig{})
-	service := &accounts.Service{Store: accounts.NewStore(accountsDB), Mailer: accounts.LogMailer{}, Provision: workspaces.provision, Unprovision: workspaces.unprovision}
+	service := &accounts.Service{Store: accounts.NewStore(accountsDB), Mailer: accounts.LogMailer{}, Provision: workspaces.provision, Unprovision: workspaces.unprovision, Retire: workspaces.retire}
 	s := &server{accounts: service, workspaces: workspaces, accountsDB: accountsDB, limits: newAuthLimits()}
 	if configure != nil {
 		configure(s)
