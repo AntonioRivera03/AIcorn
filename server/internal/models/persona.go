@@ -60,7 +60,10 @@ var openAIModel = regexp.MustCompile(`^(gpt-[0-9][a-z0-9.-]*|o[0-9][a-z0-9.-]*|c
 func IsOpenAIModel(model string) bool { return len(model) <= 100 && openAIModel.MatchString(model) }
 
 type Persona struct {
-	BuiltinRole     string
+	BuiltinRole string
+	// TaskAgent marks the bundled agents users can pick and Conductor can
+	// dispatch (Coder, Reviewer, Research). Internal and retired agents are false.
+	TaskAgent       bool
 	Description     string
 	Instructions    string
 	InstructionPath string
@@ -83,6 +86,7 @@ type AgentSkill struct{ Name, Path, Content string }
 func (p *Persona) ApplyBuiltin() {
 	if d, ok := fleet.Lookup(p.BuiltinRole); ok {
 		p.Name, p.Description, p.Instructions = d.Name, d.Description, d.Instructions()
+		p.TaskAgent = !d.Internal
 		p.Harness = PersonaHarnessCodex
 		p.InstructionPath = "server/internal/harness/fleet/" + d.Role + "-instructions.md"
 		p.Skills = []AgentSkill{{Name: "aycorn-workflow", Path: "server/internal/harness/fleet/" + fleet.WorkflowPath, Content: fleet.Workflow()}}

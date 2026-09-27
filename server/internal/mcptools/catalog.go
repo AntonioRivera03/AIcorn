@@ -47,7 +47,7 @@ var orderedNames = [...]Name{
 
 var descriptions = map[Name]string{
 	ListConductorTasks:  "List tasks explicitly given to Conductor in this project, including current state, task context and job IDs. Only waiting tasks may start.",
-	StartConductorTask:  "Start an independent persistent task session by projectId and taskId, choosing coder, researcher, reviewer, or planner. Server code validates ownership and dependencies, moves the task to its configured In progress stage, and queues its session. Does not wait for completion. Repeated calls return the existing active job.",
+	StartConductorTask:  "Start an independent persistent task session by projectId and taskId, choosing coder, researcher, or reviewer. Server code validates ownership and dependencies, moves the task to its configured In progress stage, and queues its session. Does not wait for completion. Repeated calls return the existing active job.",
 	DeferConductorTask:  "Record a specific blocker for a waiting managed task. It will await explicit recheck instead of repeatedly running.",
 	ProjectContext:      "Read this project’s actual workflow, stages, checklists, task types, Conductor settings, active task owners, and document metadata.",
 	ReadProjectDocument: "Read a project document’s written notes and original-file metadata. Binary file contents are not included.",

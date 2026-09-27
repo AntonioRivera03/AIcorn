@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -84,7 +85,7 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 			role = p.BuiltinRole
 		}
 	}
-	if role == "conductor" || role == "chatter" {
+	if !fleet.IsTaskRole(role) {
 		return nil, fmt.Errorf("%w: choose a task agent", ErrInvalidAIRun)
 	}
 	task, err := s.Tasks.FindOneWithProject(taskID)

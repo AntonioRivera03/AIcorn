@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
@@ -101,6 +102,9 @@ func TestPersonaAPIOnlyModelsAreEditable(t *testing.T) {
 		if agent.BuiltinRole == "" {
 			continue
 		}
+		if _, bundled := fleet.Lookup(agent.BuiltinRole); !bundled {
+			continue // the retired Planner row, kept for run history
+		}
 		roles[agent.BuiltinRole] = true
 		if agent.Instructions == "" || agent.InstructionPath == "" || len(agent.Skills) != 1 || agent.Skills[0].Content == "" {
 			t.Fatalf("missing read-only docs: %+v", agent)
@@ -129,7 +133,7 @@ func TestPersonaAPIOnlyModelsAreEditable(t *testing.T) {
 			t.Fatal("allowed agent deletion", response.Code)
 		}
 	}
-	for _, role := range []string{"conductor", "planner", "researcher", "coder", "reviewer", "chatter"} {
+	for _, role := range []string{"conductor", "researcher", "coder", "reviewer", "chatter"} {
 		if !roles[role] {
 			t.Fatal("missing role", role)
 		}

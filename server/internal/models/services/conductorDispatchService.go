@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 )
@@ -47,10 +48,8 @@ func (s *ConductorService) StartTask(ctx context.Context, project, taskID, dispa
 	if err := repos.CheckDispatch(s.Repo.DB, project, dispatch); err != nil {
 		return nil, err
 	}
-	switch role {
-	case "coder", "researcher", "reviewer", "planner":
-	default:
-		return nil, fmt.Errorf("%w: choose coder, researcher, reviewer, or planner", ErrInvalidAIRun)
+	if !fleet.IsTaskRole(role) {
+		return nil, fmt.Errorf("%w: choose coder, researcher, or reviewer", ErrInvalidAIRun)
 	}
 	if prior, err := s.Repo.StartedTask(project, taskID); err != nil || prior != nil {
 		return prior, err
