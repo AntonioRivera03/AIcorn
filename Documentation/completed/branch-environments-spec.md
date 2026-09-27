@@ -72,7 +72,7 @@ Aycorn's trusted controller generates the Compose file outside the branch checko
 
 Use a generated identifier such as `aycorn-preview-p12-e81` as the Compose project name. Branch names are display metadata, never shell syntax or globally unique identifiers. Avoid fixed `container_name`, externally named volumes, and shared external networks, which would bypass instance naming.
 
-Every preview receives a separate writable volume at `/data`, with `AYCORN_DB=/data/app.db`. SQLite's database, WAL/SHM files, and backups belong together in that volume. Never bind-mount the primary database. One preview serves one application process; scaling replicas against that SQLite file is out of scope.
+Every preview receives a separate writable volume at `/data`, with `AYCORN_DATA_DIR=/data` (the application's data directory: `accounts.db` plus `workspaces/<id>/app.db`) and `AYCORN_DB=/data/app.db` kept alongside it for preview images built from branches predating `AYCORN_DATA_DIR`. SQLite's database, WAL/SHM files, and backups belong together in that volume. Never bind-mount the primary database. One preview serves one application process; scaling replicas against that SQLite file is out of scope.
 
 Default data policy: create a fresh database, migrate it with the preview binary, then seed deterministic sample data. An optional “copy my project data” flow uses the existing backup operation, sanitizes the copy, and imports only into the preview. SQLite documents `VACUUM INTO` as producing a consistent snapshot without changing the original database. An interrupted snapshot must be discarded. [SQLite VACUUM INTO](https://sqlite.org/lang_vacuum.html)
 
@@ -96,7 +96,8 @@ services:
     image: aycorn-preview:${AYCORN_PREVIEW_IMAGE_ID}
     environment:
       AYCORN_HOST: 0.0.0.0
-      AYCORN_DB: /data/app.db
+      AYCORN_DATA_DIR: /data
+      AYCORN_DB: /data/app.db # kept for branches predating AYCORN_DATA_DIR
       AYCORN_PREVIEW: "1" # proposed application capability
     command: ["--port", "8000"]
     ports:

@@ -5,20 +5,49 @@ package appdb
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pressly/goose/v3"
 	"github.com/waseem-polus/aycorn/server/internal/migrations"
 )
 
-// ResolveDBPath returns the SQLite file path.
+// accountsDBFileName mirrors internal/accounts.DBFileName. appdb can't import
+// internal/accounts (accounts imports appdb, so that would be a cycle), so
+// the file name — and the one read-only query in listWorkspaces below — are
+// duplicated here. Keep them in sync with internal/accounts/migrations if the
+// `workspace` table's shape ever changes.
+const accountsDBFileName = "accounts.db"
+
+// WorkspaceDBPath returns the database path for the workspace with the given
+// id inside dataDir. This is the single definition of the on-disk layout,
+// shared by cmd/web's workspace registry (workspaceRegistry.dbPath) and
+// ResolveDBPath's $AYCORN_WORKSPACE lookup below.
+func WorkspaceDBPath(dataDir string, id int64) string {
+	return filepath.Join(dataDir, "workspaces", strconv.FormatInt(id, 10), "app.db")
+}
+
+// ResolveDBPath returns the SQLite file path for a single-database consumer
+// (cmd/mcp, and the `aycorn backup`/`aycorn restore` subcommands). cmd/web
+// itself never calls this — it serves every workspace at once via
+// ResolveDataDir and WorkspaceDBPath.
 //
 // Precedence:
-//  1. $AYCORN_DB — explicit override (used by `make dev` and for ad-hoc testing
-//     so dev builds don't clobber an installed user DB).
-//  2. <os.UserConfigDir()>/aycorn/app.db — the default for installed binaries.
+//  1. $AYCORN_DB — explicit file override (ad-hoc use, and how
+//     internal/harness points an agent run's cmd/mcp at its own workspace).
+//  2. $AYCORN_WORKSPACE=<id> — resolves to that workspace's database under
+//     ResolveDataDir() via WorkspaceDBPath. The workspace's data directory
+//     must already exist (the server creates it when the workspace is
+//     provisioned); this never creates one.
+//  3. Neither variable set, but ResolveDataDir() is a multi-user data
+//     directory (accounts.db present) — ambiguous, so this errors and lists
+//     the available workspaces rather than guessing one.
+//  4. Otherwise, a pre-accounts single-user install: <data dir>/app.db.
 //     macOS:   ~/Library/Application Support/aycorn/app.db
 //     Linux:   ~/.config/aycorn/app.db   (or $XDG_CONFIG_HOME/aycorn/app.db)
 //     Windows: %AppData%\aycorn\app.db
@@ -26,15 +55,71 @@ func ResolveDBPath() (string, error) {
 	if p := os.Getenv("AYCORN_DB"); p != "" {
 		return p, nil
 	}
-	cfgDir, err := os.UserConfigDir()
+
+	dataDir, err := ResolveDataDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cfgDir, "aycorn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
+
+	if raw := os.Getenv("AYCORN_WORKSPACE"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			return "", fmt.Errorf("invalid AYCORN_WORKSPACE %q: must be a positive workspace id", raw)
+		}
+		dbPath := WorkspaceDBPath(dataDir, id)
+		if _, err := os.Stat(filepath.Dir(dbPath)); err != nil {
+			return "", fmt.Errorf("no data directory for workspace %d: %s does not exist", id, filepath.Dir(dbPath))
+		}
+		return dbPath, nil
 	}
-	return filepath.Join(dir, "app.db"), nil
+
+	if _, err := os.Stat(filepath.Join(dataDir, accountsDBFileName)); err == nil {
+		return "", ambiguousWorkspaceError(dataDir)
+	}
+
+	return filepath.Join(dataDir, "app.db"), nil
+}
+
+// ambiguousWorkspaceError builds the error ResolveDBPath returns when
+// dataDir holds multiple users/workspaces and neither AYCORN_DB nor
+// AYCORN_WORKSPACE says which one to use. It best-effort lists the
+// workspaces to save the caller a trip to the UI; a listing failure still
+// returns the actionable part of the message.
+func ambiguousWorkspaceError(dataDir string) error {
+	msg := "this data directory holds workspaces, not one database; set AYCORN_WORKSPACE=<id> to choose one"
+	if lines, err := listWorkspaces(filepath.Join(dataDir, accountsDBFileName)); err == nil && len(lines) > 0 {
+		msg += ":\n" + strings.Join(lines, "\n")
+	}
+	return errors.New(msg)
+}
+
+// listWorkspaces reads id/name/kind from accounts.db for
+// ambiguousWorkspaceError, formatted as "id  name (kind)" per line. It opens
+// the DB read-only, so it can't corrupt accounts.db even if this package's
+// copy of the schema has drifted.
+func listWorkspaces(accountsPath string) ([]string, error) {
+	db, err := sql.Open("sqlite", "file:"+accountsPath+"?mode=ro")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT id, name, kind FROM workspace ORDER BY id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lines []string
+	for rows.Next() {
+		var id int64
+		var name, kind string
+		if err := rows.Scan(&id, &name, &kind); err != nil {
+			return nil, err
+		}
+		lines = append(lines, fmt.Sprintf("  %d  %s (%s)", id, name, kind))
+	}
+	return lines, rows.Err()
 }
 
 // ResolveDataDir returns the directory multi-user Aycorn keeps its data in:

@@ -107,22 +107,24 @@ upgrade:
 	$(MAKE) install
 	@echo "Upgraded to $$(aycorn --version)"
 
-# Snapshot / restore a single database via the binary's subcommands. With no
-# AYCORN_DB override these act on the pre-accounts single-user app.db; point
-# AYCORN_DB at <data dir>/workspaces/<id>/app.db to back up one workspace.
+# Snapshot / restore a single database via the binary's subcommands. Pass
+# WORKSPACE=<id> to act on one workspace of your personal data directory, or
+# set AYCORN_DB to target any file. With neither, a data directory that has
+# accounts refuses and lists its workspaces; only a pre-accounts install's
+# single app.db is used directly.
 backup:
-	cd $(SRV_DIR) && go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && $(if $(WORKSPACE),AYCORN_WORKSPACE=$(WORKSPACE)) go run ./cmd/web backup $(DEST)
 
 restore:
-	cd $(SRV_DIR) && go run ./cmd/web restore $(SRC)
+	cd $(SRV_DIR) && $(if $(WORKSPACE),AYCORN_WORKSPACE=$(WORKSPACE)) go run ./cmd/web restore $(SRC)
 
 # Snapshot / restore one workspace of the disposable TEST data (server/data) —
 # pairs with `make dev-test`. Usage: make backup-test WORKSPACE=1
 backup-test:
-	cd $(SRV_DIR) && AYCORN_DB=./data/workspaces/$(WORKSPACE)/app.db go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && AYCORN_DATA_DIR=./data AYCORN_WORKSPACE=$(WORKSPACE) go run ./cmd/web backup $(DEST)
 
 restore-test:
-	cd $(SRV_DIR) && AYCORN_DB=./data/workspaces/$(WORKSPACE)/app.db go run ./cmd/web restore $(SRC)
+	cd $(SRV_DIR) && AYCORN_DATA_DIR=./data AYCORN_WORKSPACE=$(WORKSPACE) go run ./cmd/web restore $(SRC)
 
 clean:
 	rm -f $(BINARY)

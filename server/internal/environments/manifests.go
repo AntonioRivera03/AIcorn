@@ -56,7 +56,12 @@ func deployment(token, mainURL string, e *Environment) object {
 	podLabels := labels(token, e)
 	podLabels["aycorn.dev/component"] = "preview"
 	env := []object{}
-	for _, entry := range [][2]string{{"AYCORN_PREVIEW", "1"}, {"AYCORN_HOST", "0.0.0.0"}, {"AYCORN_PORT", strconv.Itoa(e.Settings.Port)}, {"AYCORN_DB", "/data/app.db"}, {"AYCORN_PREVIEW_BRANCH", e.Branch}, {"AYCORN_PREVIEW_REVISION", e.Commit}, {"AYCORN_PREVIEW_DIGEST", e.Digest}, {"AYCORN_MAIN_URL", mainURL}, {"PORT", strconv.Itoa(e.Settings.Port)}, {"HOME", "/tmp"}} {
+	// AYCORN_DATA_DIR is what the current server reads (accounts.db plus
+	// workspaces/<id>/app.db under /data). AYCORN_DB is kept alongside it
+	// only because preview images are built from arbitrary branches — an
+	// older branch's server still expects AYCORN_DB and would otherwise lose
+	// its data to the pod's emptyDir HOME on every restart.
+	for _, entry := range [][2]string{{"AYCORN_PREVIEW", "1"}, {"AYCORN_HOST", "0.0.0.0"}, {"AYCORN_PORT", strconv.Itoa(e.Settings.Port)}, {"AYCORN_DATA_DIR", "/data"}, {"AYCORN_DB", "/data/app.db"}, {"AYCORN_PREVIEW_BRANCH", e.Branch}, {"AYCORN_PREVIEW_REVISION", e.Commit}, {"AYCORN_PREVIEW_DIGEST", e.Digest}, {"AYCORN_MAIN_URL", mainURL}, {"PORT", strconv.Itoa(e.Settings.Port)}, {"HOME", "/tmp"}} {
 		env = append(env, object{"name": entry[0], "value": entry[1]})
 	}
 	container := object{"name": "app", "image": e.Image, "imagePullPolicy": "IfNotPresent", "securityContext": containerSecurity(true), "env": env, "ports": []object{{"name": "http", "containerPort": e.Settings.Port}}, "resources": resources(e.Settings.CPU, e.Settings.Memory, "512Mi"),

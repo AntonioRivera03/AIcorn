@@ -29,7 +29,7 @@ Implications an agent must account for:
   ```
   sqlite3 data/workspaces/<id>/app.db < assets/queries/placeholder.sql
   ```
-- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Every workspace database and `accounts.db` gets its own `backups/` folder. Manual subcommands act on the single database named by `$AYCORN_DB` (point it at a workspace's `app.db`): `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup-test WORKSPACE=<id>` / `make restore-test WORKSPACE=<id> SRC=...` act on one workspace of the test data.
+- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Every workspace database and `accounts.db` gets its own `backups/` folder. Manual subcommands act on the single database `appdb.ResolveDBPath()` resolves — `$AYCORN_DB`, or `$AYCORN_WORKSPACE=<id>` to name a workspace by id: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup-test WORKSPACE=<id>` / `make restore-test WORKSPACE=<id> SRC=...` act on one workspace of the test data.
 
 ---
 
@@ -42,7 +42,7 @@ See "Accounts & Workspaces" in the root `CLAUDE.md` for the model. In code:
 - **Adding a workspace feature** works exactly as before: add the handler to `routes.go` and write single-database queries. Never reach into another workspace's database, and derive any on-disk path from the workspace's `dbPath` directory.
 - **Adding an account-level feature** (anything about users, organizations, or invites): SQL in `internal/accounts/store.go`, rules in `internal/accounts/service.go`, handler in `cmd/web/accountHandler.go`, route in `server.routes()`.
 - The signed-in account is available to any handler via `accountFromContext(r.Context())`.
-- **`aycorn-mcp` is still single-database:** it opens `$AYCORN_DB`. Agent runs pass their workspace's database, so they work; an MCP client configured by hand must point `AYCORN_DB` at `data/workspaces/<id>/app.db`.
+- **`aycorn-mcp` is still single-database:** it opens whatever `appdb.ResolveDBPath()` resolves — `$AYCORN_DB` (an explicit file), or `$AYCORN_WORKSPACE=<id>` (resolved under the data directory). Agent runs pass `AYCORN_DB` explicitly (`internal/harness/codex_session.go`), so they work unchanged. An MCP client configured by hand should set `AYCORN_WORKSPACE=<id>`; with neither set, a multi-user data directory refuses to guess and lists its workspaces.
 
 ---
 

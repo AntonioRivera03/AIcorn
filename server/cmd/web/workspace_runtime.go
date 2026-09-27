@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -274,7 +273,7 @@ func newWorkspaceRegistry(ctx context.Context, dataDir string, cfg runtimeConfig
 }
 
 func (r *workspaceRegistry) dbPath(id int64) string {
-	return filepath.Join(r.dataDir, "workspaces", strconv.FormatInt(id, 10), "app.db")
+	return appdb.WorkspaceDBPath(r.dataDir, id)
 }
 
 // get returns the workspace's runtime, starting it on first use. Background

@@ -14,7 +14,9 @@ import (
 )
 
 // runBackup handles `aycorn backup [dest]`: a clean, on-demand snapshot. With no
-// dest it writes a rotating, timestamped file into the backups dir.
+// dest it writes a rotating, timestamped file into the backups dir. The
+// database it snapshots is whichever one appdb.ResolveDBPath resolves —
+// $AYCORN_DB, or $AYCORN_WORKSPACE=<id> to pick a workspace by id.
 func runBackup(args []string) error {
 	dbPath, err := appdb.ResolveDBPath()
 	if err != nil {
@@ -60,7 +62,7 @@ func runBackup(args []string) error {
 // file in. The next `aycorn` run migrates the schema forward via goose.
 func runRestore(args []string) error {
 	if len(args) == 0 || args[0] == "" {
-		return fmt.Errorf("usage: aycorn restore <snapshot.db>")
+		return fmt.Errorf("usage: aycorn restore <snapshot.db> (point AYCORN_DB or AYCORN_WORKSPACE=<id> at the target database)")
 	}
 	src := args[0]
 	if _, err := os.Stat(src); err != nil {
