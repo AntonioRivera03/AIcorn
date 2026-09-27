@@ -40,9 +40,8 @@ func (s *ConductorService) Board(project int) (ConductorBoard, error) {
 		b.ConfigurationError = "Bundled Conductor agents are unavailable."
 	} else {
 		for _, id := range []int{c.ConductorAgentID, c.TaskAgentID} {
-			p, err := s.AI.Presets.FindOne(id)
-			if err != nil || p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
-				b.ConfigurationError = "A bundled agent model is invalid. Check the AI page."
+			if _, err := s.AI.ResolveAgent(context.Background(), id); err != nil {
+				b.ConfigurationError = err.Error()
 				break
 			}
 		}

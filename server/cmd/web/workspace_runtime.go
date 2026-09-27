@@ -157,7 +157,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 	taskRelationshipService := &services.TaskRelationshipService{
 		TaskRelationshipRepo: taskRelationshipRepo,
 	}
-	personaService := &services.PersonaService{PersonaRepo: personaRepo}
+	personaService := &services.PersonaService{PersonaRepo: personaRepo, AISettings: agentJobRepo.AISettings}
 
 	// Single-worker ticker reconciles Conductor and claims one Codex job.
 	// In-flight work is interrupted on restart and requires an explicit recheck.

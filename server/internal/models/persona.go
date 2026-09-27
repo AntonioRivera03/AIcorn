@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	PersonaHarnessCodex PersonaHarness = "codex"
+	PersonaHarnessCodex      PersonaHarness = "codex"
+	PersonaHarnessClaudeCode PersonaHarness = "claude-code"
 
 	PersonaAgentCodeAnalysis       PersonaAgent = "code-analysis"
 	PersonaAgentCodeImplementation PersonaAgent = "code-implementation"
@@ -37,6 +38,7 @@ type PersonaAgent string
 
 var PersonaHarnesses = [...]PersonaHarness{
 	PersonaHarnessCodex,
+	PersonaHarnessClaudeCode,
 }
 
 var PersonaAgents = [...]PersonaAgent{
@@ -53,11 +55,24 @@ var PersonaAgents = [...]PersonaAgent{
 	PersonaAgentWorker,
 }
 
-// Suggestions only; OpenAI may add new Codex-compatible models without a schema change.
-var PersonaModels = [...]PersonaModel{PersonaModelDefault, PersonaModelAstra, "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex"}
 var openAIModel = regexp.MustCompile(`^(gpt-[0-9][a-z0-9.-]*|o[0-9][a-z0-9.-]*|codex-mini-latest)$`)
+var claudeModel = regexp.MustCompile(`^claude-[a-z0-9][a-z0-9.-]*$`)
 
 func IsOpenAIModel(model string) bool { return len(model) <= 100 && openAIModel.MatchString(model) }
+func IsClaudeModel(model string) bool { return len(model) <= 100 && claudeModel.MatchString(model) }
+
+// IsHarnessModel checks a model ID's family rather than a fixed list, because
+// harnesses publish new models without an Aycorn release.
+func IsHarnessModel(harness PersonaHarness, model string) bool {
+	switch harness {
+	case PersonaHarnessCodex:
+		return IsOpenAIModel(model)
+	case PersonaHarnessClaudeCode:
+		return IsClaudeModel(model)
+	default:
+		return false
+	}
+}
 
 type Persona struct {
 	BuiltinRole string
@@ -110,7 +125,7 @@ type StagePersona struct {
 
 func IsValidPersonaHarness(harness PersonaHarness) bool {
 	switch harness {
-	case PersonaHarnessCodex:
+	case PersonaHarnessCodex, PersonaHarnessClaudeCode:
 		return true
 	default:
 		return false
@@ -132,7 +147,9 @@ func IsValidPersonaAgent(agent PersonaAgent) bool {
 	}
 }
 
-func IsValidPersonaModel(model PersonaModel) bool { return IsOpenAIModel(string(model)) }
+func IsValidPersonaModel(model PersonaModel) bool {
+	return IsOpenAIModel(string(model)) || IsClaudeModel(string(model))
+}
 
 func ParseAllowedTools(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)

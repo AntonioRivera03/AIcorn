@@ -46,15 +46,14 @@ func TestPersonaAgentIsValid_allowsEmpty(t *testing.T) {
 	}
 }
 
-func TestIsValidPersonaHarness_rejectsClaudeCode(t *testing.T) {
-	if models.IsValidPersonaHarness("claude-code") {
-		t.Fatal("expected claude-code harness to be invalid after removal")
+func TestIsValidPersonaHarness_acceptsCodexAndClaudeCode(t *testing.T) {
+	for _, h := range []models.PersonaHarness{models.PersonaHarnessCodex, models.PersonaHarnessClaudeCode} {
+		if !models.IsValidPersonaHarness(h) {
+			t.Fatalf("expected %s harness to be valid", h)
+		}
 	}
-	if !models.IsValidPersonaHarness(models.PersonaHarnessCodex) {
-		t.Fatal("expected opencode harness to remain valid")
-	}
-	if !models.IsValidPersonaHarness("codex") {
-		t.Fatal("expected string 'opencode' to be valid")
+	if models.IsValidPersonaHarness("opencode") {
+		t.Fatal("expected opencode harness to be invalid")
 	}
 }
 
@@ -90,7 +89,7 @@ func personaAgentTestApp(t *testing.T) (*sql.DB, *services.PersonaService) {
 
 func TestPersonaServiceValidateRejectsOtherEngines(t *testing.T) {
 	_, svc := personaAgentTestApp(t)
-	for _, h := range []models.PersonaHarness{"opencode", "claude-code"} {
+	for _, h := range []models.PersonaHarness{"opencode", "unknown"} {
 		if _, err := svc.Create(&models.Persona{Harness: h}); err != services.ErrInvalidPersonaHarness {
 			t.Fatalf("accepted %s: %v", h, err)
 		}

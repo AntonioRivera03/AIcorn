@@ -30,12 +30,13 @@ func projectChatApp(t *testing.T) *app {
 	return a
 }
 
+// Chatter is internal, so it follows the workspace's default model.
 func TestProjectChatUsesFrozenChatterModel(t *testing.T) {
 	a := projectChatApp(t)
 	s := a.projectChatService
 	setModel := func(model string) {
 		t.Helper()
-		if _, err := s.DB.Exec("UPDATE persona SET model=? WHERE builtin_role='chatter'", model); err != nil {
+		if _, err := s.DB.Exec("UPDATE ai_settings SET model=?", model); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 )
@@ -12,8 +13,11 @@ var ErrInvalidPersonaHarness = errors.New("persona harness is not supported")
 var ErrInvalidPersonaModel = errors.New("persona model is not supported")
 var ErrInvalidPersonaAgent = errors.New("persona agent is not supported")
 
+var ErrInternalAgent = errors.New("Conductor and Chatter always use the default model")
+
 type PersonaService struct {
 	PersonaRepo *repos.PersonaRepo
+	AISettings  func() (models.AISettings, error)
 }
 
 func validatePersona(persona *models.Persona) error {
@@ -48,10 +52,25 @@ func (service *PersonaService) Get(id int) (*models.Persona, error) {
 	return service.PersonaRepo.FindOne(id)
 }
 
+// UpdateModel sets a task agent's model. An empty model means "use the
+// workspace's default model"; any other must belong to the chosen harness.
 func (service *PersonaService) UpdateModel(id int, model models.PersonaModel) (bool, error) {
 	model = models.PersonaModel(strings.TrimSpace(string(model)))
-	if !models.IsValidPersonaModel(model) {
-		return false, ErrInvalidPersonaModel
+	persona, err := service.PersonaRepo.FindOne(id)
+	if err != nil {
+		return false, err
+	}
+	if fleet.IsInternalRole(persona.BuiltinRole) {
+		return false, ErrInternalAgent
+	}
+	if model != "" {
+		settings, err := service.AISettings()
+		if err != nil {
+			return false, err
+		}
+		if !models.IsHarnessModel(settings.Harness, string(model)) {
+			return false, ErrInvalidPersonaModel
+		}
 	}
 	return service.PersonaRepo.UpdateModel(id, model)
 }

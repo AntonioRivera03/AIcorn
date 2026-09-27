@@ -36,7 +36,8 @@ func personaTestApp(t *testing.T) (*app, *sql.DB) {
 	}
 
 	repo := &repos.PersonaRepo{DB: db}
-	return &app{personaRepo: repo, personaService: &services.PersonaService{PersonaRepo: repo}}, db
+	jobs := &repos.AgentJobRepo{DB: db}
+	return &app{personaRepo: repo, personaService: &services.PersonaService{PersonaRepo: repo, AISettings: jobs.AISettings}}, db
 }
 
 func personaRequester(t *testing.T, handler http.Handler) func(string, string, any) *httptest.ResponseRecorder {
@@ -106,10 +107,19 @@ func TestPersonaAPIOnlyModelsAreEditable(t *testing.T) {
 			continue // the retired Planner row, kept for run history
 		}
 		roles[agent.BuiltinRole] = true
+		path := "/api/persona/" + jsonNumber(agent.ID)
+		if fleet.IsInternalRole(agent.BuiltinRole) {
+			if agent.TaskAgent || request(http.MethodPut, path, map[string]string{"Model": "gpt-5.5"}).Code != 400 {
+				t.Fatal("internal agent is editable", agent.BuiltinRole)
+			}
+			continue
+		}
+		if !agent.TaskAgent {
+			t.Fatal("task agent not marked", agent.BuiltinRole)
+		}
 		if agent.Instructions == "" || agent.InstructionPath == "" || len(agent.Skills) != 1 || agent.Skills[0].Content == "" {
 			t.Fatalf("missing read-only docs: %+v", agent)
 		}
-		path := "/api/persona/" + jsonNumber(agent.ID)
 		response = request(http.MethodPut, path, map[string]string{"Model": "gpt-5.5"})
 		if response.Code != 200 {
 			t.Fatal(response.Code, response.Body.String())
@@ -124,9 +134,13 @@ func TestPersonaAPIOnlyModelsAreEditable(t *testing.T) {
 				t.Fatalf("accepted fixed field %s: %d", field, response.Code)
 			}
 		}
-		response = request(http.MethodPut, path, map[string]string{"Model": "invalid"})
-		if response.Code != 400 {
-			t.Fatal("accepted invalid model", response.Code)
+		for _, model := range []string{"invalid", "claude-sonnet-5"} {
+			if response = request(http.MethodPut, path, map[string]string{"Model": model}); response.Code != 400 {
+				t.Fatal("accepted a model outside the Codex harness", model, response.Code)
+			}
+		}
+		if response = request(http.MethodPut, path, map[string]string{"Model": ""}); response.Code != 200 {
+			t.Fatal("rejected the default model", response.Code, response.Body.String())
 		}
 		response = request(http.MethodDelete, path, nil)
 		if response.Code != 403 {

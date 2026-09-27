@@ -69,6 +69,7 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
+		errors.Is(err, services.ErrInternalAgent),
 		errors.Is(err, services.ErrInvalidPersonaAgent),
 		errors.Is(err, services.ErrInvalidStageColor),
 		errors.Is(err, services.ErrCannotDeleteOpenStage),

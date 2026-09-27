@@ -11,12 +11,32 @@ var ErrActiveAIRun = taskownership.ErrBusy
 
 func (r *AgentJobRepo) AISettings() (models.AISettings, error) {
 	var s models.AISettings
-	err := r.DB.QueryRow("SELECT model, executable, timeoutSeconds FROM ai_settings WHERE id=1").Scan(&s.Model, &s.Executable, &s.TimeoutSeconds)
+	err := r.DB.QueryRow("SELECT harness, model, executable, timeoutSeconds FROM ai_settings WHERE id=1").Scan(&s.Harness, &s.Model, &s.Executable, &s.TimeoutSeconds)
 	return s, err
 }
+
+// UpdateAISettings saves the settings. Agent models belong to one harness, so
+// switching harness also sends every bundled agent back to the default model,
+// in the same transaction.
 func (r *AgentJobRepo) UpdateAISettings(s models.AISettings) error {
-	_, err := r.DB.Exec("UPDATE ai_settings SET model=?, executable=?, timeoutSeconds=? WHERE id=1", s.Model, s.Executable, s.TimeoutSeconds)
-	return err
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var previous models.PersonaHarness
+	if err = tx.QueryRow("SELECT harness FROM ai_settings WHERE id=1").Scan(&previous); err != nil {
+		return err
+	}
+	if _, err = tx.Exec("UPDATE ai_settings SET harness=?, model=?, executable=?, timeoutSeconds=? WHERE id=1", s.Harness, s.Model, s.Executable, s.TimeoutSeconds); err != nil {
+		return err
+	}
+	if previous != s.Harness {
+		if _, err = tx.Exec("UPDATE persona SET model='' WHERE builtin_role<>''"); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 func (r *AgentJobRepo) EnqueueAI(taskID, presetID int, request models.AIRunRequest, chatTurn ...int) (*models.AgentJob, error) {
 	raw, err := json.Marshal(request)
