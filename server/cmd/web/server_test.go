@@ -20,6 +20,13 @@ import (
 // per-workspace runtimes) against a temp data directory.
 func testServer(t *testing.T) (*httptest.Server, *accounts.Service) {
 	t.Helper()
+	return testServerWith(t, nil)
+}
+
+// testServerWith is testServer with a chance to adjust the server, and its
+// accounts service through s.accounts, before it starts serving.
+func testServerWith(t *testing.T, configure func(s *server)) (*httptest.Server, *accounts.Service) {
+	t.Helper()
 	// Preview mode keeps workspace runtimes from starting agent workers,
 	// schedulers, and Kubernetes environments.
 	t.Setenv("AYCORN_PREVIEW", "1")
@@ -31,7 +38,11 @@ func testServer(t *testing.T) (*httptest.Server, *accounts.Service) {
 	}
 	workspaces := newWorkspaceRegistry(ctx, dataDir, runtimeConfig{})
 	service := &accounts.Service{Store: accounts.NewStore(accountsDB), Mailer: accounts.LogMailer{}, Provision: workspaces.provision, Unprovision: workspaces.unprovision}
-	srv := httptest.NewServer((&server{accounts: service, workspaces: workspaces, accountsDB: accountsDB}).routes())
+	s := &server{accounts: service, workspaces: workspaces, accountsDB: accountsDB, limits: newAuthLimits()}
+	if configure != nil {
+		configure(s)
+	}
+	srv := httptest.NewServer(s.routes())
 	t.Cleanup(func() {
 		srv.Close()
 		cancel()
@@ -55,6 +66,13 @@ func newClient(t *testing.T, srv *httptest.Server) *client {
 
 func (c *client) do(method, path string, workspace int64, body string, want int) []byte {
 	c.t.Helper()
+	b, _ := c.send(method, path, workspace, body, want)
+	return b
+}
+
+// send is do that also returns the response headers.
+func (c *client) send(method, path string, workspace int64, body string, want int) ([]byte, http.Header) {
+	c.t.Helper()
 	req, _ := http.NewRequest(method, c.srv.URL+path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if workspace != 0 {
@@ -72,7 +90,7 @@ func (c *client) do(method, path string, workspace int64, body string, want int)
 	if res.StatusCode != want {
 		c.t.Fatalf("%s %s: got %d, want %d: %s", method, path, res.StatusCode, want, b)
 	}
-	return b
+	return b, res.Header
 }
 
 func (c *client) signup(name, email string) meResponse {

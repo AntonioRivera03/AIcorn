@@ -18,6 +18,8 @@ const (
 	// to expiring, so active users stay signed in.
 	sessionRenewWithin = 15 * 24 * time.Hour
 	inviteLifetime     = 7 * 24 * time.Hour
+	verifyLifetime     = 48 * time.Hour
+	resetLifetime      = time.Hour
 	maxNameLength      = 100
 )
 
@@ -30,7 +32,11 @@ type Service struct {
 	Mailer      Mailer
 	Provision   func(ctx context.Context, workspaceID int64) error
 	Unprovision func(workspaceID int64)
-	Now         func() time.Time
+	// VerifyEmails makes new accounts confirm their email address before they
+	// can use a workspace. It needs a working Mailer; without one there's no
+	// way to send the link, so accounts start out verified.
+	VerifyEmails bool
+	Now          func() time.Time
 }
 
 func (s *Service) now() time.Time {
@@ -48,38 +54,98 @@ type Session struct {
 
 // --- signup, login, sessions ---
 
-func (s *Service) Signup(ctx context.Context, name, email, password string) (Account, Session, error) {
-	name, email, err := cleanNameAndEmail(name, email)
+type SignupInput struct {
+	Name     string
+	Email    string
+	Password string
+	// InviteCode is the invite the person signed up from, if any. A live
+	// invite sent to Email proves the address, so no confirmation is needed.
+	InviteCode string
+}
+
+// Signup creates an account with its personal workspace and signs it in.
+// When emails must be verified, it also sends the confirmation link, built on
+// baseURL (the app's public origin).
+func (s *Service) Signup(ctx context.Context, in SignupInput, baseURL string) (Account, Session, error) {
+	name, email, err := cleanNameAndEmail(in.Name, in.Email)
 	if err != nil {
 		return Account{}, Session{}, err
 	}
-	if err := validatePassword(password); err != nil {
+	if err := validatePassword(in.Password); err != nil {
 		return Account{}, Session{}, err
 	}
-	hash, err := hashPassword(password)
+	hash, err := hashPassword(in.Password)
 	if err != nil {
 		return Account{}, Session{}, err
 	}
-	var account Account
-	err = s.inWorkspaceTx(ctx, func(tx *Store, provision provisioner) error {
-		if taken, err := tx.EmailExists(ctx, email); err != nil {
-			return err
-		} else if taken {
-			return ErrEmailTaken
-		}
-		id, err := tx.InsertAccount(ctx, email, name, hash)
-		if err != nil {
-			return err
-		}
-		account = Account{ID: id, Email: email, Name: name}
-		_, err = s.createWorkspace(ctx, tx, provision, KindPersonal, "Personal", id)
-		return err
+	account, err := s.createAccount(ctx, name, email, hash, func(tx *Store) (bool, error) {
+		return s.emailProvenAtSignup(ctx, tx, email, in.InviteCode)
 	})
 	if err != nil {
 		return Account{}, Session{}, err
 	}
 	session, err := s.startSession(ctx, account.ID)
-	return account, session, err
+	if err != nil {
+		return Account{}, Session{}, err
+	}
+	if !account.EmailVerified {
+		// The account exists either way; the confirm page can resend.
+		if err := s.SendVerification(ctx, account.ID, baseURL); err != nil {
+			log.Printf("verification email to %s: %v", email, err)
+		}
+	}
+	return account, session, nil
+}
+
+// createAccount inserts an account and its personal workspace. proven runs
+// inside the transaction and says whether the email address is already
+// proven, so the account starts out verified.
+func (s *Service) createAccount(ctx context.Context, name, email, passwordHash string, proven func(tx *Store) (bool, error)) (Account, error) {
+	var account Account
+	err := s.inWorkspaceTx(ctx, func(tx *Store, provision provisioner) error {
+		if taken, err := tx.EmailExists(ctx, email); err != nil {
+			return err
+		} else if taken {
+			return ErrEmailTaken
+		}
+		verified, err := proven(tx)
+		if err != nil {
+			return err
+		}
+		var verifiedAt *time.Time
+		if verified {
+			now := s.now()
+			verifiedAt = &now
+		}
+		id, err := tx.InsertAccount(ctx, email, name, passwordHash, verifiedAt)
+		if err != nil {
+			return err
+		}
+		account = Account{ID: id, Email: email, Name: name, EmailVerified: verified}
+		_, err = s.createWorkspace(ctx, tx, provision, KindPersonal, "Personal", id)
+		return err
+	})
+	return account, err
+}
+
+// emailProvenAtSignup reports whether a new account's email needs no
+// confirmation: verification is off, or the person holds a live invite that
+// was emailed to that address.
+func (s *Service) emailProvenAtSignup(ctx context.Context, tx *Store, email, inviteCode string) (bool, error) {
+	if !s.VerifyEmails {
+		return true, nil
+	}
+	if strings.TrimSpace(inviteCode) == "" {
+		return false, nil
+	}
+	inv, err := tx.PendingInviteByCodeHash(ctx, hashInviteCode(inviteCode), s.now())
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return strings.EqualFold(inv.Email, email), nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (Account, Session, error) {
@@ -100,7 +166,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (Account, S
 }
 
 func (s *Service) startSession(ctx context.Context, accountID int64) (Session, error) {
-	token, err := newSessionToken()
+	token, err := newToken()
 	if err != nil {
 		return Session{}, err
 	}
@@ -143,9 +209,191 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return s.Store.DeleteSession(ctx, hashSecret(token))
 }
 
-// PruneSessions deletes expired sessions; run it periodically.
+// PruneSessions deletes expired sessions and one-time links; run it
+// periodically.
 func (s *Service) PruneSessions(ctx context.Context) error {
-	return s.Store.DeleteExpiredSessions(ctx, s.now())
+	return s.Store.DeleteExpired(ctx, s.now())
+}
+
+// PreviewSession signs into the account with this email without a password,
+// creating it (verified, onboarded as solo) on first use. It exists only for
+// application previews: sandboxes reachable only by the people who could
+// already use the main app, where nobody should have to sign up. Callers must
+// serialize calls, since two first uses would both try to create the account.
+func (s *Service) PreviewSession(ctx context.Context, name, email string) (Account, Session, error) {
+	account, _, err := s.Store.AccountByEmail(ctx, email)
+	if errors.Is(err, ErrNotFound) {
+		// Nobody signs in with this password; it only has to be unguessable.
+		password, err := newToken()
+		if err != nil {
+			return Account{}, Session{}, err
+		}
+		hash, err := hashPassword(password)
+		if err != nil {
+			return Account{}, Session{}, err
+		}
+		account, err = s.createAccount(ctx, name, email, hash, func(*Store) (bool, error) { return true, nil })
+		if err != nil {
+			return Account{}, Session{}, err
+		}
+		if err := s.Store.SetUsage(ctx, account.ID, UsageSolo); err != nil {
+			return Account{}, Session{}, err
+		}
+		account.Usage = UsageSolo
+	} else if err != nil {
+		return Account{}, Session{}, err
+	}
+	session, err := s.startSession(ctx, account.ID)
+	return account, session, err
+}
+
+// --- email verification ---
+
+// SendVerification emails the account a link that confirms its address,
+// replacing any link sent before. It does nothing for a verified account.
+func (s *Service) SendVerification(ctx context.Context, accountID int64, baseURL string) error {
+	account, err := s.Store.AccountByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if account.EmailVerified {
+		return nil
+	}
+	token, err := s.issueToken(ctx, accountID, purposeVerifyEmail, verifyLifetime)
+	if err != nil {
+		return err
+	}
+	link := strings.TrimRight(baseURL, "/") + "/verify-email?token=" + token
+	return s.Mailer.Send(ctx, verificationEmail(account.Email, account.Name, link))
+}
+
+// VerifyEmail confirms the email address of the account the link was sent
+// to. Holding the link is the proof, so it works without being signed in.
+func (s *Service) VerifyEmail(ctx context.Context, token string) (Account, error) {
+	account, err := s.Store.AccountForToken(ctx, hashSecret(token), purposeVerifyEmail, s.now())
+	if errors.Is(err, ErrNotFound) {
+		return Account{}, ErrTokenInvalid
+	}
+	if err != nil {
+		return Account{}, err
+	}
+	err = s.Store.InTx(ctx, func(tx *Store) error {
+		if err := tx.MarkEmailVerified(ctx, account.ID, s.now()); err != nil {
+			return err
+		}
+		return tx.DeleteTokens(ctx, account.ID, purposeVerifyEmail)
+	})
+	account.EmailVerified = true
+	return account, err
+}
+
+// issueToken replaces the account's live link of this purpose with a new one
+// and returns its secret.
+func (s *Service) issueToken(ctx context.Context, accountID int64, purpose tokenPurpose, lifetime time.Duration) (string, error) {
+	token, err := newToken()
+	if err != nil {
+		return "", err
+	}
+	err = s.Store.InTx(ctx, func(tx *Store) error {
+		if err := tx.DeleteTokens(ctx, accountID, purpose); err != nil {
+			return err
+		}
+		return tx.InsertToken(ctx, hashSecret(token), accountID, purpose, s.now().Add(lifetime))
+	})
+	return token, err
+}
+
+// --- passwords ---
+
+// RequestPasswordReset emails a password reset link to the account with this
+// email, if there is one. The result is the same either way, so the form can't
+// be used to find out who has an account. emailSent is false when this server
+// can't send email: the link then only reaches the server log.
+func (s *Service) RequestPasswordReset(ctx context.Context, email, baseURL string) (emailSent bool, err error) {
+	emailSent = EmailEnabled(s.Mailer)
+	account, _, err := s.Store.AccountByEmail(ctx, strings.TrimSpace(email))
+	if errors.Is(err, ErrNotFound) {
+		return emailSent, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	token, err := s.issueToken(ctx, account.ID, purposeResetPassword, resetLifetime)
+	if err != nil {
+		return false, err
+	}
+	link := strings.TrimRight(baseURL, "/") + "/reset-password?token=" + token
+	if err := s.Mailer.Send(ctx, passwordResetEmail(account.Email, account.Name, link)); err != nil && !errors.Is(err, ErrMailerNotConfigured) {
+		log.Printf("password reset email to %s: %v", account.Email, err)
+	}
+	return emailSent, nil
+}
+
+// ResetPassword sets a new password from a reset link, signs the account out
+// everywhere else, and signs it in here. The link also proves the email.
+func (s *Service) ResetPassword(ctx context.Context, token, password string) (Account, Session, error) {
+	if err := validatePassword(password); err != nil {
+		return Account{}, Session{}, err
+	}
+	account, err := s.Store.AccountForToken(ctx, hashSecret(token), purposeResetPassword, s.now())
+	if errors.Is(err, ErrNotFound) {
+		return Account{}, Session{}, ErrTokenInvalid
+	}
+	if err != nil {
+		return Account{}, Session{}, err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return Account{}, Session{}, err
+	}
+	err = s.Store.InTx(ctx, func(tx *Store) error {
+		if err := tx.SetPasswordHash(ctx, account.ID, hash); err != nil {
+			return err
+		}
+		if err := tx.MarkEmailVerified(ctx, account.ID, s.now()); err != nil {
+			return err
+		}
+		if err := tx.DeleteTokens(ctx, account.ID, purposeResetPassword); err != nil {
+			return err
+		}
+		return tx.DeleteOtherSessions(ctx, account.ID, "")
+	})
+	if err != nil {
+		return Account{}, Session{}, err
+	}
+	account.EmailVerified = true
+	session, err := s.startSession(ctx, account.ID)
+	return account, session, err
+}
+
+// ChangePassword replaces the password of a signed-in account and signs it
+// out of every other session. currentToken is the session making the change,
+// which stays signed in.
+func (s *Service) ChangePassword(ctx context.Context, accountID int64, currentToken, current, next string) error {
+	if err := validatePassword(next); err != nil {
+		return err
+	}
+	hash, err := s.Store.PasswordHash(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !passwordMatches(hash, current) {
+		// Not ErrInvalidCredentials: that reads as "signed out" (401).
+		return invalidInput("your current password is incorrect")
+	}
+	newHash, err := hashPassword(next)
+	if err != nil {
+		return err
+	}
+	return s.Store.InTx(ctx, func(tx *Store) error {
+		if err := tx.SetPasswordHash(ctx, accountID, newHash); err != nil {
+			return err
+		}
+		if err := tx.DeleteTokens(ctx, accountID, purposeResetPassword); err != nil {
+			return err
+		}
+		return tx.DeleteOtherSessions(ctx, accountID, hashSecret(currentToken))
+	})
 }
 
 // --- the signed-in account ---
@@ -477,6 +725,11 @@ func (s *Service) AcceptInvite(ctx context.Context, accountID int64, code string
 		if err := tx.SetUsage(ctx, accountID, UsageOrganization); err != nil {
 			return err
 		}
+		// The code was emailed to this address, so holding it proves the
+		// address too.
+		if err := tx.MarkEmailVerified(ctx, accountID, now); err != nil {
+			return err
+		}
 		workspace = Workspace{ID: inv.WorkspaceID, Kind: KindOrganization, Name: inv.WorkspaceName, Role: inv.Role}
 		return nil
 	})
@@ -495,6 +748,32 @@ func inviteEmail(to, inviter, workspace, code, link string) Email {
 <p style="color:#737373">The invite works once and expires in 7 days.</p>
 </div>`, h(inviter), h(workspace), h(link), h(code))
 	return Email{To: to, Subject: subject, Text: text, HTML: body}
+}
+
+func verificationEmail(to, name, link string) Email {
+	text := fmt.Sprintf("Hi %s,\n\nConfirm your email address to start using Aycorn: %s\n\nThe link expires in 48 hours. If you didn't sign up, you can ignore this email.",
+		name, link)
+	h := html.EscapeString
+	body := fmt.Sprintf(`<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;color:#171717">
+<p>Hi %s,</p>
+<p>Confirm your email address to start using Aycorn.</p>
+<p><a href="%s" style="display:inline-block;padding:8px 14px;border-radius:6px;background:#171717;color:#fff;text-decoration:none">Confirm email</a></p>
+<p style="color:#737373">The link expires in 48 hours. If you didn't sign up, you can ignore this email.</p>
+</div>`, h(name), h(link))
+	return Email{To: to, Subject: "Confirm your email for Aycorn", Text: text, HTML: body}
+}
+
+func passwordResetEmail(to, name, link string) Email {
+	text := fmt.Sprintf("Hi %s,\n\nReset your Aycorn password: %s\n\nThe link works once and expires in 1 hour. If you didn't ask for this, you can ignore this email; your password hasn't changed.",
+		name, link)
+	h := html.EscapeString
+	body := fmt.Sprintf(`<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;color:#171717">
+<p>Hi %s,</p>
+<p>Someone asked to reset your Aycorn password.</p>
+<p><a href="%s" style="display:inline-block;padding:8px 14px;border-radius:6px;background:#171717;color:#fff;text-decoration:none">Choose a new password</a></p>
+<p style="color:#737373">The link works once and expires in 1 hour. If you didn't ask for this, you can ignore this email; your password hasn't changed.</p>
+</div>`, h(name), h(link))
+	return Email{To: to, Subject: "Reset your Aycorn password", Text: text, HTML: body}
 }
 
 // --- input cleaning ---

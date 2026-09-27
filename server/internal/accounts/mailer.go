@@ -88,3 +88,10 @@ func (m *ResendMailer) Send(ctx context.Context, email Email) error {
 	}
 	return nil
 }
+
+// EmailEnabled reports whether m actually delivers email, as opposed to only
+// logging it.
+func EmailEnabled(m Mailer) bool {
+	_, logOnly := m.(LogMailer)
+	return m != nil && !logOnly
+}

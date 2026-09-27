@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/waseem-polus/aycorn/server/internal/accounts"
 )
 
 // PreviewProtocolVersion = 1 is checked in source before the Aycorn profile builds.
@@ -74,6 +76,16 @@ func trustedOrigin(r *http.Request) bool {
 		}
 	}
 	return false
+}
+
+// previewSession signs a visitor into the preview's one reviewer account,
+// creating it on first use. A preview is a disposable sandbox with sample
+// data, served only on the Aycorn host's loopback address (a kubectl
+// port-forward), so making every reviewer sign up would be pure friction.
+func (s *server) previewSession(ctx context.Context) (accounts.Account, accounts.Session, error) {
+	s.previewMu.Lock()
+	defer s.previewMu.Unlock()
+	return s.accounts.PreviewSession(ctx, "Preview reviewer", "reviewer@preview.aycorn.invalid")
 }
 
 // Seed only an empty preview database. Restarts preserve all review edits.

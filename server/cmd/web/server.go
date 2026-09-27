@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/accounts"
@@ -28,9 +29,17 @@ type server struct {
 	accounts   *accounts.Service
 	workspaces *workspaceRegistry
 	accountsDB *sql.DB
-	// publicURL is the origin used in invite links. When empty, links use the
-	// origin the inviter's request came in on.
+	// publicURL is the origin used in emailed links. When empty, links use
+	// the origin the request came in on.
 	publicURL string
+	limits    *authLimits
+	// trustProxy takes client addresses from X-Forwarded-For, for rate
+	// limiting behind a reverse proxy.
+	trustProxy bool
+	// previewSignIn signs every visitor into one shared reviewer account, so
+	// an application preview needs no signup (see preview.go).
+	previewSignIn bool
+	previewMu     sync.Mutex
 }
 
 func (s *server) routes() http.Handler {
@@ -39,29 +48,36 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/health/ready", s.readiness)
 	mux.HandleFunc("GET /api/preview", getPreviewInfo)
 
-	mux.HandleFunc("POST /api/auth/signup", s.signup)
-	mux.HandleFunc("POST /api/auth/login", s.login)
+	mux.HandleFunc("POST /api/auth/signup", s.limitByIP(s.signup))
+	mux.HandleFunc("POST /api/auth/login", s.limitByIP(s.login))
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.HandleFunc("GET /api/auth/me", s.withAccount(s.getMe))
 	mux.HandleFunc("PUT /api/auth/me", s.withAccount(s.putMe))
 	mux.HandleFunc("PUT /api/auth/me/usage", s.withAccount(s.putUsage))
+	mux.HandleFunc("PUT /api/auth/me/password", s.withAccount(s.putPassword))
+	mux.HandleFunc("POST /api/auth/verify-email", s.limitByIP(s.verifyEmail))
+	mux.HandleFunc("POST /api/auth/verify-email/resend", s.withAccount(s.resendVerification))
+	mux.HandleFunc("POST /api/auth/password-reset", s.limitByIP(s.requestPasswordReset))
+	mux.HandleFunc("POST /api/auth/password-reset/confirm", s.limitByIP(s.resetPassword))
 
-	mux.HandleFunc("POST /api/workspaces", s.withAccount(s.postOrganization))
-	mux.HandleFunc("PUT /api/workspaces/{workspaceId}", s.withAccount(s.putWorkspace))
-	mux.HandleFunc("GET /api/workspaces/{workspaceId}/members", s.withAccount(s.getMembers))
-	mux.HandleFunc("PUT /api/workspaces/{workspaceId}/members/{accountId}", s.withAccount(s.putMember))
-	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}/members/{accountId}", s.withAccount(s.deleteMember))
-	mux.HandleFunc("GET /api/workspaces/{workspaceId}/invites", s.withAccount(s.getInvites))
-	mux.HandleFunc("POST /api/workspaces/{workspaceId}/invites", s.withAccount(s.postInvite))
-	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}/invites/{inviteId}", s.withAccount(s.deleteInvite))
+	// Everything that reaches workspace data or other people needs a
+	// confirmed email address. Accepting an invite doesn't: it confirms it.
+	mux.HandleFunc("POST /api/workspaces", s.withVerifiedAccount(s.postOrganization))
+	mux.HandleFunc("PUT /api/workspaces/{workspaceId}", s.withVerifiedAccount(s.putWorkspace))
+	mux.HandleFunc("GET /api/workspaces/{workspaceId}/members", s.withVerifiedAccount(s.getMembers))
+	mux.HandleFunc("PUT /api/workspaces/{workspaceId}/members/{accountId}", s.withVerifiedAccount(s.putMember))
+	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}/members/{accountId}", s.withVerifiedAccount(s.deleteMember))
+	mux.HandleFunc("GET /api/workspaces/{workspaceId}/invites", s.withVerifiedAccount(s.getInvites))
+	mux.HandleFunc("POST /api/workspaces/{workspaceId}/invites", s.withVerifiedAccount(s.postInvite))
+	mux.HandleFunc("DELETE /api/workspaces/{workspaceId}/invites/{inviteId}", s.withVerifiedAccount(s.deleteInvite))
 
-	mux.HandleFunc("GET /api/invites/{code}", s.getInvite)
-	mux.HandleFunc("POST /api/invites/accept", s.withAccount(s.acceptInvite))
+	mux.HandleFunc("GET /api/invites/{code}", s.limitByIP(s.getInvite))
+	mux.HandleFunc("POST /api/invites/accept", s.limitByIP(s.withAccount(s.acceptInvite)))
 
 	// Everything else under /api/ belongs to a workspace. Registered per method
 	// so these patterns stay more specific than the SPA's "GET /".
 	for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
-		mux.HandleFunc(method+" /api/", s.withAccount(s.forwardToWorkspace))
+		mux.HandleFunc(method+" /api/", s.withVerifiedAccount(s.forwardToWorkspace))
 	}
 
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
@@ -92,11 +108,12 @@ type accountHandler func(w http.ResponseWriter, r *http.Request, account account
 // signed-in account on.
 func (s *server) withAccount(next accountHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var token string
-		if c, err := r.Cookie(sessionCookie); err == nil {
-			token = c.Value
+		account, renewed, err := s.accounts.Authenticate(r.Context(), sessionToken(r))
+		if errors.Is(err, accounts.ErrUnauthenticated) && s.previewSignIn {
+			var session accounts.Session
+			account, session, err = s.previewSession(r.Context())
+			renewed = &session
 		}
-		account, renewed, err := s.accounts.Authenticate(r.Context(), token)
 		if errors.Is(err, accounts.ErrUnauthenticated) {
 			// The normal state of a signed-out visitor; not worth a log line.
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -111,6 +128,26 @@ func (s *server) withAccount(next accountHandler) http.HandlerFunc {
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), accountKey{}, account)), account)
 	}
+}
+
+// withVerifiedAccount is withAccount for requests that need a confirmed
+// email address.
+func (s *server) withVerifiedAccount(next accountHandler) http.HandlerFunc {
+	return s.withAccount(func(w http.ResponseWriter, r *http.Request, account accounts.Account) {
+		if !account.EmailVerified {
+			http.Error(w, accounts.ErrEmailUnverified.Error(), http.StatusForbidden)
+			return
+		}
+		next(w, r, account)
+	})
+}
+
+// sessionToken is the session cookie's value, or "" without one.
+func sessionToken(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		return c.Value
+	}
+	return ""
 }
 
 func setSessionCookie(w http.ResponseWriter, r *http.Request, session accounts.Session) {
@@ -173,7 +210,8 @@ func pathID(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
 	return id, true
 }
 
-// baseURL is the origin invite links point at.
+// baseURL is the origin emailed links (invites, confirmations, password
+// resets) point at.
 func (s *server) baseURL(r *http.Request) string {
 	if s.publicURL != "" {
 		return s.publicURL
@@ -189,13 +227,15 @@ func accountsStatus(err error) (int, bool) {
 	switch {
 	case errors.Is(err, accounts.ErrInvalidInput),
 		errors.Is(err, accounts.ErrPersonalWorkspace),
-		errors.Is(err, accounts.ErrLastOwner):
+		errors.Is(err, accounts.ErrLastOwner),
+		errors.Is(err, accounts.ErrTokenInvalid):
 		return http.StatusBadRequest, true
 	case errors.Is(err, accounts.ErrInvalidCredentials),
 		errors.Is(err, accounts.ErrUnauthenticated):
 		return http.StatusUnauthorized, true
 	case errors.Is(err, accounts.ErrForbidden),
-		errors.Is(err, accounts.ErrInviteEmail):
+		errors.Is(err, accounts.ErrInviteEmail),
+		errors.Is(err, accounts.ErrEmailUnverified):
 		return http.StatusForbidden, true
 	case errors.Is(err, accounts.ErrNotFound),
 		errors.Is(err, accounts.ErrInviteInvalid):
@@ -203,6 +243,8 @@ func accountsStatus(err error) (int, bool) {
 	case errors.Is(err, accounts.ErrEmailTaken),
 		errors.Is(err, accounts.ErrAlreadyMember):
 		return http.StatusConflict, true
+	case errors.Is(err, accounts.ErrMailerNotConfigured):
+		return http.StatusServiceUnavailable, true
 	}
 	return 0, false
 }

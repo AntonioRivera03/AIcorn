@@ -177,6 +177,21 @@ aycorn --host 100.x.x.x
 
 Binding to your Tailscale IP keeps Aycorn reachable only over your private tailnet, rather than opening it to your whole LAN.
 
+**Serving other people.** Everyone signs up with an email and password and gets a personal workspace; organizations invite people by email. These settings matter once other people use your server:
+
+| Variable | What it does |
+|---|---|
+| `RESEND_API_KEY` | Sends invites, email confirmations, and password resets through [Resend](https://resend.com). Without it, emails are written to the server log, invites show a link to share by hand, and new accounts skip email confirmation. |
+| `AYCORN_EMAIL_FROM` | The sender, e.g. `Aycorn <aycorn@yourdomain.com>`. It must be on a domain verified in Resend; Resend's default test sender only reaches your own address. |
+| `AYCORN_VERIFY_EMAILS` | With email set up, new accounts must confirm their address before using a workspace. Set to `0` to turn that off. |
+| `AYCORN_PUBLIC_URL` | The address used in emailed links, e.g. `https://aycorn.example.com`. Defaults to the address each request came in on. |
+| `AYCORN_TLS_CERT`, `AYCORN_TLS_KEY` | Certificate and key files to serve HTTPS directly. |
+| `AYCORN_TRUST_PROXY` | Set to `1` when a reverse proxy sits in front of Aycorn, so login rate limits apply per visitor instead of to the proxy. |
+
+Over Tailscale, plain HTTP stays inside your tailnet (and `tailscale serve` can add HTTPS). Anywhere beyond a private network, serve HTTPS: either set the two TLS variables, or put a proxy such as [Caddy](https://caddyserver.com/) in front (`caddy reverse-proxy --from aycorn.example.com --to 127.0.0.1:8000`) and set `AYCORN_TRUST_PROXY=1`.
+
+Login, signup, and password reset attempts are rate limited per address and per account.
+
 **To check the version:**
 ```bash
 aycorn --version

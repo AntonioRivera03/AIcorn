@@ -45,7 +45,7 @@ func newTestService(t *testing.T) (*Service, *recordingMailer, *[]int64) {
 
 func mustSignup(t *testing.T, svc *Service, name, email string) Account {
 	t.Helper()
-	account, _, err := svc.Signup(context.Background(), name, email, "correct horse")
+	account, _, err := svc.Signup(context.Background(), SignupInput{Name: name, Email: email, Password: "correct horse"}, "")
 	if err != nil {
 		t.Fatalf("signup %s: %v", email, err)
 	}
@@ -56,7 +56,7 @@ func TestSignupCreatesPersonalWorkspaceAndSession(t *testing.T) {
 	svc, _, provisioned := newTestService(t)
 	ctx := context.Background()
 
-	account, session, err := svc.Signup(ctx, " Ada ", "ada@example.com", "correct horse")
+	account, session, err := svc.Signup(ctx, SignupInput{Name: " Ada ", Email: "ada@example.com", Password: "correct horse"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestSignupCreatesPersonalWorkspaceAndSession(t *testing.T) {
 		t.Fatalf("session did not authenticate: %v %+v", err, authed)
 	}
 
-	if _, _, err := svc.Signup(ctx, "Ada 2", "ADA@example.com", "correct horse"); !errors.Is(err, ErrEmailTaken) {
+	if _, _, err := svc.Signup(ctx, SignupInput{Name: "Ada 2", Email: "ADA@example.com", Password: "correct horse"}, ""); !errors.Is(err, ErrEmailTaken) {
 		t.Fatalf("duplicate email (any case) should be rejected, got %v", err)
 	}
 }
@@ -93,7 +93,7 @@ func TestSignupValidation(t *testing.T) {
 		{"A", "a@example.com", "short"},
 	}
 	for _, c := range cases {
-		if _, _, err := svc.Signup(ctx, c.name, c.email, c.password); !errors.Is(err, ErrInvalidInput) {
+		if _, _, err := svc.Signup(ctx, SignupInput{Name: c.name, Email: c.email, Password: c.password}, ""); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("signup(%q, %q, %q) = %v, want ErrInvalidInput", c.name, c.email, c.password, err)
 		}
 	}

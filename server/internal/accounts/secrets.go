@@ -30,7 +30,9 @@ func passwordMatches(hash, password string) bool {
 // login attempt takes the same time whether or not the email exists.
 var dummyPasswordHash, _ = hashPassword("aycorn-timing-equalizer")
 
-func newSessionToken() (string, error) {
+// newToken returns a 256-bit random secret, URL-safe: session cookies and
+// emailed one-time links.
+func newToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err

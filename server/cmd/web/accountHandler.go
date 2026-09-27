@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/waseem-polus/aycorn/server/internal/accounts"
 )
@@ -27,11 +29,15 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		// Invite is the code of the invite the person signed up from, if any.
+		Invite string `json:"invite"`
 	}
 	if !decodeJSONInput(w, r, &in) {
 		return
 	}
-	account, session, err := s.accounts.Signup(r.Context(), in.Name, in.Email, in.Password)
+	account, session, err := s.accounts.Signup(r.Context(), accounts.SignupInput{
+		Name: in.Name, Email: in.Email, Password: in.Password, InviteCode: in.Invite,
+	}, s.baseURL(r))
 	if err != nil {
 		respondErr(w, err)
 		return
@@ -48,21 +54,30 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONInput(w, r, &in) {
 		return
 	}
+	// Wrong passwords are counted per account as well as per address, so
+	// guessing one account's password from many addresses stalls too.
+	accountKey := strings.ToLower(strings.TrimSpace(in.Email))
+	if blocked, retry := s.limits.failedLogins.blocked(accountKey); blocked {
+		tooManyRequests(w, retry)
+		return
+	}
 	account, session, err := s.accounts.Login(r.Context(), in.Email, in.Password)
+	if errors.Is(err, accounts.ErrInvalidCredentials) {
+		s.limits.failedLogins.add(accountKey)
+	}
 	if err != nil {
 		respondErr(w, err)
 		return
 	}
+	s.limits.failedLogins.reset(accountKey)
 	setSessionCookie(w, r, session)
 	s.writeMe(w, r, http.StatusOK, account)
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(sessionCookie); err == nil {
-		if err := s.accounts.Logout(r.Context(), c.Value); err != nil {
-			respondErr(w, err)
-			return
-		}
+	if err := s.accounts.Logout(r.Context(), sessionToken(r)); err != nil {
+		respondErr(w, err)
+		return
 	}
 	clearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
@@ -99,6 +114,91 @@ func (s *server) putUsage(w http.ResponseWriter, r *http.Request, account accoun
 		return
 	}
 	account.Usage = in.Usage
+	s.writeMe(w, r, http.StatusOK, account)
+}
+
+func (s *server) putPassword(w http.ResponseWriter, r *http.Request, account accounts.Account) {
+	var in struct {
+		Current string `json:"current"`
+		New     string `json:"new"`
+	}
+	if !decodeJSONInput(w, r, &in) {
+		return
+	}
+	if err := s.accounts.ChangePassword(r.Context(), account.ID, sessionToken(r), in.Current, in.New); err != nil {
+		respondErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- email confirmation and password resets ---
+
+// verifyEmail follows a confirmation link. It needs no session: the link can
+// be opened in any browser.
+func (s *server) verifyEmail(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Token string `json:"token"`
+	}
+	if !decodeJSONInput(w, r, &in) {
+		return
+	}
+	if _, err := s.accounts.VerifyEmail(r.Context(), in.Token); err != nil {
+		respondErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) resendVerification(w http.ResponseWriter, r *http.Request, account accounts.Account) {
+	if ok, retry := s.limits.emails.allow("verify:" + account.Email); !ok {
+		tooManyRequests(w, retry)
+		return
+	}
+	if err := s.accounts.SendVerification(r.Context(), account.ID, s.baseURL(r)); err != nil {
+		respondErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// requestPasswordReset answers the same whether or not the email has an
+// account; emailSent is false only when this server can't send email at all.
+func (s *server) requestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Email string `json:"email"`
+	}
+	if !decodeJSONInput(w, r, &in) {
+		return
+	}
+	if ok, retry := s.limits.emails.allow("reset:" + strings.ToLower(strings.TrimSpace(in.Email))); !ok {
+		tooManyRequests(w, retry)
+		return
+	}
+	emailSent, err := s.accounts.RequestPasswordReset(r.Context(), in.Email, s.baseURL(r))
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"emailSent": emailSent})
+}
+
+// resetPassword sets a new password from a reset link and signs in.
+func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if !decodeJSONInput(w, r, &in) {
+		return
+	}
+	account, session, err := s.accounts.ResetPassword(r.Context(), in.Token, in.Password)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	s.limits.failedLogins.reset(strings.ToLower(account.Email))
+	setSessionCookie(w, r, session)
 	s.writeMe(w, r, http.StatusOK, account)
 }
 

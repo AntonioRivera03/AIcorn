@@ -17,6 +17,8 @@ var (
 	ErrAlreadyMember      = errors.New("already a member of this organization")
 	ErrLastOwner          = errors.New("an organization needs at least one owner")
 	ErrPersonalWorkspace  = errors.New("personal workspaces can't have other members")
+	ErrEmailUnverified    = errors.New("confirm your email address first")
+	ErrTokenInvalid       = errors.New("this link is invalid or has expired")
 )
 
 // invalidInputError carries a message fit to show the user as-is, while still
@@ -62,6 +64,9 @@ type Account struct {
 	Name  string `json:"name"`
 	// Usage is empty until the account finishes onboarding.
 	Usage Usage `json:"usage"`
+	// EmailVerified is false until the account follows the link emailed to
+	// it (or proves the address another way, e.g. by accepting an invite).
+	EmailVerified bool `json:"emailVerified"`
 }
 
 // Workspace is a workspace as seen by one of its members.
@@ -100,6 +105,14 @@ type CreatedInvite struct {
 	// so the inviter knows to share the link themselves.
 	EmailError string `json:"emailError,omitempty"`
 }
+
+// tokenPurpose says what an emailed one-time link does.
+type tokenPurpose string
+
+const (
+	purposeVerifyEmail   tokenPurpose = "verify_email"
+	purposeResetPassword tokenPurpose = "reset_password"
+)
 
 // InvitePreview is what anyone holding an invite code may see about it.
 type InvitePreview struct {

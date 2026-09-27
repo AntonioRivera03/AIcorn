@@ -50,11 +50,17 @@ func notFound(err error) error {
 
 // --- accounts ---
 
-func (s *Store) InsertAccount(ctx context.Context, email, name, passwordHash string) (int64, error) {
+// InsertAccount creates an account. verified is when its email address was
+// proven, or nil if it hasn't been yet.
+func (s *Store) InsertAccount(ctx context.Context, email, name, passwordHash string, verified *time.Time) (int64, error) {
+	var verifiedAt any
+	if verified != nil {
+		verifiedAt = sqlTime(*verified)
+	}
 	var id int64
 	err := s.q.QueryRowContext(ctx,
-		`INSERT INTO account(email, name, passwordHash) VALUES(?, ?, ?) RETURNING id`,
-		email, name, passwordHash).Scan(&id)
+		`INSERT INTO account(email, name, passwordHash, timeEmailVerified) VALUES(?, ?, ?, ?) RETURNING id`,
+		email, name, passwordHash, verifiedAt).Scan(&id)
 	return id, err
 }
 
@@ -64,11 +70,11 @@ func (s *Store) EmailExists(ctx context.Context, email string) (bool, error) {
 	return exists, err
 }
 
-const accountColumns = `id, email, name, COALESCE(usage, '')`
+const accountColumns = `id, email, name, COALESCE(usage, ''), timeEmailVerified IS NOT NULL`
 
 func scanAccount(row interface{ Scan(...any) error }, extra ...any) (Account, error) {
 	var a Account
-	err := row.Scan(append([]any{&a.ID, &a.Email, &a.Name, &a.Usage}, extra...)...)
+	err := row.Scan(append([]any{&a.ID, &a.Email, &a.Name, &a.Usage, &a.EmailVerified}, extra...)...)
 	return a, err
 }
 
@@ -95,6 +101,26 @@ func (s *Store) SetName(ctx context.Context, accountID int64, name string) error
 	return err
 }
 
+func (s *Store) PasswordHash(ctx context.Context, accountID int64) (string, error) {
+	var hash string
+	err := s.q.QueryRowContext(ctx, `SELECT passwordHash FROM account WHERE id = ?`, accountID).Scan(&hash)
+	return hash, notFound(err)
+}
+
+func (s *Store) SetPasswordHash(ctx context.Context, accountID int64, hash string) error {
+	_, err := s.q.ExecContext(ctx, `UPDATE account SET passwordHash = ? WHERE id = ?`, hash, accountID)
+	return err
+}
+
+// MarkEmailVerified records that the account proved its email address. An
+// already-verified account keeps its original time.
+func (s *Store) MarkEmailVerified(ctx context.Context, accountID int64, now time.Time) error {
+	_, err := s.q.ExecContext(ctx,
+		`UPDATE account SET timeEmailVerified = COALESCE(timeEmailVerified, ?) WHERE id = ?`,
+		sqlTime(now), accountID)
+	return err
+}
+
 // --- sessions ---
 
 func (s *Store) InsertSession(ctx context.Context, tokenHash string, accountID int64, expires time.Time) error {
@@ -109,7 +135,7 @@ func (s *Store) InsertSession(ctx context.Context, tokenHash string, accountID i
 func (s *Store) SessionAccount(ctx context.Context, tokenHash string, now time.Time) (Account, time.Time, error) {
 	var expires time.Time
 	a, err := scanAccount(s.q.QueryRowContext(ctx,
-		`SELECT a.id, a.email, a.name, COALESCE(a.usage, ''), s.timeExpires
+		`SELECT a.id, a.email, a.name, COALESCE(a.usage, ''), a.timeEmailVerified IS NOT NULL, s.timeExpires
 		   FROM session s JOIN account a ON a.id = s.account
 		  WHERE s.tokenHash = ? AND s.timeExpires > ?`,
 		tokenHash, sqlTime(now)), &expires)
@@ -126,9 +152,47 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
-func (s *Store) DeleteExpiredSessions(ctx context.Context, now time.Time) error {
-	_, err := s.q.ExecContext(ctx, `DELETE FROM session WHERE timeExpires <= ?`, sqlTime(now))
+// DeleteOtherSessions signs the account out everywhere except the session
+// whose token hashes to keepTokenHash (pass "" to sign out everywhere).
+func (s *Store) DeleteOtherSessions(ctx context.Context, accountID int64, keepTokenHash string) error {
+	_, err := s.q.ExecContext(ctx,
+		`DELETE FROM session WHERE account = ? AND tokenHash <> ?`, accountID, keepTokenHash)
 	return err
+}
+
+// DeleteExpired removes expired sessions and one-time tokens.
+func (s *Store) DeleteExpired(ctx context.Context, now time.Time) error {
+	if _, err := s.q.ExecContext(ctx, `DELETE FROM session WHERE timeExpires <= ?`, sqlTime(now)); err != nil {
+		return err
+	}
+	_, err := s.q.ExecContext(ctx, `DELETE FROM account_token WHERE timeExpires <= ?`, sqlTime(now))
+	return err
+}
+
+// --- one-time tokens ---
+
+func (s *Store) InsertToken(ctx context.Context, tokenHash string, accountID int64, purpose tokenPurpose, expires time.Time) error {
+	_, err := s.q.ExecContext(ctx,
+		`INSERT INTO account_token(tokenHash, account, purpose, timeExpires) VALUES(?, ?, ?, ?)`,
+		tokenHash, accountID, purpose, sqlTime(expires))
+	return err
+}
+
+func (s *Store) DeleteTokens(ctx context.Context, accountID int64, purpose tokenPurpose) error {
+	_, err := s.q.ExecContext(ctx,
+		`DELETE FROM account_token WHERE account = ? AND purpose = ?`, accountID, purpose)
+	return err
+}
+
+// AccountForToken returns the account a live token of the given purpose
+// belongs to. Expired tokens read as not found.
+func (s *Store) AccountForToken(ctx context.Context, tokenHash string, purpose tokenPurpose, now time.Time) (Account, error) {
+	a, err := scanAccount(s.q.QueryRowContext(ctx,
+		`SELECT a.id, a.email, a.name, COALESCE(a.usage, ''), a.timeEmailVerified IS NOT NULL
+		   FROM account_token t JOIN account a ON a.id = t.account
+		  WHERE t.tokenHash = ? AND t.purpose = ? AND t.timeExpires > ?`,
+		tokenHash, purpose, sqlTime(now)))
+	return a, notFound(err)
 }
 
 // --- workspaces & memberships ---
