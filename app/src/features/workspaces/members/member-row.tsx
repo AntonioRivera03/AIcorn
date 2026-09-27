@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { TruncatedText } from "@/components/truncated-text";
 import {
+  useLeaveWorkspaceMutation,
   useRemoveMemberMutation,
   useSetMemberRoleMutation,
 } from "@/features/workspaces/queries/workspace-queries";
@@ -17,7 +18,8 @@ type Props = {
   member: Member;
   workspace: Workspace;
   isSelf: boolean;
-  onLeft: () => void;
+  // Where to go after leaving: the user's personal workspace.
+  fallbackWorkspaceId: number;
 };
 
 // Mirrors the server's rules: owners change roles and remove anyone, admins
@@ -27,10 +29,11 @@ const canRemove = (workspace: Workspace, member: Member, isSelf: boolean) =>
   workspace.role === "owner" ||
   (workspace.role === "admin" && member.role === "member");
 
-export function MemberRow({ member, workspace, isSelf, onLeft }: Props) {
+export function MemberRow({ member, workspace, isSelf, fallbackWorkspaceId }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const setRole = useSetMemberRoleMutation(workspace.id);
   const remove = useRemoveMemberMutation(workspace.id);
+  const leave = useLeaveWorkspaceMutation(workspace.id, fallbackWorkspaceId);
 
   const changeRole = (role: Role) =>
     setRole.mutate(
@@ -38,14 +41,18 @@ export function MemberRow({ member, workspace, isSelf, onLeft }: Props) {
       { onError: (err) => toast.error(err.message || "Failed to change the role.") },
     );
 
-  const confirmRemove = () =>
+  const confirmRemove = () => {
+    if (isSelf) {
+      leave.mutate(member.accountId, {
+        onError: (err) => toast.error(err.message || "Failed to leave the organization."),
+      });
+      return;
+    }
     remove.mutate(member.accountId, {
-      onSuccess: () => {
-        if (isSelf) onLeft();
-        else toast.success(`Removed ${member.name}.`);
-      },
+      onSuccess: () => toast.success(`Removed ${member.name}.`),
       onError: (err) => toast.error(err.message || "Failed to remove the member."),
     });
+  };
 
   return (
     <>
@@ -74,7 +81,7 @@ export function MemberRow({ member, workspace, isSelf, onLeft }: Props) {
               size="sm"
               variant="ghost"
               className="text-destructive hover:text-destructive"
-              disabled={remove.isPending}
+              disabled={remove.isPending || leave.isPending}
               onClick={() => setConfirmOpen(true)}
             >
               {isSelf ? "Leave" : "Remove"}

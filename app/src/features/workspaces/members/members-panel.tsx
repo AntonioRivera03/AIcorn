@@ -21,7 +21,7 @@ import { PendingInviteRow } from "@/features/workspaces/members/pending-invite-r
 import { SectionHeading } from "@/features/settings/section-heading";
 
 export function MembersPanel() {
-  const { account, workspace, workspaces, switchWorkspace } = useWorkspace();
+  const { account, workspace, workspaces } = useWorkspace();
   const manager = canManageMembers(workspace);
   const { data: members = [], isPending } = useMembersQuery(workspace.id);
   const { data: invites = [] } = useInvitesQuery(workspace.id, manager);
@@ -43,10 +43,8 @@ export function MembersPanel() {
     );
   }
 
-  const personal = workspaces.find((w) => w.kind === "personal");
-  const handleLeft = () => {
-    if (personal) void switchWorkspace(personal.id);
-  };
+  const fallbackWorkspaceId =
+    workspaces.find((w) => w.kind === "personal")?.id ?? workspace.id;
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,7 +83,7 @@ export function MembersPanel() {
                   member={member}
                   workspace={workspace}
                   isSelf={member.accountId === account.id}
-                  onLeft={handleLeft}
+                  fallbackWorkspaceId={fallbackWorkspaceId}
                 />
               ))}
           </TableBody>

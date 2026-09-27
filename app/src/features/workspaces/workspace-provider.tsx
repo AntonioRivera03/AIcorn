@@ -18,13 +18,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [workspaceId, setWorkspaceId] = useState(() => getApiWorkspace());
 
-  if (!me) return null;
-  const workspace =
-    me.workspaces.find((w) => w.id === workspaceId) ??
-    resolveWorkspace(me.workspaces);
-
+  // Compares against the tab's actual workspace, not the displayed fallback:
+  // after leaving an organization the fallback is already the target.
   const switchWorkspace = async (id: number) => {
-    if (id === workspace.id) return;
+    if (id === workspaceId && id === getApiWorkspace()) return;
     // Leave the current page first: its IDs mean nothing in the new workspace.
     await navigate({ to: "/app" });
     selectWorkspace(id);
@@ -33,6 +30,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     });
     setWorkspaceId(id);
   };
+
+  if (!me) return null;
+  const workspace =
+    me.workspaces.find((w) => w.id === workspaceId) ??
+    resolveWorkspace(me.workspaces);
 
   return (
     <WorkspaceContext.Provider

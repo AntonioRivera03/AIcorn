@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import { meQueryKey } from "@/features/auth/queries/me-query";
+import { selectWorkspace } from "@/features/workspaces/workspace-selection";
 import type {
   CreatedInvite,
   Invite,
@@ -120,6 +121,22 @@ export function useRemoveMemberMutation(workspaceId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: membersKey(workspaceId) });
       queryClient.invalidateQueries({ queryKey: meQueryKey });
+    },
+  });
+}
+
+// Leaving reloads the app into another workspace (normally the personal one).
+// A full reload is simplest: every cached query and the page itself belong to
+// the organization that was just left.
+export function useLeaveWorkspaceMutation(workspaceId: number, fallbackWorkspaceId: number) {
+  return useMutation({
+    mutationFn: (accountId: number) =>
+      apiJson<void>(`/api/workspaces/${workspaceId}/members/${accountId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      selectWorkspace(fallbackWorkspaceId);
+      window.location.assign("/app");
     },
   });
 }
