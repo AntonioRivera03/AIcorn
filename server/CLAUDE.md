@@ -16,23 +16,33 @@ Implications an agent must account for:
 
 - **Backend changes do not take effect until the server is restarted.** After editing any Go file, the running process is still the old binary. If you (or the user) have a server running, it must be manually killed and re-run. Verifying a new endpoint against a still-running old process returns `404`/`405` — that's a stale binary, not a routing bug.
 - **`:8000` gets held by stale processes.** A previous `go run` leaves a `cmd/web`-built binary bound to `:8000`; a fresh run then fails to bind but the old one keeps serving old code (and possibly an old `app.db`). When something behaves like old code, check `lsof -nP -i :8000` before debugging further.
-- **Two databases, two `make` targets.** `app.db` is not committed to git — the server auto-creates and migrates it via goose on startup. Its path is controlled by `$AYCORN_DB`; if unset, the binary uses `<os.UserConfigDir()>/aycorn/app.db` (e.g. `~/Library/Application Support/aycorn/app.db` on macOS) — your **personal**, persistent data.
-  - `make dev` — no `AYCORN_DB` override, runs against your personal DB. Same DB the installed `aycorn` binary uses.
-  - `make dev-test` — sets `AYCORN_DB=./app.db`, runs against a disposable DB at `server/app.db`. Safe to wipe anytime; never touches personal data.
-  To reset the test DB to a clean state:
-  ```
-  cd server
-  rm -f app.db
-  AYCORN_DB=./app.db go run ./cmd/web   # goose creates all tables automatically
-  ```
-  (or just `make dev-test`, which sets `AYCORN_DB` for you).
+- **Data directory, two `make` targets.** Nothing in it is committed; the server creates and migrates everything on startup. Its location is `$AYCORN_DATA_DIR`, defaulting to `<os.UserConfigDir()>/aycorn` (e.g. `~/.config/aycorn` on Linux). Inside it:
+  - `accounts.db` — accounts, sessions, workspaces, memberships, invites (migrations in `internal/accounts/migrations/`).
+  - `workspaces/<id>/app.db` — one database per workspace (migrations in `internal/migrations/sql/`), with that workspace's backups, worktrees, chat workspaces, and environments beside it.
+  - A single-user `app.db` from before accounts may also sit there; the server no longer reads it.
+  - `make dev` — no override, runs against your personal data directory.
+  - `make dev-test` — sets `AYCORN_DATA_DIR=./data`: disposable data at `server/data/` (gitignored). Reset with `rm -rf data` and sign up again.
+- **Server environment variables** (beyond host/port): `RESEND_API_KEY` enables invite emails (without it, emails are logged and the inviter gets a link to share); `AYCORN_EMAIL_FROM` sets the sender (must be a Resend-verified domain to reach anyone but the Resend account owner); `AYCORN_PUBLIC_URL` fixes the origin used in invite links (default: the inviter's request origin). Serving other people means binding `AYCORN_HOST` to a Tailscale/LAN address; put TLS in front before exposing it beyond a private network.
 - **`go build ./...` needs the markdown bundle.** `assets/bin/md-convert.cjs` is a gitignored build artifact (like `ui/dist`) that `internal/markdown` embeds, so a fresh clone must run `make build-md-convert` before any build that reaches it. `make build-mcp` does it for you. It is rebuilt from the frontend — see the Markdown Conversion section below.
 - **Schema changes go through migration files**, not `schema.sql` directly. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for the full migration workflow.
-- **`placeholder.sql` is seed data** for development — load it into the **test** DB only, never the personal one:
+- **`placeholder.sql` is seed data** for development — load it into a **test** workspace only, never a personal one:
   ```
-  sqlite3 app.db < assets/queries/placeholder.sql
+  sqlite3 data/workspaces/<id>/app.db < assets/queries/placeholder.sql
   ```
-- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Manual subcommands: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup` / `make restore SRC=...` act on your personal DB; `make backup-test` / `make restore-test SRC=...` act on the test DB (`server/backups/`, gitignored).
+- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Every workspace database and `accounts.db` gets its own `backups/` folder. Manual subcommands act on the single database named by `$AYCORN_DB` (point it at a workspace's `app.db`): `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup-test WORKSPACE=<id>` / `make restore-test WORKSPACE=<id> SRC=...` act on one workspace of the test data.
+
+---
+
+## Multi-user request flow
+
+See "Accounts & Workspaces" in the root `CLAUDE.md` for the model. In code:
+
+- `cmd/web/server.go` is the front door. It serves health/preview, the account API (`accountHandler.go` → `internal/accounts`), and forwards every other `/api/` request to a workspace: session cookie → `X-Aycorn-Workspace` header → membership check → that workspace's handler.
+- `cmd/web/workspace_runtime.go` builds one `app` (repos, services, handlers from `routes.go`) plus its background work (agent worker, job scheduler, project chat, environments, backups) per workspace database. `workspaceRegistry` starts all workspaces at boot and new ones when they're created (`provision`, which also seeds a starter workflow).
+- **Adding a workspace feature** works exactly as before: add the handler to `routes.go` and write single-database queries. Never reach into another workspace's database, and derive any on-disk path from the workspace's `dbPath` directory.
+- **Adding an account-level feature** (anything about users, organizations, or invites): SQL in `internal/accounts/store.go`, rules in `internal/accounts/service.go`, handler in `cmd/web/accountHandler.go`, route in `server.routes()`.
+- The signed-in account is available to any handler via `accountFromContext(r.Context())`.
+- **`aycorn-mcp` is still single-database:** it opens `$AYCORN_DB`. Agent runs pass their workspace's database, so they work; an MCP client configured by hand must point `AYCORN_DB` at `data/workspaces/<id>/app.db`.
 
 ---
 
@@ -91,7 +101,7 @@ Nullable text columns (e.g. `description`) are therefore wrapped in `COALESCE(co
 
 **Driver:** `modernc.org/sqlite` (registered as `"sqlite"`), a pure-Go transpilation of SQLite — not `mattn/go-sqlite3`. This is deliberate: it needs no C toolchain to build, on any OS. If you ever reach for `mattn/go-sqlite3`'s DSN pragma syntax (`?_foreign_keys=on`) out of habit, use modernc's instead: `?_pragma=foreign_keys(1)` (repeat `_pragma=` per pragma).
 
-**Migrations:** `server/internal/migrations/sql/` — goose applies these on startup. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for how to add migrations.
+**Migrations:** `server/internal/migrations/sql/` — goose applies these to every workspace database on startup. The accounts database has its own set in `server/internal/accounts/migrations/`, applied through a goose `Provider` (not the package-level goose API, which the workspace migrations use). See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for how to add migrations.
 
 `server/assets/queries/schema.sql` is a **human-readable reference only** — keep it in sync with migrations when you change the schema, but it is not loaded by the server.
 

@@ -11,7 +11,21 @@ This file tells AI agents how to work in this project. It is always loaded. It c
 
 ## What is Aycorn
 
-A personal, self-hosted task management app (localhost only) that blends Jira-style project tracking with Notion-style flexibility. North star: **flexibility without complexity** — sensible defaults, power-user opt-ins.
+A self-hosted, multi-user task management app that blends Jira-style project tracking with Notion-style flexibility, with AI agents that work across a workspace's projects. It is becoming a SaaS: today it runs on one machine (locally or on a Tailscale host) for many users. North star: **flexibility without complexity** — sensible defaults, power-user opt-ins.
+
+---
+
+## Accounts & Workspaces
+
+This model spans both layers, so it lives here.
+
+- **Account → workspaces.** Every account gets a **personal** workspace at signup. An **organization** is also a workspace; users create one, or join one through an invite. Onboarding asks "solo or organization?"; solo users can join an organization later from the workspace switcher.
+- **Everything else belongs to one workspace.** Projects, tasks, workflows, task types, agents, AI settings — all of it is per workspace. Each workspace has **its own SQLite database** (`<data dir>/workspaces/<id>/app.db`); users, sessions, workspaces, memberships, and invites live in a separate `accounts.db`. This is the database-per-tenant pattern: workspace handlers and queries never filter by workspace, because a request can only reach its own workspace's database.
+- **How a request finds its workspace.** The frontend sends the tab's workspace ID in the `X-Aycorn-Workspace` header on every API call (`apiFetch` in `app/src/lib/api.ts`). The server checks the session cookie and membership, then forwards the request to that workspace's handlers. Account-level endpoints (`/api/auth/*`, `/api/workspaces/*`, `/api/invites/*`) don't use the header.
+- **Invites** whitelist one email for one organization: a single-use code, sent by email (Resend) as a link and a code, expiring after 7 days. Only an account with that email can accept it.
+- **Roles:** `owner` (everything, including roles), `admin` (invite and remove members), `member`. An organization always keeps at least one owner.
+- **Assignees** are the workspace's members (stored by display name on `task.assignee`).
+- **AI harnesses** (Codex etc.) run with the server machine's own logins for every workspace. Per-organization AI credentials are a planned extension, not built.
 
 ---
 
@@ -70,7 +84,7 @@ When a list of entities supports multi-select operations:
 ## UX Constraints
 
 - **Keyboard-first.** Every feature should be operable without a mouse. Think about keyboard shortcuts, focus management, and command-palette patterns from the start — not as an afterthought.
-- **No over-engineering.** This is a personal tool. Avoid enterprise patterns.
+- **No over-engineering.** Build for the small teams using it now, not a hypothetical enterprise. Add infrastructure (queues, caches, new services) only when a real need shows up.
 
 ---
 
@@ -103,6 +117,7 @@ When writing code for this project:
 - **Flag migration schema implications** whenever a feature changes the allowed values of a hardcoded `CHECK` constraint — `task.priority`, `task.type`, or `stage.type` (see `server/CLAUDE.md`).
 - **Flag keyboard interaction gaps** if a feature is being implemented without keyboard support.
 - **Flag hardcoded colors** whenever you see a fixed Tailwind color (e.g. `neutral-700`, `emerald-500`, `gray-100`) used for text, background, or border. These break dark mode. Replace them with semantic tokens from `index.css` — e.g. `text-foreground`, `bg-background`, `bg-primary`, `text-muted-foreground`, `border-border`. Check the full token list in `app/src/index.css`.
+- **Flag cross-workspace leaks** — any new workspace-data endpoint registered outside the workspace router, any API call that bypasses `apiFetch`, or any shared state (files, caches, background jobs) not derived from a workspace's own database directory.
 - **Flag fan-out bulk calls** when a multi-item action is implemented as `Promise.all` over a single-item endpoint instead of a real bulk handler returning `BulkResult`.
 - **Flag missing confirm** on any destructive action that executes without a confirm modal.
 - **Flag modal create/edit forms** where in-place editing or a create-empty-then-edit flow would fit the project's UX philosophy.
