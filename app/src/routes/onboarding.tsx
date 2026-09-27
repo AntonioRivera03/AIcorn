@@ -19,6 +19,9 @@ export const Route = createFileRoute("/onboarding")({
     if (!me) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
+    // Unconfirmed users may still come to accept an invite, which confirms
+    // their email.
+    if (!me.account.emailVerified && !search.code) throw redirect({ to: "/verify-email" });
     // Onboarded users only come here to join or create an organization.
     if (me.account.usage && !search.step) throw redirect({ to: "/app" });
   },

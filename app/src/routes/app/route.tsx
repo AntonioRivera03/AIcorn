@@ -28,6 +28,9 @@ export const Route = createFileRoute("/app")({
     if (!me) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
+    if (!me.account.emailVerified) {
+      throw redirect({ to: "/verify-email" });
+    }
     if (!me.account.usage) {
       throw redirect({ to: "/onboarding" });
     }

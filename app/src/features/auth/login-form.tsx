@@ -75,6 +75,12 @@ export function LoginForm({ redirect, invite }: Props) {
         <Button type="submit" disabled={login.isPending}>
           {login.isPending ? "Logging in…" : "Log in"}
         </Button>
+        <Link
+          to="/forgot-password"
+          className="self-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Forgot your password?
+        </Link>
       </form>
     </AuthCard>
   );

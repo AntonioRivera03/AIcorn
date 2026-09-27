@@ -7,8 +7,7 @@ import { AuthCard } from "@/features/auth/auth-card";
 import { FormError } from "@/features/auth/form-error";
 import { destinationAfterAuth } from "@/features/auth/after-auth";
 import { useSignupMutation } from "@/features/auth/queries/auth-mutations";
-
-const MIN_PASSWORD_LENGTH = 8;
+import { MIN_PASSWORD_LENGTH } from "@/features/auth/password";
 
 type Props = {
   invite?: string;
@@ -25,7 +24,7 @@ export function SignupForm({ invite, email: invitedEmail = "" }: Props) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     signup.mutate(
-      { name, email, password },
+      { name, email, password, invite },
       { onSuccess: (me) => navigate({ href: destinationAfterAuth(me, { invite }) }) },
     );
   };

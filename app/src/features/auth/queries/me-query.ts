@@ -19,6 +19,8 @@ export const meQueryOptions = queryOptions({
   retry: false,
 });
 
-export function useMeQuery() {
-  return useQuery(meQueryOptions);
+// refetchInterval lets a page wait on a change made elsewhere, like the
+// email being confirmed from a link opened in another tab.
+export function useMeQuery(options: { refetchInterval?: number } = {}) {
+  return useQuery({ ...meQueryOptions, refetchInterval: options.refetchInterval });
 }

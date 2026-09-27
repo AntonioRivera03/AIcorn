@@ -6,7 +6,8 @@ export const safeRedirect = (path: string | undefined) =>
   path && path.startsWith("/") && !path.startsWith("//") ? path : "/app";
 
 // destinationAfterAuth is where a user goes once signed in: an invite they
-// arrived with, then onboarding if unfinished, then where they were headed.
+// arrived with (accepting it confirms their email too), then confirming their
+// email, then onboarding if unfinished, then where they were headed.
 export const destinationAfterAuth = (
   me: Me,
   options: { redirect?: string; invite?: string } = {},
@@ -14,6 +15,7 @@ export const destinationAfterAuth = (
   if (options.invite) {
     return `/onboarding?step=organization&code=${encodeURIComponent(options.invite)}`;
   }
+  if (!me.account.emailVerified) return "/verify-email";
   if (!me.account.usage) return "/onboarding";
   return safeRedirect(options.redirect);
 };

@@ -6,6 +6,7 @@ import {
   useLogoutMutation,
   useRenameAccountMutation,
 } from "@/features/auth/queries/auth-mutations";
+import { ChangePasswordForm } from "@/features/settings/change-password-form";
 import { SectionHeading } from "@/features/settings/section-heading";
 import { useWorkspace } from "@/features/workspaces/workspace-context";
 
@@ -41,6 +42,14 @@ export function AccountPanel() {
       <section className="flex flex-col gap-2">
         <SectionHeading title="Email" description="You sign in with this address, and invites are sent to it." />
         <p className="px-1 text-sm">{account.email}</p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionHeading
+          title="Password"
+          description="Changing it signs you out on every other device."
+        />
+        <ChangePasswordForm />
       </section>
 
       <section className="flex flex-col items-start gap-3">

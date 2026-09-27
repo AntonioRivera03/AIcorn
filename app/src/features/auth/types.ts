@@ -8,6 +8,8 @@ export type Account = {
   email: string;
   name: string;
   usage: Usage;
+  // False until the user follows the confirmation link emailed at signup.
+  emailVerified: boolean;
 };
 
 export type Me = {
