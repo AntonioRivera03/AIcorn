@@ -19,6 +19,15 @@ var (
 	ErrPersonalWorkspace  = errors.New("personal workspaces can't have other members")
 )
 
+// invalidInputError carries a message fit to show the user as-is, while still
+// matching errors.Is(err, ErrInvalidInput) for status mapping.
+type invalidInputError struct{ message string }
+
+func (e invalidInputError) Error() string        { return e.message }
+func (e invalidInputError) Is(target error) bool { return target == ErrInvalidInput }
+
+func invalidInput(message string) error { return invalidInputError{message} }
+
 type Usage string
 
 const (

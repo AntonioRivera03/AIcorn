@@ -64,7 +64,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
             <CommandItem
               onSelect={() => {
                 setCommandsOpen(false);
-                void navigate({ to: "/personas" });
+                void navigate({ to: "/app/personas" });
               }}
             >
               <Settings2 /> AI settings and agents

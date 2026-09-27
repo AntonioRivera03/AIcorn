@@ -8,7 +8,7 @@ import {
 } from "@/components/page/Page";
 import { PersonasPage } from "@/features/persona/personas-page";
 
-export const Route = createFileRoute("/personas/")({
+export const Route = createFileRoute("/app/personas/")({
   component: RouteComponent,
 });
 

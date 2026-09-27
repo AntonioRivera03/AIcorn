@@ -37,7 +37,7 @@ export function BranchPreviews({
         {environments.data && (
           <Button variant="link" size="sm" asChild>
             <Link
-              to="/project/settings/$projectId"
+              to="/app/project/settings/$projectId"
               params={{ projectId: String(environments.data.projectId) }}
               search={{ tab: "environments" }}
             >

@@ -6,7 +6,7 @@ import { ProjectHeader } from "@/components/project/project-header";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { useContext, useEffect } from "react";
 
-export const Route = createFileRoute("/project/$projectId")({
+export const Route = createFileRoute("/app/project/$projectId")({
   component: RouteComponent,
   validateSearch: (search: Record<string, unknown>): { view?: string } => {
     return {
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/project/$projectId")({
 function ProjectPageHeader() {
   const { Project } = useContext(ProjectContext);
   return (
-    <PageHeader breadcrumb={[{ label: "Projects", to: "/" }, Project.Name]}>
+    <PageHeader breadcrumb={[{ label: "Projects", to: "/app" }, Project.Name]}>
       <ProjectHeader />
     </PageHeader>
   );

@@ -259,7 +259,7 @@ export function AIPanel({
                   {settings.error?.message ||
                     settings.data?.engine.error ||
                     "Choose a model to start using AI."}{" "}
-                  <a className="text-primary underline" href="/personas">
+                  <a className="text-primary underline" href="/app/personas">
                     Open AI settings
                   </a>
                 </p>
@@ -280,7 +280,7 @@ export function AIPanel({
                   Link a repository in{" "}
                   <a
                     className="text-primary underline"
-                    href={`/project/settings/${context.task.data?.ProjectID ?? ""}`}
+                    href={`/app/project/settings/${context.task.data?.ProjectID ?? ""}`}
                   >
                     project settings
                   </a>{" "}

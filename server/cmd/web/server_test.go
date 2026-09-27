@@ -113,7 +113,8 @@ func TestWorkspaceAPIRequiresSessionAndMembership(t *testing.T) {
 	// the wrong workspace.
 	ada.do("GET", "/api/project", 0, "", 400)
 
-	// Each workspace is seeded from the migrations (workflows, task types…).
+	// Each workspace starts with a workflow (here the preview seed; otherwise
+	// the starter workflow) plus the task types the migrations seed.
 	var workflows []struct{ ID int }
 	json.Unmarshal(ada.do("GET", "/api/workflow", adaPersonal, "", 200), &workflows)
 	if len(workflows) == 0 {
@@ -190,4 +191,3 @@ func TestForeignOriginsAreRejected(t *testing.T) {
 		t.Fatalf("foreign origin reached the API: %d", res.StatusCode)
 	}
 }
-

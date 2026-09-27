@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { Page, PageContent, PageHeader } from "@/components/page/Page";
 
-export const Route = createFileRoute("/usage")({
+export const Route = createFileRoute("/app/usage")({
   component: RouteComponent,
 });
 

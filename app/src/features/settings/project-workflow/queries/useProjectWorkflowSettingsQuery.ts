@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import type { ProjectWorkflowSettings } from "@/types/types";
 
@@ -9,7 +10,7 @@ export function useProjectWorkflowSettingsQuery(
     useQuery<ProjectWorkflowSettings>({
       queryKey: ["projectWorkflowSettings", projectId],
       queryFn: async () => {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/project/${projectId}/settings/workflow`,
         );
         return await res.json();

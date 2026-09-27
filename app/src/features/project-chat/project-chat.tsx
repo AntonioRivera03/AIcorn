@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -29,7 +30,7 @@ type Conversation = { id: number; projectId: number; turns: Turn[] };
 const working = (status: string) =>
   ["pending", "running", "canceling"].includes(status);
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(url, init);
+  const r = await apiFetch(url, init);
   if (!r.ok) throw new Error((await r.text()).trim());
   return r.status === 204 ? (undefined as T) : r.json();
 }
@@ -460,7 +461,7 @@ export function ProjectChat({ projectId }: { projectId: number }) {
           ) : settings.data && !settings.data.engine.ready ? (
             <p className="mt-2 text-sm text-muted-foreground">
               {settings.data.engine.error}{" "}
-              <Link to="/settings" className="underline">
+              <Link to="/app/settings" className="underline">
                 AI settings
               </Link>
             </p>
@@ -478,7 +479,7 @@ function References({ text, tasks }: { text: string; tasks: MentionTask[] }) {
       {refs.map((task) => (
         <Link
           key={task.id}
-          to="/task/$taskId"
+          to="/app/task/$taskId"
           params={{ taskId: String(task.id) }}
           className="max-w-full truncate rounded border px-2 py-1 text-xs hover:bg-accent"
         >

@@ -22,7 +22,7 @@ export function RelationshipTaskRow({
   const deleteRelationship = useDeleteTaskRelationshipMutation();
 
   return (
-    <Link to="/task/$taskId"
+    <Link to="/app/task/$taskId"
         params={{ taskId: task.ID.toString() }}
         className="group flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-b-0 hover:bg-accent"
     >
@@ -40,7 +40,7 @@ export function RelationshipTaskRow({
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
-                to="/project/$projectId"
+                to="/app/project/$projectId"
                 params={{ projectId: task.ProjectID.toString() }}
                 className="self-start max-w-full truncate text-xs text-muted-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}

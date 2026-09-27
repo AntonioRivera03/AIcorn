@@ -1,46 +1,37 @@
-import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
-
 type TaskWithAssignee = {
   readonly Assignee: string;
 };
 
-export type AssigneeOptionState = {
-  readonly filteredOptions: readonly string[];
-  readonly hasExactMatch: boolean;
-  readonly showCreate: boolean;
-  readonly trimmedSearch: string;
+// Assignees are the workspace's members. Anything else already assigned on a
+// task (an AI agent's name, someone who has since left) stays selectable under
+// "Other" so it can be reassigned consistently.
+export type AssigneeOptions = {
+  readonly members: readonly string[];
+  readonly others: readonly string[];
 };
 
 export const createAssigneeOptions = (
+  memberNames: readonly string[],
   tasks: readonly TaskWithAssignee[],
-): readonly string[] => {
-  const names = new Set<string>([SELF_ASSIGNEE]);
+): AssigneeOptions => {
+  const members = [...new Set(memberNames)];
+  const memberSet = new Set(members);
+  const others = new Set<string>();
   for (const task of tasks) {
-    if (task.Assignee) names.add(task.Assignee);
+    if (task.Assignee && !memberSet.has(task.Assignee)) others.add(task.Assignee);
   }
-  return [...names];
+  return { members, others: [...others] };
 };
 
-export const getAssigneeOptionState = (
-  options: readonly string[],
+export const filterAssigneeOptions = (
+  options: AssigneeOptions,
   searchValue: string,
-): AssigneeOptionState => {
-  const trimmedSearch = searchValue.trim();
-  const normalizedSearch = trimmedSearch.toLowerCase();
-  const filteredOptions =
-    normalizedSearch === ""
-      ? options
-      : options.filter((option) =>
-          option.toLowerCase().includes(normalizedSearch),
-        );
-  const hasExactMatch = options.some(
-    (option) => option.toLowerCase() === normalizedSearch,
-  );
-
+): AssigneeOptions => {
+  const search = searchValue.trim().toLowerCase();
+  if (search === "") return options;
+  const matches = (option: string) => option.toLowerCase().includes(search);
   return {
-    filteredOptions,
-    hasExactMatch,
-    showCreate: trimmedSearch !== "" && !hasExactMatch,
-    trimmedSearch,
+    members: options.members.filter(matches),
+    others: options.others.filter(matches),
   };
 };

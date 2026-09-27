@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizePersona } from "@/features/persona/queries/persona-query-normalization";
 import type { PersonaResponse } from "@/features/persona/queries/persona-query-normalization";
@@ -17,7 +18,7 @@ export function usePersonaMutations(personaId?: number) {
 
   const createPersona = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/persona", {
+      const response = await apiFetch("/api/persona", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -33,7 +34,7 @@ export function usePersonaMutations(personaId?: number) {
     scope: { id: `agent-${personaId}` },
     mutationFn: async (persona: Persona) => {
       const payload = { Model: persona.Model };
-      const response = await fetch(`/api/persona/${persona.ID}`, {
+      const response = await apiFetch(`/api/persona/${persona.ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -46,7 +47,7 @@ export function usePersonaMutations(personaId?: number) {
 
   const deletePersona = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/persona/${id}`, { method: "DELETE" });
+      const response = await apiFetch(`/api/persona/${id}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await response.text());
       return response.json() as Promise<boolean>;
     },
@@ -62,7 +63,7 @@ export function usePersonaMutations(personaId?: number) {
 
   const bulkDeletePersonas = useMutation({
     mutationFn: async (ids: number[]) => {
-      const response = await fetch("/api/persona/bulk/delete", {
+      const response = await apiFetch("/api/persona/bulk/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ids),

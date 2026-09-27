@@ -1,3 +1,6 @@
+// TODO(redesign): The Documents page doesn't match the rest of the app's
+// design and is due for a rework. Keep changes here minimal until then.
+import { apiFetch } from "@/lib/api";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { DocumentDraft, type ProjectDocument } from "./document-draft";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await apiFetch(url, init);
   if (!response.ok)
     throw new Error(
       (await response.text()).trim() || "Could not load documents",

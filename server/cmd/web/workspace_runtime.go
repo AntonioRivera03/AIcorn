@@ -37,6 +37,7 @@ import (
 
 // workspaceRuntime is one workspace's database plus everything built on it.
 type workspaceRuntime struct {
+	app     *app
 	handler http.Handler
 	stop    func()
 }
@@ -242,7 +243,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 			db.Close()
 		})
 	}
-	return &workspaceRuntime{handler: app.routes(), stop: stop}, nil
+	return &workspaceRuntime{app: app, handler: app.routes(), stop: stop}, nil
 }
 
 // workspaceRegistry starts each workspace's runtime once and hands it out to
@@ -280,11 +281,16 @@ func (r *workspaceRegistry) get(id int64) (*workspaceRuntime, error) {
 	return rt, nil
 }
 
-// provision creates and migrates a new workspace's database. It is the
-// accounts service's Provision hook.
+// provision creates, migrates, and seeds a new workspace's database. It is
+// the accounts service's Provision hook. The migrations seed task types,
+// relationship types, and agents; a starter workflow is added here so the
+// first project can be created straight away.
 func (r *workspaceRegistry) provision(_ context.Context, id int64) error {
-	_, err := r.get(id)
-	return err
+	rt, err := r.get(id)
+	if err != nil {
+		return err
+	}
+	return rt.app.workflowService.EnsureStarterWorkflow()
 }
 
 // stopAll stops every runtime's background work and takes a final backup.

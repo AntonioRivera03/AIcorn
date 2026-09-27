@@ -2,84 +2,47 @@ import { describe, expect, it } from "vitest";
 
 import {
   createAssigneeOptions,
-  getAssigneeOptionState,
+  filterAssigneeOptions,
 } from "@/features/task/properties/task-assignee-options";
-const options = ["Me", "Alice", "Researcher", "Stage Builder"];
 
 describe("createAssigneeOptions", () => {
- it("preserves existing free-text owners without injecting personas", () => {
-  expect(createAssigneeOptions([{Assignee:"Alice"}, {Assignee:"Researcher"}, {Assignee:""}, {Assignee:"Alice"}])).toEqual(["Me", "Alice", "Researcher"]);
- });
+  it("lists members first and keeps other existing assignees separately", () => {
+    // Given workspace members and tasks assigned to members and non-members
+    const tasks = [
+      { Assignee: "Alice" },
+      { Assignee: "AI · Researcher" },
+      { Assignee: "" },
+      { Assignee: "AI · Researcher" },
+      { Assignee: "Former Member" },
+    ];
+
+    // When the options are built
+    const result = createAssigneeOptions(["Alice", "Bob"], tasks);
+
+    // Then members come from the workspace and others are deduplicated
+    expect(result).toEqual({
+      members: ["Alice", "Bob"],
+      others: ["AI · Researcher", "Former Member"],
+    });
+  });
+
+  it("offers members even when no task is assigned yet", () => {
+    expect(createAssigneeOptions(["Alice"], [])).toEqual({ members: ["Alice"], others: [] });
+  });
 });
 
-describe("getAssigneeOptionState", () => {
-  it("shows every option and no create action for an empty search", () => {
-    // Given the complete assignee option list
-    // When the search input is empty
-    const result = getAssigneeOptionState(options, "");
+describe("filterAssigneeOptions", () => {
+  const options = { members: ["Alice", "Bob"], others: ["AI · Researcher"] };
 
-    // Then the unfiltered command state is returned
-    expect(result).toEqual({
-      filteredOptions: options,
-      hasExactMatch: false,
-      showCreate: false,
-      trimmedSearch: "",
-    });
+  it("returns everything for an empty or whitespace search", () => {
+    expect(filterAssigneeOptions(options, "   ")).toBe(options);
   });
 
-  it("filters by a trimmed case-insensitive substring", () => {
-    // Given mixed-case search input with surrounding whitespace
-    // When the command state is derived
-    const result = getAssigneeOptionState(options, "  SeAr  ");
-
-    // Then matching is normalized while the trimmed display value is preserved
-    expect(result).toEqual({
-      filteredOptions: ["Researcher"],
-      hasExactMatch: false,
-      showCreate: true,
-      trimmedSearch: "SeAr",
+  it("filters both groups by a trimmed case-insensitive substring", () => {
+    expect(filterAssigneeOptions(options, "  sEaR ")).toEqual({
+      members: [],
+      others: ["AI · Researcher"],
     });
-  });
-
-  it("hides create when an option matches exactly with different casing", () => {
-    // Given a search matching an existing option after normalization
-    // When the command state is derived
-    const result = getAssigneeOptionState(options, " researcher ");
-
-    // Then selecting the existing option replaces free-text creation
-    expect(result).toEqual({
-      filteredOptions: ["Researcher"],
-      hasExactMatch: true,
-      showCreate: false,
-      trimmedSearch: "researcher",
-    });
-  });
-
-  it("offers free-text creation for an unmatched non-empty search", () => {
-    // Given a new assignee name
-    // When the command state is derived
-    const result = getAssigneeOptionState(options, "Bob");
-
-    // Then no existing row matches and the create action is available
-    expect(result).toEqual({
-      filteredOptions: [],
-      hasExactMatch: false,
-      showCreate: true,
-      trimmedSearch: "Bob",
-    });
-  });
-
-  it("does not offer free-text creation for whitespace-only input", () => {
-    // Given input with no usable assignee name
-    // When the command state is derived
-    const result = getAssigneeOptionState(options, "   ");
-
-    // Then all options remain visible without a create action
-    expect(result).toEqual({
-      filteredOptions: options,
-      hasExactMatch: false,
-      showCreate: false,
-      trimmedSearch: "",
-    });
+    expect(filterAssigneeOptions(options, "b")).toEqual({ members: ["Bob"], others: [] });
   });
 });

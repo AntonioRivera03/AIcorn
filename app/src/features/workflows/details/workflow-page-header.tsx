@@ -38,7 +38,7 @@ export function WorkflowPageHeader({
       hasAutoFocused.current = true;
       editableTitleRef.current.focus();
       navigate({
-        to: "/workflow/$workflowId",
+        to: "/app/workflow/$workflowId",
         params: { workflowId: String(workflow.ID) },
         search: {},
         replace: true,
@@ -115,7 +115,7 @@ export function WorkflowPageHeader({
         workflow={workflow}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        onDeleted={() => navigate({ to: "/workflows" })}
+        onDeleted={() => navigate({ to: "/app/workflows" })}
       />
     </div>
   );

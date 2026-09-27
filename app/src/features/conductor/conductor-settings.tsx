@@ -1,3 +1,6 @@
+// TODO(redesign): The Conductor UI (board controls, frame, and settings tab)
+// doesn't match the rest of the app's design and is due for a rework. Keep
+// changes here minimal until then.
 import { Link } from "@tanstack/react-router";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import { useId, useState } from "react";
@@ -260,7 +263,7 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
             </p>
           )}
           <Button asChild variant="outline">
-            <Link to="/personas">Agent models and instructions</Link>
+            <Link to="/app/personas">Agent models and instructions</Link>
           </Button>
           <div className="flex items-start gap-3">
             <Checkbox

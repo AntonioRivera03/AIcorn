@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import type { BulkResult, ProjectDetails, Task } from "@/types/types";
 import { useMutation } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ const getSaveTaskQuery = (isNewTask: boolean) => {
     // would clobber the stored body. New-task creation still sends it.
     const { Body, ...rest } = task;
     const payload = isNewTask ? { ...rest, Body: JSON.stringify(Body) } : rest;
-    const res = await fetch("/api/task", {
+    const res = await apiFetch("/api/task", {
       method: method,
       body: JSON.stringify(payload),
     });
@@ -124,7 +125,7 @@ export function useTaskMutation(projectId: number) {
   });
   const deleteTask = useMutation({
     mutationFn: async (taskId: number) => {
-      const res = await fetch(`/api/task/${taskId}`, {
+      const res = await apiFetch(`/api/task/${taskId}`, {
         method: "DELETE",
       });
       return await res.json();
@@ -151,7 +152,7 @@ export function useTaskMutation(projectId: number) {
       if (targets.length === 0) {
         return { success: 0, failed: 0, skipped: 0 } as BulkResult;
       }
-      const res = await fetch(`/api/task/bulk`, {
+      const res = await apiFetch(`/api/task/bulk`, {
         method: "PUT",
         body: JSON.stringify({
           ids: targets.map((t) => t.ID),
@@ -193,7 +194,7 @@ export function useTaskMutation(projectId: number) {
     scope: { id: `task-body-${projectId}` },
     mutationFn: async ({ taskId, body }: { taskId: number; body: Value }) => {
       const revision = taskBodyRevision(taskId);
-      const res = await fetch(`/api/task/body/${taskId}`, {
+      const res = await apiFetch(`/api/task/body/${taskId}`, {
         method: "PUT",
         headers: revision ? { "If-Match": revision } : undefined,
         body: JSON.stringify(body),
@@ -216,7 +217,7 @@ export function useTaskMutation(projectId: number) {
 
   const bulkDelete = useMutation({
     mutationFn: async (taskIds: number[]) => {
-      const res = await fetch(`/api/task/bulk/delete`, {
+      const res = await apiFetch(`/api/task/bulk/delete`, {
         method: "POST",
         body: JSON.stringify(taskIds),
       });

@@ -9,7 +9,7 @@ import { useAllWorkflowsQuery } from "@/features/workflows/shared/queries/useAll
 import { WorkflowsGrid } from "@/features/workflows/list/workflows-grid";
 import { WorkflowsBulkActionsToolbar } from "@/features/workflows/list/workflows-bulk-actions-toolbar";
 
-export const Route = createFileRoute("/workflows")({
+export const Route = createFileRoute("/app/workflows")({
   component: RouteComponent,
 });
 

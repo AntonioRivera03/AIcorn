@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryClient } from "@/main";
@@ -6,7 +7,7 @@ import type { BulkDuplicateResult, BulkResult, Workflow } from "@/types/types";
 export function useWorkflowMutation(workflowId?: number) {
   const createWorkflow = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/workflow", {
+      const res = await apiFetch("/api/workflow", {
         method: "POST",
       });
       if (!res.ok) {
@@ -22,7 +23,7 @@ export function useWorkflowMutation(workflowId?: number) {
 
   const updateWorkflow = useMutation({
     mutationFn: async (workflow: Workflow) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/workflow/${workflow.ID}`,
         {
           method: "PUT",
@@ -44,7 +45,7 @@ export function useWorkflowMutation(workflowId?: number) {
 
   const deleteWorkflow = useMutation({
     mutationFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/workflow/${workflowId}`,
         {
           method: "DELETE",
@@ -63,7 +64,7 @@ export function useWorkflowMutation(workflowId?: number) {
 
   const bulkDeleteWorkflows = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/workflow/bulk/delete`,
         {
           method: "POST",
@@ -83,7 +84,7 @@ export function useWorkflowMutation(workflowId?: number) {
 
   const bulkDuplicateWorkflows = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/workflow/bulk/duplicate`,
         {
           method: "POST",

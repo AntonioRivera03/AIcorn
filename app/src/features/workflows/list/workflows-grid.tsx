@@ -31,7 +31,7 @@ export function WorkflowsGrid({
     createWorkflow.mutate(undefined, {
       onSuccess: (newId) => {
         navigate({
-          to: "/workflow/$workflowId",
+          to: "/app/workflow/$workflowId",
           params: { workflowId: String(newId) },
           search: { new: true },
         });

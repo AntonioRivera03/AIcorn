@@ -25,7 +25,7 @@ import {
   WorkflowIcon,
 } from "lucide-react";
 
-export const Route = createFileRoute("/project/settings/$projectId")({
+export const Route = createFileRoute("/app/project/settings/$projectId")({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: (search.tab as string | undefined) ?? "general",
   }),
@@ -44,10 +44,10 @@ function RouteComponent() {
     <Page>
       <PageHeader
         breadcrumb={[
-          { label: "Projects", to: "/" },
+          { label: "Projects", to: "/app" },
           {
             label: projectName !== "" ? projectName : "New Project",
-            to: "/project/$projectId",
+            to: "/app/project/$projectId",
             params: { projectId },
           },
           { label: "Settings" },

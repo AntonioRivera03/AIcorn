@@ -1,10 +1,11 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 export function usePinnedProjectsQuery() {
   const { isPending, error, data, isFetching, refetch } = useQuery({
     queryKey: ["pinnedProjects"],
     queryFn: async () => {
-      const res = await fetch("/api/project/pinned");
+      const res = await apiFetch("/api/project/pinned");
       return await res.json();
     },
   });

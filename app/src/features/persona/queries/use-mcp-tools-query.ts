@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 export type McpTool = {
@@ -9,7 +10,7 @@ export function useMcpToolsQuery() {
   return useQuery<McpTool[]>({
     queryKey: ["mcpTools"],
     queryFn: async () => {
-      const response = await fetch("/api/mcp/tools");
+      const response = await apiFetch("/api/mcp/tools");
       if (!response.ok) throw new Error(await response.text());
       return response.json() as Promise<McpTool[]>;
     },

@@ -1,3 +1,6 @@
+// TODO(redesign): The Conductor UI (board controls, frame, and settings tab)
+// doesn't match the rest of the app's design and is due for a rework. Keep
+// changes here minimal until then.
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { AudioLines, Filter, Pause, Play, Settings2 } from "lucide-react";
@@ -17,7 +20,7 @@ export function ConductorControls({ projectId, only, onOnlyChange }: { projectId
       {data?.settings.enabled ? "Pause Conductor" : "Start Conductor"}
     </Button>
     <Button variant="ghost" size="icon-sm" asChild>
-      <Link to="/project/settings/$projectId" params={{ projectId: String(projectId) }} search={{ tab: "conductor" }} aria-label="Conductor settings"><Settings2 className="size-4" /></Link>
+      <Link to="/app/project/settings/$projectId" params={{ projectId: String(projectId) }} search={{ tab: "conductor" }} aria-label="Conductor settings"><Settings2 className="size-4" /></Link>
     </Button>
     {conductor?.isError && <span role="alert" className="text-xs text-destructive">Conductor is unavailable. <button className="underline" onClick={() => void conductor.refetch()}>Retry</button></span>}
     {data?.configurationError && !data.settings.enabled && <span className="text-xs text-muted-foreground">Choose stages in Conductor settings.</span>}

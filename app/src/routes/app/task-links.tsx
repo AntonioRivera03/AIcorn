@@ -7,7 +7,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { RelationshipTypesPage } from "@/features/relationship-types/relationship-types-page";
 
-export const Route = createFileRoute("/task-links")({
+export const Route = createFileRoute("/app/task-links")({
   component: RouteComponent,
 });
 

@@ -41,7 +41,7 @@ export function NavPinnedProjects() {
             <SidebarMenuItem key={project.Name}>
               <SidebarMenuButton asChild size={isMobile ? "lg" : "default"}>
                 <Link
-                  to={"/project/$projectId"}
+                  to={"/app/project/$projectId"}
                   params={{
                     projectId: project.ID.toString(),
                   }}

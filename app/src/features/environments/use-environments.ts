@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { BulkResult } from "@/types/types";
@@ -79,7 +80,7 @@ export async function environmentRequest<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method,
     signal,
     headers:

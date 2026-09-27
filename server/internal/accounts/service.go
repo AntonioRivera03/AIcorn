@@ -154,7 +154,7 @@ func (s *Service) Workspaces(ctx context.Context, accountID int64) ([]Workspace,
 
 func (s *Service) SetUsage(ctx context.Context, accountID int64, usage Usage) error {
 	if usage != UsageSolo && usage != UsageOrganization {
-		return fmt.Errorf("%w: usage must be solo or organization", ErrInvalidInput)
+		return invalidInput("usage must be solo or organization")
 	}
 	return s.Store.SetUsage(ctx, accountID, usage)
 }
@@ -264,7 +264,7 @@ func (s *Service) Members(ctx context.Context, actorID, workspaceID int64) ([]Me
 // organization always keeps at least one owner.
 func (s *Service) SetMemberRole(ctx context.Context, actorID, workspaceID, accountID int64, role Role) error {
 	if !validRole(role) {
-		return fmt.Errorf("%w: unknown role", ErrInvalidInput)
+		return invalidInput("unknown role")
 	}
 	return s.Store.InTx(ctx, func(tx *Store) error {
 		actor, err := tx.WorkspaceForMember(ctx, workspaceID, actorID)
@@ -352,7 +352,7 @@ func (s *Service) Invite(ctx context.Context, actorID, workspaceID int64, email 
 		role = RoleMember
 	}
 	if role != RoleMember && role != RoleAdmin {
-		return CreatedInvite{}, fmt.Errorf("%w: invites can be for members or admins", ErrInvalidInput)
+		return CreatedInvite{}, invalidInput("invites can be for members or admins")
 	}
 	ws, err := s.organizationForManager(ctx, actorID, workspaceID)
 	if err != nil {
@@ -478,7 +478,7 @@ func inviteEmail(to, inviter, workspace, code, link string) Email {
 func cleanName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > maxNameLength {
-		return "", fmt.Errorf("%w: name must be 1–%d characters", ErrInvalidInput, maxNameLength)
+		return "", invalidInput(fmt.Sprintf("name must be 1–%d characters", maxNameLength))
 	}
 	return name, nil
 }
@@ -487,7 +487,7 @@ func cleanEmail(email string) (string, error) {
 	email = strings.TrimSpace(email)
 	addr, err := mail.ParseAddress(email)
 	if err != nil || addr.Address != email || !strings.Contains(email, "@") {
-		return "", fmt.Errorf("%w: enter a valid email address", ErrInvalidInput)
+		return "", invalidInput("enter a valid email address")
 	}
 	return email, nil
 }
@@ -503,10 +503,10 @@ func cleanNameAndEmail(name, email string) (string, string, error) {
 
 func validatePassword(password string) error {
 	if utf8.RuneCountInString(password) < minPasswordLength {
-		return fmt.Errorf("%w: password must be at least %d characters", ErrInvalidInput, minPasswordLength)
+		return invalidInput(fmt.Sprintf("password must be at least %d characters", minPasswordLength))
 	}
 	if len(password) > maxPasswordBytes {
-		return fmt.Errorf("%w: password is too long", ErrInvalidInput)
+		return invalidInput("password is too long")
 	}
 	return nil
 }

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BEHAVIOR_COLOR } from "@/features/relationship-types/behavior-constants";
 import type { BulkResult, TaskRelationshipType } from "@/types/types";
@@ -27,7 +28,7 @@ export function useRelationshipTypeMutation() {
       behavior: string;
       icon: string;
     }) => {
-      const res = await fetch("/api/task-relationship-type", {
+      const res = await apiFetch("/api/task-relationship-type", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -45,7 +46,7 @@ export function useRelationshipTypeMutation() {
         "ID" | "FromName" | "ToName" | "Behavior" | "Icon"
       >,
     ) => {
-      const res = await fetch(`/api/task-relationship-type/${type.ID}`, {
+      const res = await apiFetch(`/api/task-relationship-type/${type.ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -70,7 +71,7 @@ export function useRelationshipTypeMutation() {
 
   const updateRelationshipTypeIcon = useMutation({
     mutationFn: async ({ id, icon }: { id: number; icon: string }) => {
-      const res = await fetch(`/api/task-relationship-type/${id}/icon`, {
+      const res = await apiFetch(`/api/task-relationship-type/${id}/icon`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ icon }),
@@ -90,7 +91,7 @@ export function useRelationshipTypeMutation() {
       fromName: string;
       toName: string;
     }) => {
-      const res = await fetch(`/api/task-relationship-type/${id}/names`, {
+      const res = await apiFetch(`/api/task-relationship-type/${id}/names`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fromName, toName }),
@@ -103,7 +104,7 @@ export function useRelationshipTypeMutation() {
 
   const deleteRelationshipType = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/task-relationship-type/${id}`, {
+      const res = await apiFetch(`/api/task-relationship-type/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(await res.text());
@@ -119,7 +120,7 @@ export function useRelationshipTypeMutation() {
       ids: number[];
       behavior: string;
     }) => {
-      const res = await fetch(`/api/task-relationship-type/bulk/behavior`, {
+      const res = await apiFetch(`/api/task-relationship-type/bulk/behavior`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, behavior }),
@@ -132,7 +133,7 @@ export function useRelationshipTypeMutation() {
 
   const bulkDeleteRelationshipTypes = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch(`/api/task-relationship-type/bulk/delete`, {
+      const res = await apiFetch(`/api/task-relationship-type/bulk/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ids),

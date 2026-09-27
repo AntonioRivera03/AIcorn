@@ -7,7 +7,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { TaskTypesPage } from "@/features/task-types/task-types-page";
 
-export const Route = createFileRoute("/task-types")({
+export const Route = createFileRoute("/app/task-types")({
   component: RouteComponent,
 });
 

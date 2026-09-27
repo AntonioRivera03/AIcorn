@@ -86,7 +86,7 @@ export function WorkflowCard({ workflow }: { workflow: WorkflowSummary }) {
           if (e.defaultPrevented) return;
           if (!isEditing) {
             navigate({
-              to: "/workflow/$workflowId",
+              to: "/app/workflow/$workflowId",
               params: { workflowId: String(workflow.ID) },
             });
           }

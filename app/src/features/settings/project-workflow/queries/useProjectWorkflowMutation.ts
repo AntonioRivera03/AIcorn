@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import { useMutation } from "@tanstack/react-query";
 import type { BulkResult } from "@/types/types";
@@ -10,7 +11,7 @@ export type SwitchWorkflowInput = {
 export function useProjectWorkflowMutation(projectId: number) {
   const switchWorkflow = useMutation<BulkResult, Error, SwitchWorkflowInput>({
     mutationFn: async ({ workflowId, stageMappings }) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${projectId}/settings/workflow`,
         {
           method: "PUT",

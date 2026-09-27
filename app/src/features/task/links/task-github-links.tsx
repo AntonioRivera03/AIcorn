@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,7 +32,7 @@ type TaskLink = {
   revision: number;
 };
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await apiFetch(url, init);
   if (!response.ok)
     throw new Error(
       (await response.text()).trim() || "Could not load GitHub links",

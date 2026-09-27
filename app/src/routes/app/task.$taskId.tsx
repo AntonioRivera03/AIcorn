@@ -9,7 +9,7 @@ import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { TaskContext } from "@/contexts/task/TaskContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const Route = createFileRoute("/task/$taskId")({
+export const Route = createFileRoute("/app/task/$taskId")({
   component: RouteComponent,
 });
 
@@ -20,10 +20,10 @@ function TaskPageHeader({ projectId }: { projectId: number }) {
   return (
     <PageHeader
       breadcrumb={[
-        { label: "Projects", to: "/" },
+        { label: "Projects", to: "/app" },
         {
           label: Project.Name || "Project",
-          to: "/project/$projectId",
+          to: "/app/project/$projectId",
           params: { projectId: String(projectId) },
         },
         task.Name || "Task",
@@ -39,7 +39,7 @@ function RouteComponent() {
   if (isPending || !task) {
     return (
       <Page>
-        <PageHeader breadcrumb={[{ label: "Projects", to: "/" }, "Loading..."]} />
+        <PageHeader breadcrumb={[{ label: "Projects", to: "/app" }, "Loading..."]} />
         <PageContent>
           <div className="flex flex-col gap-4 max-w-4xl w-full">
             <Skeleton className="h-8 w-2/3" />

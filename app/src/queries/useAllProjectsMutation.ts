@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import { useMutation } from "@tanstack/react-query";
 import type { BulkResult } from "@/types/types";
@@ -10,7 +11,7 @@ export function useAllProjectsMutation() {
 
   const createProject = useMutation({
     mutationFn: async (body: { workflowId: number }) => {
-      const res = await fetch(`/api/project`, {
+      const res = await apiFetch(`/api/project`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -32,7 +33,7 @@ export function useAllProjectsMutation() {
       ids: number[];
       pinned: boolean;
     }) => {
-      const res = await fetch(`/api/project/bulk/pinned`, {
+      const res = await apiFetch(`/api/project/bulk/pinned`, {
         method: "PUT",
         body: JSON.stringify({ ids, pinned }),
       });
@@ -47,7 +48,7 @@ export function useAllProjectsMutation() {
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch(`/api/project/bulk/delete`, {
+      const res = await apiFetch(`/api/project/bulk/delete`, {
         method: "POST",
         body: JSON.stringify(ids),
       });

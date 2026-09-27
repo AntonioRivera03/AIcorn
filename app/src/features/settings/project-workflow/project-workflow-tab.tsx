@@ -20,7 +20,7 @@ export function ProjectWorkflowTab({ projectId }: { projectId: number }) {
 
   const goToWorkflow = () =>
     navigate({
-      to: "/workflow/$workflowId",
+      to: "/app/workflow/$workflowId",
       params: { workflowId: String(data.Workflow.ID) },
     });
 

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { BulkResult } from "@/types/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -6,7 +7,7 @@ export function useEnableCategoryMutation(projectId: number) {
 
   return useMutation({
     mutationFn: async (categoryId: number) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${projectId}/settings/task-types/bulk/enable-category`,
         {
           method: "POST",

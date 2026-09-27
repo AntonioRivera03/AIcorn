@@ -406,7 +406,7 @@ function TemplateEditor({
         toast.success("Task created", {
           description: (
             <Link
-              to="/task/$taskId"
+              to="/app/task/$taskId"
               params={{ taskId: String(result.taskId) }}
               className="underline"
             >
@@ -725,7 +725,7 @@ function JobEditor({
           </p>
           <Button asChild variant="link" className="h-auto p-0">
             <Link
-              to="/project/settings/$projectId"
+              to="/app/project/settings/$projectId"
               params={{ projectId: String(j.projectId) }}
               search={{ tab: "conductor" }}
             >
@@ -788,7 +788,7 @@ function JobEditor({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {r.taskId ? (
                         <Link
-                          to="/task/$taskId"
+                          to="/app/task/$taskId"
                           params={{ taskId: String(r.taskId) }}
                           className="font-medium underline underline-offset-4"
                         >

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { TaskWithProject } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 import type { UpcomingFilters } from "@/features/upcoming/hooks/useUpcomingFilters";
@@ -44,7 +45,7 @@ export function useUpcomingTasksQuery(filters: UpcomingFilters) {
       if (completedFrom && completedFromHasTime) url.searchParams.set("completedFromHasTime", "true");
       if (completedTo) url.searchParams.set("completedTo", completedTo);
       if (completedTo && completedToHasTime) url.searchParams.set("completedToHasTime", "true");
-      const res = await fetch(url.toString());
+      const res = await apiFetch(url.toString());
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },

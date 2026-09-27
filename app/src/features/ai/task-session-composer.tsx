@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
@@ -53,7 +54,7 @@ export function TaskSessionComposer({
   const pending = useRef<Input | null>(null);
   const send = useMutation({
     mutationFn: async (input: Input): Promise<Result> => {
-      const response = await fetch(`/api/ai/tasks/${taskId}/session/messages`, {
+      const response = await apiFetch(`/api/ai/tasks/${taskId}/session/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),

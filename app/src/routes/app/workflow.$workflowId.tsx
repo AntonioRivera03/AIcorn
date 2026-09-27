@@ -6,7 +6,7 @@ import { StageTypeSummary } from "@/features/workflows/details/stage-type-summar
 import { StageList } from "@/features/workflows/details/stage-list";
 import { StagesBulkActionsToolbar } from "@/features/workflows/details/stages-bulk-actions-toolbar";
 
-export const Route = createFileRoute("/workflow/$workflowId")({
+export const Route = createFileRoute("/app/workflow/$workflowId")({
   component: RouteComponent,
   validateSearch: (search: Record<string, unknown>): { new?: boolean } => {
     const isNew = search.new === true || search.new === "true";
@@ -24,7 +24,7 @@ function RouteComponent() {
     <Page>
       <PageHeader
         breadcrumb={[
-          { label: "Workflows", to: "/workflows" },
+          { label: "Workflows", to: "/app/workflows" },
           workflow?.Name ?? "Untitled Workflow",
         ]}
       />
