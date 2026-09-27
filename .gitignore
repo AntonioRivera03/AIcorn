@@ -15,3 +15,6 @@ aycorn-worktrees/
 build/Aycorn.app
 build/AppIcon.iconset
 server/cmd/web/build/
+
+# Agent session state (oh-my-opencode)
+**/.omo/run-continuation/
