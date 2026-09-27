@@ -37,6 +37,37 @@ func ResolveDBPath() (string, error) {
 	return filepath.Join(dir, "app.db"), nil
 }
 
+// ResolveDataDir returns the directory multi-user Aycorn keeps its data in:
+// accounts.db plus one sub-directory per workspace (see cmd/web).
+//
+// Precedence:
+//  1. $AYCORN_DATA_DIR — explicit override (`make dev-test` points it at a
+//     disposable server/data directory).
+//  2. <os.UserConfigDir()>/aycorn — the default for installed binaries. A
+//     single-user app.db from before accounts existed may sit here too; it is
+//     left untouched.
+func ResolveDataDir() (string, error) {
+	dir := os.Getenv("AYCORN_DATA_DIR")
+	if dir == "" {
+		cfgDir, err := os.UserConfigDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(cfgDir, "aycorn")
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	return dir, nil
+}
+
 // Open opens the DB with the app's standard pragmas: foreign keys on, WAL
 // journal mode (required so cmd/web and cmd/mcp can hold connections to the
 // same file at once — see Documentation/ai-architecture.md §4), and a busy

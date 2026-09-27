@@ -52,6 +52,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func httpStatusForError(err error) int {
+	if status, ok := accountsStatus(err); ok {
+		return status
+	}
 	switch {
 	case errors.Is(err, sql.ErrNoRows),
 		errors.Is(err, services.ErrInvalidTask),
