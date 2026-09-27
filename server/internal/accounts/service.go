@@ -23,12 +23,14 @@ const (
 
 // Service holds the account and workspace rules. Provision is called inside
 // the transaction that creates a workspace, so a workspace row never exists
-// without its database.
+// without its database; Unprovision undoes it if that transaction then rolls
+// back, so no database outlives its row.
 type Service struct {
-	Store     *Store
-	Mailer    Mailer
-	Provision func(ctx context.Context, workspaceID int64) error
-	Now       func() time.Time
+	Store       *Store
+	Mailer      Mailer
+	Provision   func(ctx context.Context, workspaceID int64) error
+	Unprovision func(workspaceID int64)
+	Now         func() time.Time
 }
 
 func (s *Service) now() time.Time {
@@ -59,7 +61,7 @@ func (s *Service) Signup(ctx context.Context, name, email, password string) (Acc
 		return Account{}, Session{}, err
 	}
 	var account Account
-	err = s.Store.InTx(ctx, func(tx *Store) error {
+	err = s.inWorkspaceTx(ctx, func(tx *Store, provision provisioner) error {
 		if taken, err := tx.EmailExists(ctx, email); err != nil {
 			return err
 		} else if taken {
@@ -70,7 +72,7 @@ func (s *Service) Signup(ctx context.Context, name, email, password string) (Acc
 			return err
 		}
 		account = Account{ID: id, Email: email, Name: name}
-		_, err = s.createWorkspace(ctx, tx, KindPersonal, "Personal", id)
+		_, err = s.createWorkspace(ctx, tx, provision, KindPersonal, "Personal", id)
 		return err
 	})
 	if err != nil {
@@ -189,8 +191,8 @@ func (s *Service) CreateOrganization(ctx context.Context, accountID int64, name 
 		return Workspace{}, err
 	}
 	var workspace Workspace
-	err = s.Store.InTx(ctx, func(tx *Store) error {
-		workspace, err = s.createWorkspace(ctx, tx, KindOrganization, name, accountID)
+	err = s.inWorkspaceTx(ctx, func(tx *Store, provision provisioner) error {
+		workspace, err = s.createWorkspace(ctx, tx, provision, KindOrganization, name, accountID)
 		if err != nil {
 			return err
 		}
@@ -199,9 +201,33 @@ func (s *Service) CreateOrganization(ctx context.Context, accountID int64, name 
 	return workspace, err
 }
 
+// provisioner provisions workspaces created inside one transaction.
+type provisioner func(ctx context.Context, workspaceID int64) error
+
+// inWorkspaceTx runs fn in a transaction that may create workspaces. If the
+// transaction fails, every workspace provisioned during it is unprovisioned.
+func (s *Service) inWorkspaceTx(ctx context.Context, fn func(tx *Store, provision provisioner) error) error {
+	var provisioned []int64
+	provision := func(ctx context.Context, id int64) error {
+		if s.Provision == nil {
+			return nil
+		}
+		// Recorded before provisioning so a partial provision is undone too.
+		provisioned = append(provisioned, id)
+		return s.Provision(ctx, id)
+	}
+	err := s.Store.InTx(ctx, func(tx *Store) error { return fn(tx, provision) })
+	if err != nil && s.Unprovision != nil {
+		for _, id := range provisioned {
+			s.Unprovision(id)
+		}
+	}
+	return err
+}
+
 // createWorkspace makes the workspace, its owner membership, and its
 // database. For a personal workspace, owner is also the workspace's account.
-func (s *Service) createWorkspace(ctx context.Context, tx *Store, kind WorkspaceKind, name string, owner int64) (Workspace, error) {
+func (s *Service) createWorkspace(ctx context.Context, tx *Store, provision provisioner, kind WorkspaceKind, name string, owner int64) (Workspace, error) {
 	var personalAccount *int64
 	if kind == KindPersonal {
 		personalAccount = &owner
@@ -213,10 +239,8 @@ func (s *Service) createWorkspace(ctx context.Context, tx *Store, kind Workspace
 	if err := tx.InsertMembership(ctx, id, owner, RoleOwner); err != nil {
 		return Workspace{}, err
 	}
-	if s.Provision != nil {
-		if err := s.Provision(ctx, id); err != nil {
-			return Workspace{}, fmt.Errorf("provisioning workspace %d: %w", id, err)
-		}
+	if err := provision(ctx, id); err != nil {
+		return Workspace{}, fmt.Errorf("provisioning workspace %d: %w", id, err)
 	}
 	return Workspace{ID: id, Kind: kind, Name: name, Role: RoleOwner}, nil
 }

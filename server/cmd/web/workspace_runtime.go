@@ -253,12 +253,24 @@ type workspaceRegistry struct {
 	dataDir string
 	cfg     runtimeConfig
 
-	mu       sync.Mutex
-	runtimes map[int64]*workspaceRuntime
+	// mu guards the map only. Starting a runtime (migrations, goroutines)
+	// happens outside it, so a workspace being created never stalls requests
+	// to the others.
+	mu      sync.Mutex
+	entries map[int64]*runtimeEntry
+}
+
+// runtimeEntry is one workspace's runtime, possibly still starting. ready is
+// closed once rt/err are set; concurrent callers for the same workspace wait
+// on it instead of starting a second runtime.
+type runtimeEntry struct {
+	ready chan struct{}
+	rt    *workspaceRuntime
+	err   error
 }
 
 func newWorkspaceRegistry(ctx context.Context, dataDir string, cfg runtimeConfig) *workspaceRegistry {
-	return &workspaceRegistry{ctx: ctx, dataDir: dataDir, cfg: cfg, runtimes: map[int64]*workspaceRuntime{}}
+	return &workspaceRegistry{ctx: ctx, dataDir: dataDir, cfg: cfg, entries: map[int64]*runtimeEntry{}}
 }
 
 func (r *workspaceRegistry) dbPath(id int64) string {
@@ -269,16 +281,26 @@ func (r *workspaceRegistry) dbPath(id int64) string {
 // work runs under the registry's context, never the caller's request.
 func (r *workspaceRegistry) get(id int64) (*workspaceRuntime, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if rt, ok := r.runtimes[id]; ok {
-		return rt, nil
+	if entry, ok := r.entries[id]; ok {
+		r.mu.Unlock()
+		<-entry.ready
+		return entry.rt, entry.err
 	}
+	entry := &runtimeEntry{ready: make(chan struct{})}
+	r.entries[id] = entry
+	r.mu.Unlock()
+
 	rt, err := startWorkspaceRuntime(r.ctx, r.cfg, r.dbPath(id))
 	if err != nil {
-		return nil, fmt.Errorf("workspace %d: %w", id, err)
+		err = fmt.Errorf("workspace %d: %w", id, err)
+		// Forget the failure so a later request can retry.
+		r.mu.Lock()
+		delete(r.entries, id)
+		r.mu.Unlock()
 	}
-	r.runtimes[id] = rt
-	return rt, nil
+	entry.rt, entry.err = rt, err
+	close(entry.ready)
+	return rt, err
 }
 
 // provision creates, migrates, and seeds a new workspace's database. It is
@@ -293,15 +315,41 @@ func (r *workspaceRegistry) provision(_ context.Context, id int64) error {
 	return rt.app.workflowService.EnsureStarterWorkflow()
 }
 
+// unprovision undoes provision for a workspace whose creation rolled back:
+// it stops the runtime and deletes its directory. SQLite hands a rolled-back
+// ID to the next workspace, which must start from nothing.
+func (r *workspaceRegistry) unprovision(id int64) {
+	r.mu.Lock()
+	entry, ok := r.entries[id]
+	delete(r.entries, id)
+	r.mu.Unlock()
+	if ok {
+		<-entry.ready
+		if entry.rt != nil {
+			entry.rt.stop()
+		}
+	}
+	if err := os.RemoveAll(filepath.Dir(r.dbPath(id))); err != nil {
+		log.Printf("removing rolled-back workspace %d: %v", id, err)
+	}
+}
+
 // stopAll stops every runtime's background work and takes a final backup.
 func (r *workspaceRegistry) stopAll() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	entries := r.entries
+	r.entries = map[int64]*runtimeEntry{}
+	r.mu.Unlock()
 	var wg sync.WaitGroup
-	for _, rt := range r.runtimes {
+	for _, entry := range entries {
 		wg.Add(1)
-		go func() { defer wg.Done(); rt.stop() }()
+		go func() {
+			defer wg.Done()
+			<-entry.ready
+			if entry.rt != nil {
+				entry.rt.stop()
+			}
+		}()
 	}
 	wg.Wait()
-	r.runtimes = map[int64]*workspaceRuntime{}
 }

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,7 +30,7 @@ func testServer(t *testing.T) (*httptest.Server, *accounts.Service) {
 		t.Fatal(err)
 	}
 	workspaces := newWorkspaceRegistry(ctx, dataDir, runtimeConfig{})
-	service := &accounts.Service{Store: accounts.NewStore(accountsDB), Mailer: accounts.LogMailer{}, Provision: workspaces.provision}
+	service := &accounts.Service{Store: accounts.NewStore(accountsDB), Mailer: accounts.LogMailer{}, Provision: workspaces.provision, Unprovision: workspaces.unprovision}
 	srv := httptest.NewServer((&server{accounts: service, workspaces: workspaces, accountsDB: accountsDB}).routes())
 	t.Cleanup(func() {
 		srv.Close()
@@ -189,5 +191,72 @@ func TestForeignOriginsAreRejected(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != 403 || res.Header.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatalf("foreign origin reached the API: %d", res.StatusCode)
+	}
+}
+
+func TestUnprovisionLeavesNothingForAReusedID(t *testing.T) {
+	t.Setenv("AYCORN_PREVIEW", "1")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	registry := newWorkspaceRegistry(ctx, t.TempDir(), runtimeConfig{})
+	defer registry.stopAll()
+
+	if err := registry.provision(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := registry.get(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.app.projectService.CreateProject(1); err != nil {
+		t.Fatal(err)
+	}
+
+	registry.unprovision(7)
+	if _, err := os.Stat(filepath.Dir(registry.dbPath(7))); !os.IsNotExist(err) {
+		t.Fatalf("workspace directory survived unprovision: %v", err)
+	}
+
+	// A new workspace given the same ID starts from an empty database.
+	fresh, err := registry.get(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh == rt {
+		t.Fatal("registry handed back the rolled-back runtime")
+	}
+	projects, err := fresh.app.projectRepo.All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range projects {
+		if p.Name != "Preview sandbox" {
+			t.Fatalf("rolled-back workspace's data leaked into its successor: %+v", projects)
+		}
+	}
+}
+
+func TestConcurrentGetsShareOneRuntime(t *testing.T) {
+	t.Setenv("AYCORN_PREVIEW", "1")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	registry := newWorkspaceRegistry(ctx, t.TempDir(), runtimeConfig{})
+	defer registry.stopAll()
+
+	results := make(chan *workspaceRuntime, 8)
+	for range 8 {
+		go func() {
+			rt, err := registry.get(3)
+			if err != nil {
+				t.Error(err)
+			}
+			results <- rt
+		}()
+	}
+	first := <-results
+	for range 7 {
+		if rt := <-results; rt != first {
+			t.Fatal("concurrent gets started more than one runtime for a workspace")
+		}
 	}
 }

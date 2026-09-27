@@ -290,7 +290,9 @@ func TestProvisionFailureRollsBackWorkspace(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	ctx := context.Background()
 	owner := mustSignup(t, svc, "Owner", "owner@example.com")
+	var unprovisioned []int64
 	svc.Provision = func(context.Context, int64) error { return errors.New("disk full") }
+	svc.Unprovision = func(id int64) { unprovisioned = append(unprovisioned, id) }
 	if _, err := svc.CreateOrganization(ctx, owner.ID, "Acme"); err == nil {
 		t.Fatal("expected provisioning error")
 	}
@@ -298,4 +300,23 @@ func TestProvisionFailureRollsBackWorkspace(t *testing.T) {
 	if len(workspaces) != 1 {
 		t.Fatalf("half-created workspace left behind: %+v", workspaces)
 	}
+	// The partially provisioned database is torn down, since SQLite will hand
+	// the rolled-back ID to the next workspace.
+	if len(unprovisioned) != 1 {
+		t.Fatalf("expected the failed workspace to be unprovisioned, got %v", unprovisioned)
+	}
+	svc.Provision = func(context.Context, int64) error { return nil }
+	org, err := svc.CreateOrganization(ctx, owner.ID, "Acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if org.ID != unprovisioned[0] {
+		t.Logf("rolled-back ID %d was not reused (got %d); fine either way", unprovisioned[0], org.ID)
+	}
+}
+
+func TestSuccessfulCreationIsNotUnprovisioned(t *testing.T) {
+	svc, _, _ := newTestService(t)
+	svc.Unprovision = func(id int64) { t.Fatalf("workspace %d unprovisioned after a successful signup", id) }
+	mustSignup(t, svc, "Owner", "owner@example.com")
 }

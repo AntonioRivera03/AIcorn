@@ -176,9 +176,10 @@ func main() {
 	})
 	defer workspaces.stopAll()
 	accountService := &accounts.Service{
-		Store:     accounts.NewStore(accountsDB),
-		Mailer:    accounts.MailerFromEnv(),
-		Provision: workspaces.provision,
+		Store:       accounts.NewStore(accountsDB),
+		Mailer:      accounts.MailerFromEnv(),
+		Provision:   workspaces.provision,
+		Unprovision: workspaces.unprovision,
 	}
 
 	// Start every workspace up front so scheduled jobs and agent work keep
