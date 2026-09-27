@@ -9,48 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowsRouteImport } from './routes/workflows'
-import { Route as UsageRouteImport } from './routes/usage'
-import { Route as UpcomingRouteImport } from './routes/upcoming'
-import { Route as TaskTypesRouteImport } from './routes/task-types'
-import { Route as TaskLinksRouteImport } from './routes/task-links'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PersonasRouteImport } from './routes/personas'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TaskLinksRouteImport } from './routes/task-links'
+import { Route as TaskTypesRouteImport } from './routes/task-types'
+import { Route as UpcomingRouteImport } from './routes/upcoming'
+import { Route as UsageRouteImport } from './routes/usage'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
 import { Route as PersonasIndexRouteImport } from './routes/personas.index'
-import { Route as WorkflowWorkflowIdRouteImport } from './routes/workflow.$workflowId'
-import { Route as TaskTaskIdRouteImport } from './routes/task.$taskId'
 import { Route as ProjectProjectIdRouteImport } from './routes/project.$projectId'
+import { Route as TaskTaskIdRouteImport } from './routes/task.$taskId'
+import { Route as WorkflowWorkflowIdRouteImport } from './routes/workflow.$workflowId'
 import { Route as ProjectSettingsProjectIdRouteImport } from './routes/project.settings.$projectId'
 
-const WorkflowsRoute = WorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UsageRoute = UsageRouteImport.update({
-  id: '/usage',
-  path: '/usage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UpcomingRoute = UpcomingRouteImport.update({
-  id: '/upcoming',
-  path: '/upcoming',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TaskTypesRoute = TaskTypesRouteImport.update({
-  id: '/task-types',
-  path: '/task-types',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TaskLinksRoute = TaskLinksRouteImport.update({
-  id: '/task-links',
-  path: '/task-links',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersonasRoute = PersonasRouteImport.update({
@@ -58,9 +33,34 @@ const PersonasRoute = PersonasRouteImport.update({
   path: '/personas',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaskLinksRoute = TaskLinksRouteImport.update({
+  id: '/task-links',
+  path: '/task-links',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaskTypesRoute = TaskTypesRouteImport.update({
+  id: '/task-types',
+  path: '/task-types',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpcomingRoute = UpcomingRouteImport.update({
+  id: '/upcoming',
+  path: '/upcoming',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersonasIndexRoute = PersonasIndexRouteImport.update({
@@ -68,9 +68,9 @@ const PersonasIndexRoute = PersonasIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PersonasRoute,
 } as any)
-const WorkflowWorkflowIdRoute = WorkflowWorkflowIdRouteImport.update({
-  id: '/workflow/$workflowId',
-  path: '/workflow/$workflowId',
+const ProjectProjectIdRoute = ProjectProjectIdRouteImport.update({
+  id: '/project/$projectId',
+  path: '/project/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TaskTaskIdRoute = TaskTaskIdRouteImport.update({
@@ -78,9 +78,9 @@ const TaskTaskIdRoute = TaskTaskIdRouteImport.update({
   path: '/task/$taskId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectProjectIdRoute = ProjectProjectIdRouteImport.update({
-  id: '/project/$projectId',
-  path: '/project/$projectId',
+const WorkflowWorkflowIdRoute = WorkflowWorkflowIdRouteImport.update({
+  id: '/workflow/$workflowId',
+  path: '/workflow/$workflowId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectSettingsProjectIdRoute =
@@ -199,46 +199,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflows': {
-      id: '/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof WorkflowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/usage': {
-      id: '/usage'
-      path: '/usage'
-      fullPath: '/usage'
-      preLoaderRoute: typeof UsageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/upcoming': {
-      id: '/upcoming'
-      path: '/upcoming'
-      fullPath: '/upcoming'
-      preLoaderRoute: typeof UpcomingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/task-types': {
-      id: '/task-types'
-      path: '/task-types'
-      fullPath: '/task-types'
-      preLoaderRoute: typeof TaskTypesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/task-links': {
-      id: '/task-links'
-      path: '/task-links'
-      fullPath: '/task-links'
-      preLoaderRoute: typeof TaskLinksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/personas': {
@@ -248,11 +213,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PersonasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/task-links': {
+      id: '/task-links'
+      path: '/task-links'
+      fullPath: '/task-links'
+      preLoaderRoute: typeof TaskLinksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/task-types': {
+      id: '/task-types'
+      path: '/task-types'
+      fullPath: '/task-types'
+      preLoaderRoute: typeof TaskTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upcoming': {
+      id: '/upcoming'
+      path: '/upcoming'
+      fullPath: '/upcoming'
+      preLoaderRoute: typeof UpcomingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/personas/': {
@@ -262,11 +262,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PersonasIndexRouteImport
       parentRoute: typeof PersonasRoute
     }
-    '/workflow/$workflowId': {
-      id: '/workflow/$workflowId'
-      path: '/workflow/$workflowId'
-      fullPath: '/workflow/$workflowId'
-      preLoaderRoute: typeof WorkflowWorkflowIdRouteImport
+    '/project/$projectId': {
+      id: '/project/$projectId'
+      path: '/project/$projectId'
+      fullPath: '/project/$projectId'
+      preLoaderRoute: typeof ProjectProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/task/$taskId': {
@@ -276,11 +276,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TaskTaskIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/project/$projectId': {
-      id: '/project/$projectId'
-      path: '/project/$projectId'
-      fullPath: '/project/$projectId'
-      preLoaderRoute: typeof ProjectProjectIdRouteImport
+    '/workflow/$workflowId': {
+      id: '/workflow/$workflowId'
+      path: '/workflow/$workflowId'
+      fullPath: '/workflow/$workflowId'
+      preLoaderRoute: typeof WorkflowWorkflowIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/project/settings/$projectId': {
