@@ -2,7 +2,7 @@
 // doesn't match the rest of the app's design and is due for a rework. Keep
 // changes here minimal until then.
 import { Link } from "@tanstack/react-router";
-import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { useAISettings } from "@/features/ai/queries/use-ai";
 import { useId, useState } from "react";
 import { AudioLines, CheckCheck, Code2 } from "lucide-react";
 import {
@@ -87,7 +87,7 @@ const phases = [
 
 export function ConductorSettingsTab({ projectId }: { projectId: number }) {
   const conductor = useConductor(projectId);
-  const agents = usePersonasQuery();
+  const ai = useAISettings();
   const workflow = useProjectWorkflowSettingsQuery(projectId);
   if (conductor.isPending || workflow.isPending)
     return (
@@ -237,33 +237,34 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
         <CardHeader>
           <CardTitle>Agents and execution</CardTitle>
           <CardDescription>
-            Conductor is this project’s built-in task dispatcher. It chooses a
-            task agent and starts a separate session through MCP. Model choices
-            are captured when the task starts.
+            Conductor is this project’s built-in task dispatcher. It hands each
+            task to Coder, Reviewer or Research and starts a separate session
+            through MCP. Model choices are captured when the task starts.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="rounded-lg border border-border p-4 space-y-1">
             <p className="font-medium">Conductor · Default orchestrator</p>
             <p className="text-sm text-muted-foreground">
-              {agents.data?.find((agent) => agent.BuiltinRole === "conductor")
-                ?.Model ?? "Loading model…"}
+              {ai.data?.settings.model ?? "Loading model…"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Its instructions and workflow skill are bundled with Aycorn.
-              Change agent models on the AI page.
+              Built into Aycorn and always runs on the workspace’s default
+              model.
             </p>
           </div>
-          {agents.isError && (
+          {ai.isError && (
             <p className="text-sm text-destructive">
-              Could not load agent models.{" "}
-              <Button variant="link" onClick={() => void agents.refetch()}>
+              Could not load AI settings.{" "}
+              <Button variant="link" onClick={() => void ai.refetch()}>
                 Retry
               </Button>
             </p>
           )}
           <Button asChild variant="outline">
-            <Link to="/app/personas">Agent models and instructions</Link>
+            <Link to="/app/settings" search={{ tab: "ai" }}>
+              Harness and agent models
+            </Link>
           </Button>
           <div className="flex items-start gap-3">
             <Checkbox

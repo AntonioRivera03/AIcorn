@@ -1,3 +1,5 @@
+import type { PersonaHarness } from "@/types/types";
+
 export type AIIntent = "ask" | "plan" | "implement" | "review";
 export type AIRunInput = {
   intent: AIIntent;
@@ -6,12 +8,30 @@ export type AIRunInput = {
   useRepository: boolean;
 };
 export type AISettings = {
+  harness: PersonaHarness;
   model: string;
   executable: string;
   timeoutSeconds: number;
 };
+// A harness the workspace can choose. `runnable` is false while Aycorn has no
+// adapter for it, and `note` says why.
+export type HarnessInfo = {
+  id: PersonaHarness;
+  name: string;
+  runnable: boolean;
+  note?: string;
+};
+export type HarnessModel = {
+  id: string;
+  name: string;
+  description?: string;
+  default?: boolean;
+};
+// `live` is true when the harness listed its own models, false for Aycorn's
+// fixed fallback list.
+export type HarnessModels = { models: HarnessModel[]; live: boolean };
 export type AISettingsResponse = {
-	providers: { id: string; name: string; enabled: boolean; reason?: string }[];
+  providers: HarnessInfo[];
   settings: AISettings;
   engine: {
     ready: boolean;

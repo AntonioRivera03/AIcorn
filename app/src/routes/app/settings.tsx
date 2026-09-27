@@ -6,6 +6,7 @@ import {
 } from "@/components/page/Page";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AISettingsPanel } from "@/features/ai/settings/ai-settings-panel";
 import { AccountPanel } from "@/features/settings/account-panel";
 import { EmptyPanel } from "@/features/settings/empty-panel";
 import { PreferencesPanel } from "@/features/settings/preferences-panel";
@@ -32,7 +33,7 @@ function RouteComponent() {
       <PageContent>
         <PageTitle
           title="Settings"
-          description="Manage your account, who's in your organization, and your preferences."
+          description="Manage your account, who's in your organization, your preferences, and Aycorn AI."
         />
 
         <Tabs
@@ -65,10 +66,7 @@ function RouteComponent() {
           </TabsContent>
 
           <TabsContent value="ai" className="pt-4">
-            <EmptyPanel
-              title="Aycorn AI"
-              description="Configure how Aycorn AI assists you across the app."
-            />
+            <AISettingsPanel />
           </TabsContent>
 
           <TabsContent value="notifications" className="pt-4">

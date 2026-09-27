@@ -10,7 +10,6 @@ import {
 import { WorkspaceSwitcher } from "@/features/workspaces/workspace-switcher";
 import {
   CalendarClockIcon,
-  BotIcon,
   ChartAreaIcon,
   FolderIcon,
   LinkIcon,
@@ -43,11 +42,6 @@ const data = {
       title: "Task Types",
       url: "/app/task-types",
       icon: TagsIcon,
-    },
-    {
-      title: "AI",
-      url: "/app/personas",
-      icon: BotIcon,
     },
     {
       title: "Task Links",

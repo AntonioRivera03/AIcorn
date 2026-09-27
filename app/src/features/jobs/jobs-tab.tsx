@@ -589,9 +589,7 @@ function JobEditor({
   const fields = usePendingFields();
   const edit = useJobEdit<ScheduledJob>(j.projectId, j.id, "jobs");
   const agents = usePersonasQuery();
-  const taskAgents = (agents.data ?? []).filter(
-    (agent) => !["conductor", "chatter"].includes(agent.BuiltinRole ?? ""),
-  );
+  const taskAgents = (agents.data ?? []).filter((agent) => agent.TaskAgent);
   const url = `/api/project/${j.projectId}/automation/jobs/${j.id}`;
   const history = useQuery({
     queryKey: ["scheduled-job-runs", j.id],

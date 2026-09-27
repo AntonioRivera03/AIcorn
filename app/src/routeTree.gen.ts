@@ -18,7 +18,6 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AppIndexRouteImport } from './routes/app/index'
-import { Route as AppPersonasRouteImport } from './routes/app/personas'
 import { Route as AppSettingsRouteImport } from './routes/app/settings'
 import { Route as AppTaskLinksRouteImport } from './routes/app/task-links'
 import { Route as AppTaskTypesRouteImport } from './routes/app/task-types'
@@ -26,7 +25,6 @@ import { Route as AppUpcomingRouteImport } from './routes/app/upcoming'
 import { Route as AppUsageRouteImport } from './routes/app/usage'
 import { Route as AppWorkflowsRouteImport } from './routes/app/workflows'
 import { Route as InviteCodeRouteImport } from './routes/invite.$code'
-import { Route as AppPersonasIndexRouteImport } from './routes/app/personas.index'
 import { Route as AppProjectProjectIdRouteImport } from './routes/app/project.$projectId'
 import { Route as AppTaskTaskIdRouteImport } from './routes/app/task.$taskId'
 import { Route as AppWorkflowWorkflowIdRouteImport } from './routes/app/workflow.$workflowId'
@@ -77,11 +75,6 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppPersonasRoute = AppPersonasRouteImport.update({
-  id: '/personas',
-  path: '/personas',
-  getParentRoute: () => AppRouteRoute,
-} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -117,11 +110,6 @@ const InviteCodeRoute = InviteCodeRouteImport.update({
   path: '/invite/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppPersonasIndexRoute = AppPersonasIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppPersonasRoute,
-} as any)
 const AppProjectProjectIdRoute = AppProjectProjectIdRouteImport.update({
   id: '/project/$projectId',
   path: '/project/$projectId',
@@ -153,7 +141,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/app/personas': typeof AppPersonasRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/task-links': typeof AppTaskLinksRoute
   '/app/task-types': typeof AppTaskTypesRoute
@@ -165,7 +152,6 @@ export interface FileRoutesByFullPath {
   '/app/project/$projectId': typeof AppProjectProjectIdRoute
   '/app/task/$taskId': typeof AppTaskTaskIdRoute
   '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
-  '/app/personas/': typeof AppPersonasIndexRoute
   '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRoutesByTo {
@@ -187,7 +173,6 @@ export interface FileRoutesByTo {
   '/app/project/$projectId': typeof AppProjectProjectIdRoute
   '/app/task/$taskId': typeof AppTaskTaskIdRoute
   '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
-  '/app/personas': typeof AppPersonasIndexRoute
   '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRoutesById {
@@ -200,7 +185,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/app/personas': typeof AppPersonasRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/task-links': typeof AppTaskLinksRoute
   '/app/task-types': typeof AppTaskTypesRoute
@@ -212,7 +196,6 @@ export interface FileRoutesById {
   '/app/project/$projectId': typeof AppProjectProjectIdRoute
   '/app/task/$taskId': typeof AppTaskTaskIdRoute
   '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
-  '/app/personas/': typeof AppPersonasIndexRoute
   '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRouteTypes {
@@ -226,7 +209,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/verify-email'
-    | '/app/personas'
     | '/app/settings'
     | '/app/task-links'
     | '/app/task-types'
@@ -238,7 +220,6 @@ export interface FileRouteTypes {
     | '/app/project/$projectId'
     | '/app/task/$taskId'
     | '/app/workflow/$workflowId'
-    | '/app/personas/'
     | '/app/project/settings/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -260,7 +241,6 @@ export interface FileRouteTypes {
     | '/app/project/$projectId'
     | '/app/task/$taskId'
     | '/app/workflow/$workflowId'
-    | '/app/personas'
     | '/app/project/settings/$projectId'
   id:
     | '__root__'
@@ -272,7 +252,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/verify-email'
-    | '/app/personas'
     | '/app/settings'
     | '/app/task-links'
     | '/app/task-types'
@@ -284,7 +263,6 @@ export interface FileRouteTypes {
     | '/app/project/$projectId'
     | '/app/task/$taskId'
     | '/app/workflow/$workflowId'
-    | '/app/personas/'
     | '/app/project/settings/$projectId'
   fileRoutesById: FileRoutesById
 }
@@ -365,13 +343,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/app/personas': {
-      id: '/app/personas'
-      path: '/personas'
-      fullPath: '/app/personas'
-      preLoaderRoute: typeof AppPersonasRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/app/settings': {
       id: '/app/settings'
       path: '/settings'
@@ -421,13 +392,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InviteCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/app/personas/': {
-      id: '/app/personas/'
-      path: '/'
-      fullPath: '/app/personas/'
-      preLoaderRoute: typeof AppPersonasIndexRouteImport
-      parentRoute: typeof AppPersonasRoute
-    }
     '/app/project/$projectId': {
       id: '/app/project/$projectId'
       path: '/project/$projectId'
@@ -459,20 +423,7 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AppPersonasRouteChildren {
-  AppPersonasIndexRoute: typeof AppPersonasIndexRoute
-}
-
-const AppPersonasRouteChildren: AppPersonasRouteChildren = {
-  AppPersonasIndexRoute: AppPersonasIndexRoute,
-}
-
-const AppPersonasRouteWithChildren = AppPersonasRoute._addFileChildren(
-  AppPersonasRouteChildren,
-)
-
 interface AppRouteRouteChildren {
-  AppPersonasRoute: typeof AppPersonasRouteWithChildren
   AppSettingsRoute: typeof AppSettingsRoute
   AppTaskLinksRoute: typeof AppTaskLinksRoute
   AppTaskTypesRoute: typeof AppTaskTypesRoute
@@ -487,7 +438,6 @@ interface AppRouteRouteChildren {
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
-  AppPersonasRoute: AppPersonasRouteWithChildren,
   AppSettingsRoute: AppSettingsRoute,
   AppTaskLinksRoute: AppTaskLinksRoute,
   AppTaskTypesRoute: AppTaskTypesRoute,

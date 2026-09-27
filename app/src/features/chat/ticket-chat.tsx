@@ -274,16 +274,18 @@ export function TicketChat({ taskId }: { taskId: number }) {
                 disabled={busy || agents.isPending}
                 onChange={(e) => setPresetId(Number(e.target.value))}
               >
-                <option value={0}>Codex · default model</option>
+                <option value={0}>Default model</option>
                 {selectedAgent > 0 &&
                   !agents.data?.some((a) => a.ID === selectedAgent) && (
                     <option value={selectedAgent}>Agent unavailable</option>
                   )}
-                {agents.data?.map((a) => (
-                  <option key={a.ID} value={a.ID}>
-                    {a.Name || "Untitled"} · {a.Model}
-                  </option>
-                ))}
+                {agents.data
+                  ?.filter((a) => a.TaskAgent)
+                  .map((a) => (
+                    <option key={a.ID} value={a.ID}>
+                      {a.Name} · {a.Model || "default model"}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="space-y-1">

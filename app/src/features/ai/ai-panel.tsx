@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTaskOwnership } from "./queries/use-task-ownership";
 import { Sparkles, X, ArrowUpRight } from "lucide-react";
 import {
@@ -239,12 +240,7 @@ export function AIPanel({
                     <SelectContent>
                       <SelectItem value="none">Default model</SelectItem>
                       {presets
-                        .filter(
-                          (preset) =>
-                            !["conductor", "chatter"].includes(
-                              preset.BuiltinRole ?? "",
-                            ),
-                        )
+                        .filter((preset) => preset.TaskAgent)
                         .map((preset) => (
                           <SelectItem key={preset.ID} value={String(preset.ID)}>
                             {preset.Name || "Untitled agent"}
@@ -259,9 +255,13 @@ export function AIPanel({
                   {settings.error?.message ||
                     settings.data?.engine.error ||
                     "Choose a model to start using AI."}{" "}
-                  <a className="text-primary underline" href="/app/personas">
+                  <Link
+                    className="text-primary underline"
+                    to="/app/settings"
+                    search={{ tab: "ai" }}
+                  >
                     Open AI settings
-                  </a>
+                  </Link>
                 </p>
               )}
               {needsRepo && context.projects.isError && (
