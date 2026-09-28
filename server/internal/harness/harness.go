@@ -10,6 +10,9 @@ type RunSpec struct {
 	Request    *models.AIRunRequest
 	OnProgress func(string, string) error
 	OnSession  func(string, string) error
+	// OnActivity receives the turn's work so far (thinking and tool calls),
+	// at the same pace as OnProgress. Optional.
+	OnActivity func([]Activity) error
 	JobID      int
 	TaskID     int
 	WorkDir    string
@@ -23,6 +26,8 @@ type RunResult struct {
 	UsageJson string
 	SessionID string
 	TurnID    string
+	// Activity is the turn's thinking and tool calls, in order.
+	Activity []Activity
 }
 
 type Harness interface {

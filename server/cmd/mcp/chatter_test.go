@@ -100,10 +100,13 @@ func TestChatterToolCatalogIsProjectScoped(t *testing.T) {
 	for _, tool := range listed.Tools {
 		names[tool.Name] = true
 	}
-	for _, name := range []string{"project_context", "read_project_document", "request_task_work", "create_task", "update_task", "move_task_stage", "read_task", "search_tasks", "add_task_link"} {
+	for _, name := range []string{"project_context", "read_project_document", "send_to_conductor", "create_task", "update_task", "move_task_stage", "read_task", "search_tasks", "add_task_link"} {
 		if !names[name] {
 			t.Fatal("missing", name)
 		}
+	}
+	if names["request_task_work"] {
+		t.Fatal("Chatter can start agents directly")
 	}
 	if names["list_projects"] || names["list_workflow_stages"] {
 		t.Fatal("unscoped discovery exposed")

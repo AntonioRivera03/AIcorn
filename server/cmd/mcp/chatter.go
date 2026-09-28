@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waseem-polus/aycorn/server/internal/knowledge"
-	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
-	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
 	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 )
@@ -64,32 +62,37 @@ func (t *toolset) readProjectDocument(ctx context.Context, req *mcp.CallToolRequ
 	return nil, map[string]any{"id": d.ID, "title": d.Title, "tags": d.Tags, "details": d.Details, "body": body, "file": d.File, "binaryContentsIncluded": false}, nil
 }
 
-type RequestTaskWorkInput struct {
-	TaskID      int    `json:"taskId"`
-	Intent      string `json:"intent" jsonschema:"ask, plan, implement, or review"`
-	Instruction string `json:"instruction"`
-	PresetID    int    `json:"presetId,omitempty"`
+type SendToConductorInput struct {
+	TaskIDs []int `json:"taskIds" jsonschema:"IDs of tasks in this project to hand to Conductor"`
 }
 
-func (t *toolset) requestTaskWork(ctx context.Context, req *mcp.CallToolRequest, in RequestTaskWorkInput) (*mcp.CallToolResult, *models.AgentJob, error) {
-	if t.aiService == nil {
-		return nil, nil, fmt.Errorf("task dispatch is unavailable")
+type SendToConductorOutput struct {
+	TaskIDs []int `json:"taskIds"`
+	Sent    int   `json:"sent"`
+	Skipped int   `json:"skipped"`
+	Failed  int   `json:"failed"`
+	// ConductorRunning is false while Conductor is paused: sent tasks wait
+	// until someone starts it.
+	ConductorRunning bool `json:"conductorRunning"`
+}
+
+// sendToConductor is how Chatter gets work done without doing it: Conductor
+// picks the agent and runs it in its own session.
+func (t *toolset) sendToConductor(ctx context.Context, req *mcp.CallToolRequest, in SendToConductorInput) (*mcp.CallToolResult, SendToConductorOutput, error) {
+	out := SendToConductorOutput{TaskIDs: in.TaskIDs}
+	if err := t.checkProjectReadScope(); err != nil {
+		return nil, out, err
 	}
-	task, err := t.taskService.GetTask(in.TaskID)
+	if t.conductorService == nil {
+		return nil, out, fmt.Errorf("Conductor is unavailable")
+	}
+	result, err := t.conductorService.Manage(t.runProjectID, in.TaskIDs, "send")
 	if err != nil {
-		return nil, nil, err
+		return nil, out, err
 	}
-	if task.ProjectID != t.runProjectID {
-		return nil, nil, fmt.Errorf("task is outside this project")
+	out.Sent, out.Skipped, out.Failed = result.Success, result.Skipped, result.Failed
+	if settings, _, err := t.conductorService.Repo.Settings(t.runProjectID); err == nil {
+		out.ConductorRunning = settings.Enabled
 	}
-	// Slow provider/repository preparation occurs before the atomic ownership check.
-	snapshot, err := t.aiService.Prepare(ctx, in.TaskID, services.AIRunInput{Intent: in.Intent, Instruction: in.Instruction, PresetID: in.PresetID})
-	if err != nil {
-		return nil, nil, err
-	}
-	if snapshot.ProjectID != t.runProjectID {
-		return nil, nil, fmt.Errorf("task moved outside this project")
-	}
-	job, err := t.aiService.Jobs.EnqueueAI(in.TaskID, in.PresetID, *snapshot, t.runChatTurnID)
-	return nil, job, err
+	return nil, out, nil
 }

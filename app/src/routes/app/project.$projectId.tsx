@@ -8,9 +8,14 @@ import { useContext, useEffect } from "react";
 
 export const Route = createFileRoute("/app/project/$projectId")({
   component: RouteComponent,
-  validateSearch: (search: Record<string, unknown>): { view?: string } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { view?: string; chat?: number } => {
+    const chat = Number(search.chat);
     return {
       view: search.view as string | undefined,
+      // The open chat in the Chats view.
+      chat: Number.isInteger(chat) && chat > 0 ? chat : undefined,
     };
   },
 });

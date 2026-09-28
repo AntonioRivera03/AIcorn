@@ -10,7 +10,7 @@ const (
 	DeferConductorTask  Name = "defer_conductor_task"
 	ProjectContext      Name = "project_context"
 	ReadProjectDocument Name = "read_project_document"
-	RequestTaskWork     Name = "request_task_work"
+	SendToConductor     Name = "send_to_conductor"
 	SearchTasks         Name = "search_tasks"
 	ReadTask            Name = "read_task"
 	ListProjects        Name = "list_projects"
@@ -51,7 +51,7 @@ var descriptions = map[Name]string{
 	DeferConductorTask:  "Record a specific blocker for a waiting managed task. It will await explicit recheck instead of repeatedly running.",
 	ProjectContext:      "Read this project’s actual workflow, stages, checklists, task types, Conductor settings, active task owners, and document metadata.",
 	ReadProjectDocument: "Read a project document’s written notes, tags, imported email headers, and original-file metadata. Binary file contents are not included.",
-	RequestTaskWork:     "Queue a task agent to work on a free task in this project. Implement/review requires a linked repository. Active owners block dispatch; queued does not mean completed.",
+	SendToConductor:     "Give tasks in this project to Conductor, which chooses the right agent (coder, researcher, or reviewer) and starts it while Conductor is running. Tasks Conductor already manages, tasks another agent owns, and finished tasks are skipped. Sent is not started, and started is not done.",
 	SearchTasks:         "Search and filter accessible tasks. Agent runs are limited to their assigned project. Bodies are returned as markdown. Discover stage IDs through project_context in scoped runs, or list_workflow_stages in interactive sessions.",
 	ReadTask:            "Read a single task's full details by id. The body is returned as markdown.",
 	ListProjects:        "List all projects.",

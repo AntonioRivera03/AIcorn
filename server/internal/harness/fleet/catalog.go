@@ -19,6 +19,9 @@ type Definition struct {
 	Role, Name, Description string
 	ReadOnly                bool
 	Internal                bool
+	// Models pins an internal agent to a model on a harness (keyed by harness
+	// ID), in place of the workspace's default model.
+	Models map[string]string
 }
 
 var definitions = []Definition{
@@ -26,7 +29,7 @@ var definitions = []Definition{
 	{Role: "coder", Name: "Coder", Description: "Implements assigned work and verifies the resulting behavior."},
 	{Role: "reviewer", Name: "Reviewer", Description: "Independently reviews changes and validation against the requirements.", ReadOnly: true},
 	{Role: "researcher", Name: "Research", Description: "Resolves technical questions using repository evidence and primary sources.", ReadOnly: true},
-	{Role: "chatter", Name: "Chatter", Description: "Persistent project conversation and scoped task coordination.", ReadOnly: true, Internal: true},
+	{Role: "chatter", Name: "Chatter", Description: "Project knowledge bank and task manager for project chats. Never writes code.", ReadOnly: true, Internal: true, Models: map[string]string{"codex": "gpt-6-sol"}},
 }
 
 func All() []Definition { return append([]Definition(nil), definitions...) }
@@ -41,6 +44,16 @@ func IsTaskRole(role string) bool {
 func IsInternalRole(role string) bool {
 	d, ok := Lookup(role)
 	return ok && d.Internal
+}
+
+// PinnedModel is the model an internal agent always uses on harness, or ""
+// when it follows the workspace's default model.
+func PinnedModel(role, harness string) string {
+	d, ok := Lookup(role)
+	if !ok {
+		return ""
+	}
+	return d.Models[harness]
 }
 
 func Lookup(role string) (Definition, bool) {

@@ -26,51 +26,101 @@ var ErrInvalid = errors.New("invalid project chat request")
 
 type Store struct{ DB *sql.DB }
 type Turn struct {
-	ID           int                 `json:"id"`
-	Conversation int                 `json:"conversationId"`
-	Message      string              `json:"message"`
-	Status       string              `json:"status"`
-	Output       string              `json:"output"`
-	Progress     string              `json:"progress"`
-	Error        string              `json:"error"`
-	SessionID    string              `json:"sessionId,omitempty"`
-	TurnID       string              `json:"turnId,omitempty"`
-	CreatedAt    string              `json:"createdAt"`
-	FinishedAt   string              `json:"finishedAt,omitempty"`
-	Usage        json.RawMessage     `json:"usage"`
-	Request      models.AIRunRequest `json:"-"`
+	ID           int             `json:"id"`
+	Conversation int             `json:"conversationId"`
+	Message      string          `json:"message"`
+	Status       string          `json:"status"`
+	Output       string          `json:"output"`
+	Progress     string          `json:"progress"`
+	Error        string          `json:"error"`
+	SessionID    string          `json:"sessionId,omitempty"`
+	TurnID       string          `json:"turnId,omitempty"`
+	CreatedAt    string          `json:"createdAt"`
+	FinishedAt   string          `json:"finishedAt,omitempty"`
+	Usage        json.RawMessage `json:"usage"`
+	// Activity is the turn's thinking and tool calls (harness.Activity).
+	Activity json.RawMessage     `json:"activity"`
+	Request  models.AIRunRequest `json:"-"`
 }
 type Conversation struct {
 	ID        int    `json:"id"`
 	ProjectID int    `json:"projectId"`
+	Title     string `json:"title"`
+	UpdatedAt string `json:"updatedAt"`
 	Turns     []Turn `json:"turns"`
 }
+
+// Summary is a chat as the chat list shows it.
+type Summary struct {
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	UpdatedAt string `json:"updatedAt"`
+	// Status is the latest turn's, so the list can show a chat that's working.
+	Status string `json:"status"`
+}
+
+const maxTitleLength = 120
+
 type Input struct {
 	Message string `json:"message"`
 	Key     string `json:"key"`
 	TaskIDs []int  `json:"taskIds,omitempty"`
 }
 
-const columns = `id,conversation,message,status,output,progress,error,sessionId,turnId,createdAt,COALESCE(finishedAt,''),usageJson,requestJson`
+// turnColumns lists a turn's columns for scan, each qualified with prefix
+// (e.g. "t.") for queries that join.
+func turnColumns(prefix string) string {
+	names := []string{"id", "conversation", "message", "status", "output", "progress", "error", "sessionId", "turnId", "createdAt", "finishedAt", "usageJson", "activityJson", "requestJson"}
+	for i, name := range names {
+		names[i] = prefix + name
+		if name == "finishedAt" {
+			names[i] = "COALESCE(" + prefix + name + ",'')"
+		}
+	}
+	return strings.Join(names, ",")
+}
+
+var columns = turnColumns("")
 
 func scan(row interface{ Scan(...any) error }) (Turn, error) {
 	var t Turn
-	var usage, request string
-	err := row.Scan(&t.ID, &t.Conversation, &t.Message, &t.Status, &t.Output, &t.Progress, &t.Error, &t.SessionID, &t.TurnID, &t.CreatedAt, &t.FinishedAt, &usage, &request)
+	var usage, activity, request string
+	err := row.Scan(&t.ID, &t.Conversation, &t.Message, &t.Status, &t.Output, &t.Progress, &t.Error, &t.SessionID, &t.TurnID, &t.CreatedAt, &t.FinishedAt, &usage, &activity, &request)
 	t.Usage = json.RawMessage(usage)
+	t.Activity = json.RawMessage(activity)
 	if err == nil {
 		err = json.Unmarshal([]byte(request), &t.Request)
 	}
 	return t, err
 }
-func (s Store) Conversation(project int) (Conversation, error) {
-	var c Conversation
-	c.ProjectID = project
-	c.Turns = []Turn{}
-	if _, err := s.DB.Exec("INSERT INTO project_chat(project) SELECT id FROM project WHERE id=? ON CONFLICT DO NOTHING", project); err != nil {
-		return c, err
+
+// Chats lists a project's chats, most recently used first.
+func (s Store) Chats(project int) ([]Summary, error) {
+	var exists int
+	if err := s.DB.QueryRow("SELECT id FROM project WHERE id=?", project).Scan(&exists); err != nil {
+		return nil, err
 	}
-	if err := s.DB.QueryRow("SELECT id FROM project_chat WHERE project=? AND archivedAt IS NULL", project).Scan(&c.ID); err != nil {
+	rows, err := s.DB.Query(`SELECT c.id,c.title,c.updatedAt,COALESCE((SELECT status FROM project_chat_turn WHERE conversation=c.id ORDER BY id DESC LIMIT 1),'')
+FROM project_chat c WHERE c.project=? AND c.archivedAt IS NULL ORDER BY c.updatedAt DESC,c.id DESC`, project)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	chats := []Summary{}
+	for rows.Next() {
+		var c Summary
+		if err = rows.Scan(&c.ID, &c.Title, &c.UpdatedAt, &c.Status); err != nil {
+			return nil, err
+		}
+		chats = append(chats, c)
+	}
+	return chats, rows.Err()
+}
+
+// Conversation is one chat with all of its turns.
+func (s Store) Conversation(project, chat int) (Conversation, error) {
+	c := Conversation{ProjectID: project, Turns: []Turn{}}
+	if err := s.DB.QueryRow("SELECT id,title,updatedAt FROM project_chat WHERE id=? AND project=? AND archivedAt IS NULL", chat, project).Scan(&c.ID, &c.Title, &c.UpdatedAt); err != nil {
 		return c, err
 	}
 	rows, err := s.DB.Query("SELECT "+columns+" FROM project_chat_turn WHERE conversation=? ORDER BY id", c.ID)
@@ -87,6 +137,70 @@ func (s Store) Conversation(project int) (Conversation, error) {
 	}
 	return c, rows.Err()
 }
+
+// Rename sets a chat's title; a blank one falls back to its first message.
+func (s Store) Rename(project, chat int, title string) error {
+	title = strings.Join(strings.Fields(title), " ")
+	if len(title) > maxTitleLength {
+		return fmt.Errorf("%w: titles are at most %d characters", ErrInvalid, maxTitleLength)
+	}
+	if title == "" {
+		var first string
+		if err := s.DB.QueryRow("SELECT message FROM project_chat_turn WHERE conversation=? ORDER BY id LIMIT 1", chat).Scan(&first); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		title = TitleFrom(first)
+	}
+	res, err := s.DB.Exec("UPDATE project_chat SET title=? WHERE id=? AND project=? AND archivedAt IS NULL", title, chat, project)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// Delete removes a chat from the list and stops its turn if one is working.
+// The rows stay, archived, because tasks record which chat turn changed them.
+func (s Store) Delete(project, chat int) error {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec("UPDATE project_chat SET archivedAt=CURRENT_TIMESTAMP WHERE id=? AND project=? AND archivedAt IS NULL", chat, project)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	if _, err = tx.Exec(`UPDATE project_chat_turn SET status=CASE WHEN status='pending' THEN 'canceled' ELSE 'canceling' END,finishedAt=CASE WHEN status='pending' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE conversation=? AND status IN ('pending','running')`, chat); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// TitleFrom makes a chat title from its first message: the start of its
+// first line, cut at a word.
+func TitleFrom(message string) string {
+	line := strings.TrimSpace(message)
+	if i := strings.IndexByte(line, '\n'); i >= 0 {
+		line = line[:i]
+	}
+	line = strings.Join(strings.Fields(line), " ")
+	const max = 60
+	if len([]rune(line)) <= max {
+		return line
+	}
+	cut := string([]rune(line)[:max])
+	if i := strings.LastIndexByte(cut, ' '); i > max/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(cut, " ,.;:-") + "…"
+}
+
 func (s Store) Cancel(project, id int) error {
 	res, err := s.DB.Exec(`UPDATE project_chat_turn SET status=CASE WHEN status='pending' THEN 'canceled' ELSE 'canceling' END,finishedAt=CASE WHEN status='pending' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=? AND status IN ('pending','running') AND conversation IN (SELECT id FROM project_chat WHERE project=? AND archivedAt IS NULL)`, id, project)
 	if err != nil {
@@ -153,25 +267,40 @@ type Service struct {
 	WorkspaceRoot string
 }
 
-func (s *Service) Send(ctx context.Context, project int, in Input) (Turn, error) {
+// previousTurn finds a turn already sent with this client key in the
+// project, so a retried send returns it instead of sending twice. Keys are
+// random per message, so they're unique across the project's chats too.
+func previousTurn(q interface {
+	QueryRow(string, ...any) *sql.Row
+}, project int, in Input) (Turn, bool, error) {
+	t, err := scan(q.QueryRow("SELECT "+turnColumns("t.")+" FROM project_chat_turn t JOIN project_chat c ON c.id=t.conversation WHERE c.project=? AND t.clientKey=?", project, in.Key))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Turn{}, false, nil
+	}
+	if err != nil {
+		return Turn{}, false, err
+	}
+	if t.Message != in.Message {
+		return Turn{}, false, ErrConflict
+	}
+	return t, true, nil
+}
+
+// Send queues a message to Chatter. chat 0 starts a new chat, titled from the
+// message; the returned turn names the chat either way.
+func (s *Service) Send(ctx context.Context, project, chat int, in Input) (Turn, error) {
 	in.Message = strings.TrimSpace(in.Message)
-	if in.Message == "" || len(in.Message) > 32000 || in.Key == "" || len(in.Key) > 128 || len(in.TaskIDs) > 50 {
+	if in.Message == "" || len(in.Message) > 32000 || in.Key == "" || len(in.Key) > 128 || len(in.TaskIDs) > 50 || chat < 0 {
 		return Turn{}, ErrInvalid
 	}
-	conversation, err := s.Conversation(project)
-	if err != nil {
-		return Turn{}, err
-	}
 	// Idempotent retries work even when the provider later becomes unavailable.
-	previous, lookup := scan(s.DB.QueryRow("SELECT "+columns+" FROM project_chat_turn WHERE conversation=? AND clientKey=?", conversation.ID, in.Key))
-	if lookup == nil {
-		if previous.Message != in.Message {
-			return Turn{}, ErrConflict
-		}
-		return previous, nil
+	if previous, found, err := previousTurn(s.DB, project, in); err != nil || found {
+		return previous, err
 	}
-	if !errors.Is(lookup, sql.ErrNoRows) {
-		return Turn{}, lookup
+	if chat > 0 {
+		if _, err := s.Conversation(project, chat); err != nil {
+			return Turn{}, err
+		}
 	}
 	p, err := s.AI.Projects.FindOne(project)
 	if err != nil {
@@ -183,7 +312,8 @@ func (s *Service) Send(ctx context.Context, project int, in Input) (Turn, error)
 	if err != nil {
 		return Turn{}, err
 	}
-	req, err := s.AI.PrepareSnapshot(ctx, snapshot, services.AIRunInput{Intent: "ask", Agent: chatter, Instruction: in.Message, UseRepository: p.RepoPath != ""})
+	// Never the repository: Chatter works from tasks and documents only.
+	req, err := s.AI.PrepareSnapshot(ctx, snapshot, services.AIRunInput{Intent: "ask", Agent: chatter, Instruction: in.Message})
 	if err != nil {
 		return Turn{}, err
 	}
@@ -192,7 +322,7 @@ func (s *Service) Send(ctx context.Context, project int, in Input) (Turn, error)
 		return Turn{}, err
 	}
 	rawContext, _ := json.Marshal(contextData)
-	req.ProjectChat = &models.ProjectChatTurn{ConversationID: conversation.ID, Context: json.RawMessage(rawContext), TaskIDs: in.TaskIDs}
+	req.ProjectChat = &models.ProjectChatTurn{Context: json.RawMessage(rawContext), TaskIDs: in.TaskIDs}
 	req.PresetName = "Chatter"
 	tx, err := taskownership.Begin(s.DB)
 	if err != nil {
@@ -209,25 +339,27 @@ func (s *Service) Send(ctx context.Context, project int, in Input) (Turn, error)
 			return Turn{}, fmt.Errorf("%w: task #%d is outside this project", ErrInvalid, id)
 		}
 	}
-	if err = tx.QueryRow("SELECT sessionId FROM project_chat WHERE id=? AND project=? AND archivedAt IS NULL", conversation.ID, project).Scan(&req.ProjectChat.SessionID); err != nil {
+	if previous, found, err := previousTurn(tx, project, in); err != nil || found {
+		return previous, err
+	}
+	if chat == 0 {
+		err = tx.QueryRow("INSERT INTO project_chat(project,title,updatedAt) VALUES(?,?,CURRENT_TIMESTAMP) RETURNING id", project, TitleFrom(in.Message)).Scan(&chat)
+	} else {
+		err = tx.QueryRow("SELECT sessionId FROM project_chat WHERE id=? AND project=? AND archivedAt IS NULL", chat, project).Scan(&req.ProjectChat.SessionID)
+	}
+	if err != nil {
 		return Turn{}, err
 	}
-	previous, lookup = scan(tx.QueryRow("SELECT "+columns+" FROM project_chat_turn WHERE conversation=? AND clientKey=?", conversation.ID, in.Key))
-	if lookup == nil {
-		if previous.Message != in.Message {
-			return Turn{}, ErrConflict
-		}
-		return previous, nil
-	}
-	if !errors.Is(lookup, sql.ErrNoRows) {
-		return Turn{}, lookup
-	}
+	req.ProjectChat.ConversationID = chat
 	raw, _ := json.Marshal(req)
-	t, err := scan(tx.QueryRow("INSERT INTO project_chat_turn(conversation,clientKey,message,requestJson) VALUES(?,?,?,?) RETURNING "+columns, conversation.ID, in.Key, in.Message, string(raw)))
+	t, err := scan(tx.QueryRow("INSERT INTO project_chat_turn(conversation,clientKey,message,requestJson) VALUES(?,?,?,?) RETURNING "+columns, chat, in.Key, in.Message, string(raw)))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return Turn{}, ErrConflict
 		}
+		return Turn{}, err
+	}
+	if _, err = tx.Exec("UPDATE project_chat SET updatedAt=CURRENT_TIMESTAMP WHERE id=?", chat); err != nil {
 		return Turn{}, err
 	}
 	return t, tx.Commit()
@@ -287,12 +419,12 @@ func (s *Service) Tick(parent context.Context) error {
 	}()
 	req := t.Request
 	req.ProjectChat.TurnID = t.ID
-	work := req.RepoPath
-	if work == "" {
-		work = filepath.Join(s.WorkspaceRoot, fmt.Sprintf("project-%d", req.ProjectID))
-		if err = os.MkdirAll(work, 0700); err != nil {
-			return s.finish(t, harness.RunResult{UsageJson: "{}"}, err, parent.Err() != nil)
-		}
+	// An empty folder of its own, never the repository, even for turns
+	// queued before Chatter lost repository access.
+	req.RepoPath = ""
+	work := filepath.Join(s.WorkspaceRoot, fmt.Sprintf("project-%d", req.ProjectID))
+	if err = os.MkdirAll(work, 0700); err != nil {
+		return s.finish(t, harness.RunResult{UsageJson: "{}"}, err, parent.Err() != nil)
 	}
 	result, runErr := s.Engine.Run(ctx, harness.RunSpec{Request: &req, WorkDir: work,
 		OnProgress: func(progress, output string) error {
@@ -305,6 +437,14 @@ func (s *Service) Tick(parent context.Context) error {
 				return context.Canceled
 			}
 			return nil
+		},
+		OnActivity: func(activity []harness.Activity) error {
+			raw, err := json.Marshal(activity)
+			if err != nil {
+				return err
+			}
+			_, err = s.DB.Exec("UPDATE project_chat_turn SET activityJson=? WHERE id=? AND status='running'", string(raw), t.ID)
+			return err
 		},
 		OnSession: func(session, turn string) error {
 			tx, err := taskownership.Begin(s.DB)
@@ -345,6 +485,15 @@ func (s *Service) finish(t Turn, r harness.RunResult, runErr error, shutdown boo
 	if !json.Valid([]byte(r.UsageJson)) {
 		r.UsageJson = "{}"
 	}
-	_, err := s.DB.Exec("UPDATE project_chat_turn SET status=?,output=?,progress='',error=?,usageJson=?,finishedAt=CURRENT_TIMESTAMP WHERE id=? AND status IN ('running','canceling')", status, r.Output, message, r.UsageJson, t.ID)
+	// Keep what was recorded while running if the harness returned nothing.
+	activity := "activityJson"
+	var args []any
+	if len(r.Activity) > 0 {
+		raw, _ := json.Marshal(r.Activity)
+		activity = "?"
+		args = append(args, string(raw))
+	}
+	args = append([]any{status, r.Output, message, r.UsageJson}, append(args, t.ID)...)
+	_, err := s.DB.Exec("UPDATE project_chat_turn SET status=?,output=?,progress='',error=?,usageJson=?,activityJson="+activity+",finishedAt=CURRENT_TIMESTAMP WHERE id=? AND status IN ('running','canceling')", args...)
 	return err
 }

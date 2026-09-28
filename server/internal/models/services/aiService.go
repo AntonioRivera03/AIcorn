@@ -197,7 +197,7 @@ func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithPr
 		}
 		for role, model := range req.AgentModels {
 			if model == "" || fleet.IsInternalRole(role) {
-				req.AgentModels[role] = defaultModel
+				req.AgentModels[role] = internalModel(role, settings.Harness, defaultModel)
 			}
 		}
 	}
@@ -241,6 +241,16 @@ func (s *AIService) Cancel(id int) (bool, error) {
 	return s.Jobs.CancelAI(id)
 }
 
+// internalModel is the model an internal agent, or an agent left on Default,
+// runs on: a model pinned for this harness (Chatter uses GPT-6 Sol on Codex),
+// otherwise the workspace's default.
+func internalModel(role string, harness models.PersonaHarness, defaultModel string) string {
+	if pinned := fleet.PinnedModel(role, string(harness)); pinned != "" {
+		return pinned
+	}
+	return defaultModel
+}
+
 // ResolveAgent snapshots the bundled instructions and the concrete model: an
 // agent without its own model, and every internal agent, runs on the
 // workspace's default model. Legacy custom agents retain their saved
@@ -259,7 +269,7 @@ func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnap
 	}
 	model := string(p.Model)
 	if model == "" || fleet.IsInternalRole(p.BuiltinRole) {
-		model = settings.Model
+		model = internalModel(p.BuiltinRole, settings.Harness, settings.Model)
 	}
 	if !models.IsHarnessModel(settings.Harness, model) {
 		return nil, fmt.Errorf("%w: %s's model doesn't match the harness; choose it again in AI settings", ErrAISetup, p.Name)

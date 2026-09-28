@@ -97,8 +97,8 @@ export function HarnessSection({ data, checking }: HarnessSectionProps) {
             : "Models come from Aycorn's built-in list.")}
       </p>
       <p className="text-xs text-muted-foreground">
-        Conductor, project chats, and any agent set to Default use the default
-        model.
+        Conductor and any agent set to Default use the default model. Project
+        chats run on GPT-6 Sol with Codex.
       </p>
     </section>
   );

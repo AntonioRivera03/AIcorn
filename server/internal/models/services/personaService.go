@@ -13,7 +13,7 @@ var ErrInvalidPersonaHarness = errors.New("persona harness is not supported")
 var ErrInvalidPersonaModel = errors.New("persona model is not supported")
 var ErrInvalidPersonaAgent = errors.New("persona agent is not supported")
 
-var ErrInternalAgent = errors.New("Conductor and Chatter always use the default model")
+var ErrInternalAgent = errors.New("Aycorn sets Conductor's and Chatter's models")
 
 type PersonaService struct {
 	PersonaRepo *repos.PersonaRepo
