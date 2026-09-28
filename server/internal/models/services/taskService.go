@@ -5,14 +5,15 @@ import (
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 )
 
 var ErrStageConflict = errors.New("task is not currently in the expected stage")
 
 var (
 	ErrNoPersonaBound    = errors.New("task is not assigned to an agent — set assignee to a persona name")
-	ErrRepoPathMissing   = errors.New("project has no repo folder linked")
-	ErrRepoInvalid       = errors.New("linked repo folder is not a valid git repository")
+	ErrRepoPathMissing   = repolink.ErrNotLinked
+	ErrRepoInvalid       = repolink.ErrRepoInvalid
 	ErrJobAlreadyPending = errors.New("agent job already pending for this task")
 )
 

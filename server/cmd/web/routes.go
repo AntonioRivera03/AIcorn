@@ -12,6 +12,9 @@ func (app *app) routes() http.Handler {
 	if app.projectRepo != nil {
 		app.documentRoutes(mux)
 	}
+	if app.repositoryService != nil {
+		app.repositoryRoutes(mux)
+	}
 	if app.taskService != nil {
 		app.taskLinkRoutes(mux)
 		mux.HandleFunc("GET /api/task-ownership/project/{projectId}", app.projectTaskOwners)

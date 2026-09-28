@@ -11,14 +11,21 @@ import (
 )
 
 var runKeyPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+var commitPattern = regexp.MustCompile(`^[a-f0-9]{40}([a-f0-9]{24})?$`)
 
 // CreateRun uses a random run identity, so separate databases cannot collide.
-// Existing paths are never pruned or reused automatically.
-func CreateRun(ctx context.Context, root, key string) (*Worktree, string, error) {
+// Existing paths are never pruned or reused automatically. The run starts from
+// base, a commit, or from the checkout's HEAD when base is empty.
+func CreateRun(ctx context.Context, root, key, base string) (*Worktree, string, error) {
 	if !runKeyPattern.MatchString(key) {
 		return nil, "", fmt.Errorf("invalid run identity")
 	}
-	base, err := gitOutput(ctx, root, "rev-parse", "HEAD")
+	if base == "" {
+		base = "HEAD"
+	} else if !commitPattern.MatchString(base) {
+		return nil, "", fmt.Errorf("invalid base commit")
+	}
+	base, err := gitOutput(ctx, root, "rev-parse", "--verify", base+"^{commit}")
 	if err != nil {
 		return nil, "", err
 	}

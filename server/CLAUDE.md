@@ -118,7 +118,10 @@ persona   (id, name, system_prompt, harness, model, allowed_tools JSON array,
            timeCreated, timeModified)
 stage_persona (stage_id→stage.id ON DELETE CASCADE,
                persona_id→persona.id ON DELETE CASCADE; one row per stage)
-project   (id, name, pinned, workflow→workflow.id, timeCreated, timeModified)
+project   (id, name, pinned, workflow→workflow.id, defaultView,
+           repoMode ('' | 'personal' | 'official'), repoPath, repoUrl,
+           timeCreated, timeModified)
+repository_sync (project→project.id ON DELETE CASCADE, url, fetchedAt, error)
 checklist (id, project→project.id, name, timeCreated, timeModified, isDefault)
 task      (id, checklist→checklist.id, stage→stage.id ON DELETE RESTRICT,
            name, body, timeCreated, timeModified,
@@ -146,4 +149,5 @@ Migration notes:
 - `persona.allowed_tools` is a JSON array with a restrictive `[]` default; harness/model values are validated against curated Go constants rather than SQLite `CHECK` constraints.
 - **Harness and models.** `ai_settings.harness` picks one harness per workspace (`codex` or `claude-code`); `internal/harness/models.go` lists each harness's models (Codex live via app-server `model/list`, otherwise a fixed list). Models are validated by family (`models.IsHarnessModel`), not by list. `persona.model = ''` means "use the workspace default model"; Conductor and Chatter are internal (`fleet.Definition.Internal`): Conductor always uses the default, and Chatter is pinned to GPT-6 Sol on Codex (`fleet.Definition.Models`). Switching harness resets every bundled agent to `''`. Only Codex has a run adapter; a workspace on Claude Code gets an `ErrAISetup` when a run starts.
 - **Conductor settings.** A project picks two stages (while an agent works, when it finishes), whether agents use the repository, and optional task-choosing guidance (`planningPrompt`). The agent's working and handoff instructions are built in (`ConductorSettings.UseBuiltinInstructions`) and rejected as patches; they stay on the struct only because run snapshots carry them.
+- **Repository links** (`internal/repolink`, [`Documentation/repo-linking.md`](../Documentation/repo-linking.md)). `project.repoMode` picks how a project reaches its code: `personal` works from the local checkout in `repoPath`; `official` clones the GitHub repository in `repoUrl` into `<workspace dir>/repos/<project>/<owner>/<repo>` with the server machine's git login and fetches before every environment build and agent run. Like the harness, the modes are validated in Go, not by a `CHECK` constraint. Every consumer gets the code through `repolink.Locate` (identity, no network) or `repolink.Service.SourceRepo` (clone/fetch first); never read `repoPath` directly. The generic project PUT ignores the link fields; `PUT /api/project/{id}/settings/repository` changes them. `repository_sync` holds the last fetch time and error per Official link, apart from `project` so a fetch never bumps `timeModified`. `task_environment.remote` marks previews of `origin/*` branches.
 - Workflows/stages are fully implemented (custom workflows no longer need a migration). The remaining hardcoded `CHECK` constraints are **`task.priority`, `task.type`, and `stage.type`** — changing those allowed values still requires a **schema migration**. Flag this whenever a feature touches them.

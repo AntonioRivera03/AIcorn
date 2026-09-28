@@ -137,6 +137,7 @@ type Environment struct {
 	Name           string   `json:"name"`
 	Repo           string   `json:"-"`
 	Branch         string   `json:"branch"`
+	Remote         bool     `json:"remote"` // Branch is origin/<name> of an Official clone, not a local branch
 	Commit         string   `json:"commit"`
 	IncludeChanges bool     `json:"includeChanges"`
 	Digest         string   `json:"digest"`

@@ -21,6 +21,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	_ "modernc.org/sqlite"
 )
 
@@ -112,6 +113,7 @@ type app struct {
 	projectChatService   *projectchat.Service
 	jobService           *jobs.Service
 	environmentService   *environments.Service
+	repositoryService    *repolink.Service
 	conductorService     *services.ConductorService
 	aiService            *services.AIService
 	projectRepo          *repos.ProjectRepo

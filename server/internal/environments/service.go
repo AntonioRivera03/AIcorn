@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 )
 
@@ -23,6 +24,7 @@ type Service struct {
 	Store      *Store
 	Runtime    Runtime
 	Root       string
+	Sources    repolink.Resolver // fetches an Official link before listing or building its branches; nil (tests) only locates
 	mu         sync.Mutex
 	operations map[int]operation
 	builds     chan struct{}
@@ -44,7 +46,12 @@ func (s *Service) SourceStatus(ctx context.Context, id int) (SourceStatus, error
 	if err != nil {
 		return SourceStatus{}, err
 	}
-	commit, err := worktree.ResolveBranch(ctx, e.Repo, e.Branch)
+	resolve := worktree.ResolveBranch
+	if e.Remote {
+		// As of the clone's last fetch; building a fresh preview fetches.
+		resolve = worktree.ResolveRemoteBranch
+	}
+	commit, err := resolve(ctx, e.Repo, e.Branch)
 	if err != nil {
 		return SourceStatus{}, err
 	}
@@ -62,26 +69,43 @@ func (s *Service) SourceStatus(ctx context.Context, id int) (SourceStatus, error
 	return result, nil
 }
 
-func (s *Service) Branches(ctx context.Context, project int) ([]string, error) {
-	var root string
-	if err := s.Store.DB.QueryRowContext(ctx, `SELECT COALESCE(repoPath,'') FROM project WHERE id=?`, project).Scan(&root); err != nil {
-		return nil, err
+// source resolves the project's repository. With sync it clones or fetches an
+// Official link first, as listing or building its branches needs; without, it
+// only locates the checkout, as identifying an agent run's repository needs.
+func (s *Service) source(ctx context.Context, project int, sync bool) (repolink.Source, error) {
+	if sync && s.Sources != nil {
+		return s.Sources.SourceRepo(ctx, project)
 	}
-	if root == "" {
-		return []string{}, nil
-	}
-	return worktree.LocalBranches(ctx, root)
+	return repolink.Locate(ctx, s.Store.DB, project)
 }
 
-func (s *Service) BranchSources(ctx context.Context, project int) ([]worktree.BranchSource, error) {
-	var root string
-	if err := s.Store.DB.QueryRowContext(ctx, `SELECT COALESCE(repoPath,'') FROM project WHERE id=?`, project).Scan(&root); err != nil {
+func (s *Service) Branches(ctx context.Context, project int) ([]string, error) {
+	sources, err := s.BranchSources(ctx, project)
+	if err != nil {
 		return nil, err
 	}
-	if root == "" {
+	branches := make([]string, 0, len(sources))
+	for _, source := range sources {
+		branches = append(branches, source.Name)
+	}
+	return branches, nil
+}
+
+// BranchSources lists what a preview can be built from: the local branches of
+// a Personal checkout, or the remote branches (origin/*) of an Official clone,
+// fetched first.
+func (s *Service) BranchSources(ctx context.Context, project int) ([]worktree.BranchSource, error) {
+	source, err := s.source(ctx, project, true)
+	if errors.Is(err, repolink.ErrNotLinked) {
 		return []worktree.BranchSource{}, nil
 	}
-	return worktree.LocalBranchSources(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	if source.Mode == repolink.Official {
+		return worktree.RemoteBranchSources(ctx, source.Root)
+	}
+	return worktree.LocalBranchSources(ctx, source.Root)
 }
 
 func (s *Service) requireInactiveBranch(e *Environment) error {
@@ -122,9 +146,16 @@ func (s *Service) Create(ctx context.Context, project int, input CreateInput) (*
 		return nil, err
 	}
 	e := &Environment{ProjectID: project, TaskID: input.TaskID, JobID: input.JobID, RequestKey: input.RequestKey, Settings: settings, Branch: input.Branch, IncludeChanges: input.IncludeChanges}
-	if err = s.Store.DB.QueryRowContext(ctx, `SELECT COALESCE(repoPath,'') FROM project WHERE id=?`, project).Scan(&e.Repo); err != nil {
+	// An agent run's branch is already in the checkout; a project branch of an
+	// Official link is fetched first, so the build uses the latest commit.
+	source, err := s.source(ctx, project, input.JobID == 0)
+	if errors.Is(err, repolink.ErrNotLinked) {
+		return nil, fmt.Errorf("%w: link a repository and select a branch first", ErrInvalid)
+	}
+	if err != nil {
 		return nil, err
 	}
+	e.Repo = source.Root
 	if input.JobID > 0 {
 		var state, repo, branch string
 		var task int
@@ -146,11 +177,20 @@ func (s *Service) Create(ctx context.Context, project int, input CreateInput) (*
 		e.IncludeChanges = true
 	} else if input.TaskID != 0 {
 		return nil, fmt.Errorf("%w: select a run when creating a task preview", ErrInvalid)
+	} else if source.Mode == repolink.Official {
+		if e.IncludeChanges {
+			return nil, fmt.Errorf("%w: remote branches have no working tree; choose Latest commit", ErrInvalid)
+		}
+		e.Remote = true
 	}
 	if e.Repo == "" || e.Branch == "" {
 		return nil, fmt.Errorf("%w: link a repository and select a branch first", ErrInvalid)
 	}
-	e.Commit, err = worktree.ResolveBranch(ctx, e.Repo, e.Branch)
+	resolve := worktree.ResolveBranch
+	if e.Remote {
+		resolve = worktree.ResolveRemoteBranch
+	}
+	e.Commit, err = resolve(ctx, e.Repo, e.Branch)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
@@ -449,7 +489,12 @@ func (s *Service) snapshot(ctx context.Context, e *Environment, logLine func(str
 		return err
 	}
 	defer os.RemoveAll(temp)
-	snap, err := worktree.SnapshotSource(ctx, e.Repo, e.Branch, e.Commit, e.IncludeChanges, temp)
+	var snap *worktree.SourceSnapshot
+	if e.Remote {
+		snap, err = worktree.SnapshotCommit(ctx, e.Repo, e.Commit, temp)
+	} else {
+		snap, err = worktree.SnapshotSource(ctx, e.Repo, e.Branch, e.Commit, e.IncludeChanges, temp)
+	}
 	if err != nil {
 		return err
 	}

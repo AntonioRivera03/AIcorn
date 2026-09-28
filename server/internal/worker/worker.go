@@ -5,6 +5,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	"log"
 	"sync"
 	"time"
@@ -16,6 +17,10 @@ type Worker struct {
 	Conductor  *services.ConductorService
 	JobService *services.AgentJobService
 	Harness    harness.Harness
+	// Sources syncs a run's repository first: it clones or fetches an
+	// Official link, and gives the commit new runs start from. Without it
+	// (some tests) runs use the recorded checkout's HEAD as they are.
+	Sources repolink.Resolver
 
 	mu       sync.Mutex
 	cancel   context.CancelFunc

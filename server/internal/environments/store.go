@@ -55,12 +55,12 @@ func (s *Store) UpdateSettings(project int, patch map[string]json.RawMessage) (S
 	return current, err
 }
 
-const columns = `id,COALESCE(project,0),COALESCE(task,0),COALESCE(job,0),requestKey,name,repo,branch,sourceCommit,includeChanges,digest,settings,state,desired,image,testImage,testState,testExitCode,url,error,pinned,expiresAt,createdAt,updatedAt`
+const columns = `id,COALESCE(project,0),COALESCE(task,0),COALESCE(job,0),requestKey,name,repo,branch,remote,sourceCommit,includeChanges,digest,settings,state,desired,image,testImage,testState,testExitCode,url,error,pinned,expiresAt,createdAt,updatedAt`
 
 func scan(scanner interface{ Scan(...any) error }) (*Environment, error) {
 	e := &Environment{}
 	var settings string
-	err := scanner.Scan(&e.ID, &e.ProjectID, &e.TaskID, &e.JobID, &e.RequestKey, &e.Name, &e.Repo, &e.Branch, &e.Commit, &e.IncludeChanges, &e.Digest, &settings, &e.State, &e.Desired, &e.Image, &e.TestImage, &e.TestState, &e.TestExitCode, &e.URL, &e.Error, &e.Pinned, &e.ExpiresAt, &e.CreatedAt, &e.UpdatedAt)
+	err := scanner.Scan(&e.ID, &e.ProjectID, &e.TaskID, &e.JobID, &e.RequestKey, &e.Name, &e.Repo, &e.Branch, &e.Remote, &e.Commit, &e.IncludeChanges, &e.Digest, &settings, &e.State, &e.Desired, &e.Image, &e.TestImage, &e.TestState, &e.TestExitCode, &e.URL, &e.Error, &e.Pinned, &e.ExpiresAt, &e.CreatedAt, &e.UpdatedAt)
 	if err == nil {
 		err = json.Unmarshal([]byte(settings), &e.Settings)
 	}
@@ -129,7 +129,7 @@ func (s *Store) Insert(e *Environment) (*Environment, error) {
 		return nil, fmt.Errorf("%w: stop an environment first; this project allows %d running previews", ErrConflict, e.Settings.MaxRunning)
 	}
 	settings, _ := json.Marshal(e.Settings)
-	created, err := scan(tx.QueryRow(`INSERT INTO task_environment(project,task,job,requestKey,name,repo,branch,sourceCommit,includeChanges,settings,expiresAt) VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING `+columns, e.ProjectID, nullable(e.TaskID), nullable(e.JobID), e.RequestKey, e.Name, e.Repo, e.Branch, e.Commit, e.IncludeChanges, string(settings), time.Now().Add(time.Duration(e.Settings.RetentionHours)*time.Hour).Unix()))
+	created, err := scan(tx.QueryRow(`INSERT INTO task_environment(project,task,job,requestKey,name,repo,branch,remote,sourceCommit,includeChanges,settings,expiresAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `+columns, e.ProjectID, nullable(e.TaskID), nullable(e.JobID), e.RequestKey, e.Name, e.Repo, e.Branch, e.Remote, e.Commit, e.IncludeChanges, string(settings), time.Now().Add(time.Duration(e.Settings.RetentionHours)*time.Hour).Unix()))
 	if err != nil {
 		return nil, err
 	}
