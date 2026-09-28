@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strconv"
 
@@ -92,10 +93,15 @@ func (t *toolset) readTask(ctx context.Context, req *mcp.CallToolRequest, in Rea
 	}
 	task, err := t.taskService.GetTask(in.TaskID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, repos.NotFound("task", in.TaskID)
+		}
 		return nil, nil, err
 	}
+	// Must read identically to a missing task — a scoped run can't be allowed
+	// to tell "no such task" apart from "that task belongs to another project".
 	if t.runProjectID > 0 && task.ProjectID != t.runProjectID {
-		return nil, nil, errors.New("this run may only read tasks in its project")
+		return nil, nil, repos.NotFound("task", in.TaskID)
 	}
 
 	body, err := t.bodyToMarkdown(ctx, task.Body)
@@ -173,6 +179,11 @@ func (t *toolset) createTask(ctx context.Context, req *mcp.CallToolRequest, in C
 	if t.runChatTurnID > 0 {
 		newTask, err := t.taskService.TaskRepo.CreateFromChat(t.runProjectID, t.runChatTurnID, task)
 		return nil, newTask, err
+	}
+	// CreateChecklistTask relies on FK constraints alone for these refs, which
+	// fail with an opaque driver error instead of naming the bad id.
+	if err := t.taskService.TaskRepo.ValidateCreateRefs(in.ChecklistID, in.StageID, in.TypeID); err != nil {
+		return nil, nil, err
 	}
 	newTask, err := t.taskService.CreateChecklistTask(task)
 	if err != nil {
@@ -253,7 +264,13 @@ func (t *toolset) listChecklists(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 func (t *toolset) listTaskTypes(ctx context.Context, req *mcp.CallToolRequest, in NoInput) (*mcp.CallToolResult, TaskTypesOutput, error) {
-	types, err := t.taskTypeService.TaskTypeRepo.All()
+	var types []models.TaskType
+	var err error
+	if t.runProjectID > 0 {
+		types, err = t.taskTypeService.TaskTypeRepo.EnabledForProject(t.runProjectID)
+	} else {
+		types, err = t.taskTypeService.TaskTypeRepo.All()
+	}
 	if err != nil {
 		return nil, TaskTypesOutput{}, err
 	}

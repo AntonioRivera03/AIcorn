@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waseem-polus/aycorn/server/internal/knowledge"
+	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 )
 
 type TaskLinksOutput struct {
@@ -30,10 +32,15 @@ func (t *toolset) linkScope(task int, write bool) error {
 	}
 	current, err := t.taskService.GetTask(task)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return repos.NotFound("task", task)
+		}
 		return err
 	}
+	// Must read identically to a missing task — a scoped run can't be allowed
+	// to tell "no such task" apart from "that task belongs to another project".
 	if t.runProjectID > 0 && current.ProjectID != t.runProjectID {
-		return errors.New("task is outside this project's scope")
+		return repos.NotFound("task", task)
 	}
 	return nil
 }

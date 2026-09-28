@@ -1,7 +1,7 @@
 // Command mcp runs Aycorn's task data as an MCP server over stdio, so an AI
 // agent (Claude Desktop, `claude mcp add`, etc.) can read and write tasks
 // through the same service/repo layer cmd/web uses — no HTTP hop. See
-// Documentation/phase-1-mcp-server.md and Documentation/ai-architecture.md §3-4.
+// Documentation/mcp-tools.md and Documentation/completed/ai-architecture.md §3-4.
 package main
 
 import (
