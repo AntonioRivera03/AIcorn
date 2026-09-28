@@ -10,8 +10,6 @@ export type ConductorSettings = {
   workingStage: number;
   completionStage: number;
   planningPrompt: string;
-  workingPrompt: string;
-  completionPrompt: string;
   conductorAgentId: number;
   taskAgentId: number;
   useRepository: boolean;

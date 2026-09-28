@@ -1,5 +1,4 @@
-// TODO(redesign): The Conductor UI (board controls, frame, and settings tab)
-// doesn't match the rest of the app's design and is due for a rework. Keep
+// TODO(redesign): The Conductor board controls and frame don't match the rest of the app's design and is due for a rework. Keep
 // changes here minimal until then.
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";

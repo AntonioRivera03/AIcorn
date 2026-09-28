@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 )
@@ -52,7 +53,9 @@ func TestConductorSettingsAndBulkHTTP(t *testing.T) {
 	call("PUT", url, `{"workerModels":null}`, 400)
 	call("PUT", url, `{"fullAccess":true}`, 400)
 	call("PUT", url, `{"planningPrompt":"Custom planning rules"}`, 200)
-	call("PUT", url, `{"workingPrompt":"Custom worker rules"}`, 200)
+	call("PUT", url, `{"planningStage":0}`, 200)
+	call("PUT", url, `{"workingPrompt":"Custom worker rules"}`, 400)
+	call("PUT", url, `{"completionPrompt":"Custom handoff rules"}`, 400)
 	r := call("GET", url, "", 200)
 	var board services.ConductorBoard
 	if err := json.Unmarshal(r.Body.Bytes(), &board); err != nil {
@@ -62,8 +65,11 @@ func TestConductorSettingsAndBulkHTTP(t *testing.T) {
 	if err != nil || root.ID != board.Settings.ConductorAgentID {
 		t.Fatalf("missing default orchestrator: %+v %v", board, err)
 	}
-	if board.Settings.PlanningPrompt != "Custom planning rules" || board.Settings.WorkingPrompt != "Custom worker rules" {
+	if board.Settings.PlanningPrompt != "Custom planning rules" || board.Settings.PlanningStage != 0 {
 		t.Fatal("field patches overwrote one another")
+	}
+	if board.Settings.WorkingPrompt != models.DefaultConductorSettings().WorkingPrompt {
+		t.Fatal("the working instructions aren't the built-in ones", board.Settings.WorkingPrompt)
 	}
 	call("POST", "/api/project/1/conductor/bulk", `{"ids":[1,999],"action":"send"}`, 200)
 	call("POST", "/api/project/1/conductor/bulk", `{"ids":[],"action":"send"}`, 400)
