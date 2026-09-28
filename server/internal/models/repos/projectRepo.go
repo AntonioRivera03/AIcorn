@@ -12,14 +12,14 @@ type ProjectRepo struct {
 }
 
 const projectSelect = `
-SELECT p.id, p.name, p.pinned, p.workflow, w.name, p.defaultView, COALESCE(p.repoPath, ''), p.timeCreated, p.timeModified
+SELECT p.id, p.name, p.pinned, p.workflow, w.name, p.defaultView, p.repoMode, COALESCE(p.repoPath, ''), p.repoUrl, p.timeCreated, p.timeModified
 FROM project p
 JOIN workflow w ON p.workflow = w.id`
 
 func scanProject(scanner interface {
 	Scan(...any) error
 }, p *models.Project) error {
-	return scanner.Scan(&p.ID, &p.Name, &p.Pinned, &p.Workflow, &p.WorkflowName, &p.DefaultView, &p.RepoPath, &p.TimeCreated, &p.TimeModified)
+	return scanner.Scan(&p.ID, &p.Name, &p.Pinned, &p.Workflow, &p.WorkflowName, &p.DefaultView, &p.RepoMode, &p.RepoPath, &p.RepoURL, &p.TimeCreated, &p.TimeModified)
 }
 
 func (repo *ProjectRepo) All() ([]models.Project, error) {
@@ -103,8 +103,10 @@ func (repo *ProjectRepo) FindPinnedProjects() ([]models.Project, error) {
 }
 
 func (repo *ProjectRepo) UpdateProject(project *models.Project) (bool, error) {
-	query := "UPDATE project SET name = ?, pinned = ?, workflow = ?, defaultView = ?, repoPath = ? WHERE id = ?;"
-	res, err := repo.DB.Exec(query, project.Name, project.Pinned, project.Workflow, project.DefaultView, project.RepoPath, project.ID)
+	// The repository link is left alone: it has its own endpoint, and a
+	// full-object PUT built from a stale copy must not undo a link change.
+	query := "UPDATE project SET name = ?, pinned = ?, workflow = ?, defaultView = ? WHERE id = ?;"
+	res, err := repo.DB.Exec(query, project.Name, project.Pinned, project.Workflow, project.DefaultView, project.ID)
 	if err != nil {
 		return false, err
 	}

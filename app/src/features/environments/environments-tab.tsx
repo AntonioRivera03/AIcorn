@@ -274,6 +274,8 @@ export function EnvironmentsTab({ projectId }: { projectId: number }) {
     branches.data?.find((item) => item.name === "main") ||
     branches.data?.[0];
   const branch = selectedBranch?.name || "";
+  // An Official repository lists its GitHub branches (origin/*).
+  const remote = branches.data?.some((item) => item.remote) ?? false;
   const source =
     selectedBranch?.hasWorktree &&
     (chosenSource?.branch !== branch || chosenSource.value !== "commit")
@@ -464,7 +466,9 @@ export function EnvironmentsTab({ projectId }: { projectId: number }) {
       <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-48 flex-1 space-y-2">
-            <Label htmlFor="environment-branch">Local branch</Label>
+            <Label htmlFor="environment-branch">
+              {remote ? "Remote branch" : "Local branch"}
+            </Label>
             <Select
               value={branch || undefined}
               disabled={!branches.data?.length}
@@ -486,7 +490,11 @@ export function EnvironmentsTab({ projectId }: { projectId: number }) {
                 {branches.data?.map((item) => (
                   <SelectItem key={item.name} value={item.name}>
                     {item.name}
-                    {item.current ? " (current)" : ""}
+                    {item.current
+                      ? item.remote
+                        ? " (default)"
+                        : " (current)"
+                      : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -553,9 +561,12 @@ export function EnvironmentsTab({ projectId }: { projectId: number }) {
         >
           {source === "working-tree"
             ? "Captures this branch’s local files, including uncommitted edits, as a fixed snapshot. Later edits require a new preview."
-            : "Uses the branch’s latest commit. Local uncommitted edits are excluded."}
+            : remote
+              ? "Uses the branch’s latest commit on GitHub. Aycorn fetches it when you create the preview."
+              : "Uses the branch’s latest commit. Local uncommitted edits are excluded."}
           {selectedBranch &&
             !selectedBranch.hasWorktree &&
+            !selectedBranch.remote &&
             " This branch has no local working tree."}
         </p>
         {(environments.error || branches.error) && (

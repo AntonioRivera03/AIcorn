@@ -29,7 +29,7 @@ func branchFixture(t *testing.T) (string, *Worktree, string) {
 	branchFile(t, root, ".gitignore", ".worktrees/\n")
 	branchGit(t, root, "add", ".gitignore")
 	branchGit(t, root, "commit", "-m", "ignore worktrees")
-	w, base, err := CreateRun(context.Background(), root, strings.Repeat("b", 32))
+	w, base, err := CreateRun(context.Background(), root, strings.Repeat("b", 32), "")
 	if err != nil {
 		t.Fatal(err)
 	}

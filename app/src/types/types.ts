@@ -96,10 +96,18 @@ export type Project = {
   Workflow: number;
   WorkflowName: string;
   DefaultView: string;
+  // The repository link, read-only here: change it through
+  // /api/project/{id}/settings/repository (features/repository).
+  RepoMode: RepoMode;
   RepoPath: string;
+  RepoURL: string;
   TimeCreated: string;
   TimeModified: string;
 };
+
+// Personal works from a local checkout; Official from a GitHub repository
+// Aycorn clones. "" is a project with no repository yet.
+export type RepoMode = "" | "personal" | "official";
 
 export type Workflow = {
   ID: number;

@@ -268,7 +268,7 @@ func jobCompletes(t *testing.T, scheduled bool) {
 			t.Fatalf("%v: %s", err, out)
 		}
 	}
-	if _, err := s.DB.Exec("UPDATE project SET repoPath=? WHERE id=1", repo); err != nil {
+	if _, err := s.DB.Exec("UPDATE project SET repoMode='personal', repoPath=? WHERE id=1", repo); err != nil {
 		t.Fatal(err)
 	}
 	settings, raw, _ := s.Conductor.Repo.Settings(1)

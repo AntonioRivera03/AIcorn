@@ -3,10 +3,10 @@ package services
 import (
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 )
 
 type ProjectService struct {
@@ -16,6 +16,8 @@ type ProjectService struct {
 	WorkflowRepo  *repos.WorkflowRepo
 	StageRepo     *repos.StageRepo
 	TaskTypeRepo  *repos.TaskTypeRepo
+	// Repositories removes a deleted project's Official clone.
+	Repositories *repolink.Service
 }
 
 type projectDetails struct {
@@ -185,7 +187,6 @@ func (s *ProjectService) UpdateProject(project *models.Project) (bool, error) {
 	if _, ok := validProjectViews[project.DefaultView]; !ok {
 		return false, ErrInvalidProjectView
 	}
-	project.RepoPath = strings.TrimSpace(project.RepoPath)
 
 	success, err := s.ProjectRepo.UpdateProject(project)
 	if err != nil {
@@ -238,6 +239,7 @@ func (s *ProjectService) BulkDeleteProjects(ids []int) (models.BulkResult, error
 	if err != nil {
 		return models.BulkResult{}, err
 	}
+	s.forgetRepositories(ids...)
 	return models.BulkResult{
 		Success: affected,
 		Skipped: len(ids) - affected,
@@ -245,5 +247,18 @@ func (s *ProjectService) BulkDeleteProjects(ids []int) (models.BulkResult, error
 }
 
 func (s *ProjectService) DeleteProject(projectId int) (bool, error) {
-	return s.ProjectRepo.DeleteProject(projectId)
+	deleted, err := s.ProjectRepo.DeleteProject(projectId)
+	if err == nil {
+		s.forgetRepositories(projectId)
+	}
+	return deleted, err
+}
+
+// forgetRepositories deletes the clones Aycorn made for deleted projects. It
+// runs in the background and only removes what no project links to anymore,
+// so any ID is safe to pass.
+func (s *ProjectService) forgetRepositories(ids ...int) {
+	if s.Repositories != nil {
+		s.Repositories.Forget(ids...)
+	}
 }

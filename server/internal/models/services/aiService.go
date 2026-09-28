@@ -11,8 +11,8 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	"github.com/waseem-polus/aycorn/server/internal/taskintent"
-	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"os"
 	"os/exec"
 	"strings"
@@ -212,18 +212,13 @@ func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithPr
 	}
 	req.TaskBody = converted[0]
 	if in.UseRepository || in.Intent == "implement" || in.Intent == "review" {
-		project, err := s.Projects.FindOne(task.ProjectID)
+		// Only locate the repository here: the worker clones or fetches an
+		// Official link right before the run starts.
+		source, err := repolink.Locate(ctx, s.Projects.DB, task.ProjectID)
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(project.RepoPath) == "" {
-			return nil, ErrRepoPathMissing
-		}
-		root, err := worktree.RepoRootFromDir(ctx, project.RepoPath)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrRepoInvalid, err)
-		}
-		req.RepoPath = root
+		req.RepoPath = source.Root
 	}
 	key := make([]byte, 16)
 	if _, err := rand.Read(key); err != nil {

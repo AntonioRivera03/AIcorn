@@ -110,11 +110,26 @@ func (w *Worker) runExplicit(parent context.Context, job *models.AgentJob) (bool
 		artifacts.SessionID = chat.SessionID
 	}
 	if job.Request.RepoPath != "" {
+		base := ""
+		if w.Sources != nil {
+			if err = repo.SetProgress(job.ID, "Preparing the repository"); err != nil {
+				return finish(err)
+			}
+			// Clones or fetches an Official link; a Personal checkout is used as it is.
+			source, syncErr := w.Sources.SourceRepo(ctx, job.Request.ProjectID)
+			if syncErr != nil {
+				return finish(fmt.Errorf("prepare repository: %w", syncErr))
+			}
+			if source.Root != job.Request.RepoPath {
+				return finish(errors.New("the project's repository link changed after this run was queued; start it again"))
+			}
+			base = source.Base
+		}
 		if chat := job.Request.Chat; chat != nil && chat.Workspace != "" {
 			wt, err = worktree.ResumeRun(ctx, job.Request.RepoPath, chat.Workspace, chat.Branch)
 			artifacts.BaseCommit = chat.BaseCommit
 		} else {
-			wt, artifacts.BaseCommit, err = worktree.CreateRun(ctx, job.Request.RepoPath, job.Request.Key)
+			wt, artifacts.BaseCommit, err = worktree.CreateRun(ctx, job.Request.RepoPath, job.Request.Key, base)
 		}
 		if err != nil {
 			return finish(fmt.Errorf("create workspace: %w", err))

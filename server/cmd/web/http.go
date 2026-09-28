@@ -8,6 +8,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/jobs"
 	"github.com/waseem-polus/aycorn/server/internal/knowledge"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	"github.com/waseem-polus/aycorn/server/internal/taskownership"
 	"github.com/waseem-polus/aycorn/server/internal/worktree"
 	"io"
@@ -64,6 +65,7 @@ func httpStatusForError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, projectchat.ErrInvalid), errors.Is(err, knowledge.ErrInvalid), errors.Is(err, repos.ErrChatType), errors.Is(err, jobs.ErrInvalid), errors.Is(err, worktree.ErrBranchUnavailable),
 		errors.Is(err, environments.ErrInvalid),
+		errors.Is(err, repolink.ErrInvalid),
 		errors.Is(err, repos.ErrConductorConfig),
 		errors.Is(err, services.ErrConductorNoWorkingStage),
 		errors.Is(err, services.ErrConductorNoFinishStage),
@@ -89,6 +91,7 @@ func httpStatusForError(err error) int {
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, projectchat.ErrConflict), errors.Is(err, taskownership.ErrBusy), errors.Is(err, taskownership.ErrNotOwner), errors.Is(err, knowledge.ErrConflict), errors.Is(err, repos.ErrChatConflict), errors.Is(err, jobs.ErrConflict), errors.Is(err, repos.ErrActiveAIRun),
 		errors.Is(err, environments.ErrConflict),
+		errors.Is(err, repolink.ErrBusy),
 		errors.Is(err, repos.ErrConductorConflict),
 		errors.Is(err, repos.ErrConductorPaused),
 		errors.Is(err, services.ErrAISetup),
@@ -103,6 +106,9 @@ func httpStatusForError(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, services.ErrDefaultTaskType):
 		return http.StatusForbidden
+	case errors.Is(err, repolink.ErrSync):
+		// GitHub refused or couldn't be reached; the message says what to fix.
+		return http.StatusBadGateway
 	default:
 		return http.StatusInternalServerError
 	}

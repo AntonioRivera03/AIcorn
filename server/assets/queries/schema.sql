@@ -79,10 +79,22 @@ CREATE TABLE project (
     workflow INTEGER,
     defaultView TEXT NOT NULL DEFAULT '',
     repoPath TEXT NOT NULL DEFAULT '',
+    -- '' (no repository), 'personal' (repoPath) or 'official' (repoUrl);
+    -- validated in Go (internal/repolink), not by a CHECK constraint.
+    repoMode TEXT NOT NULL DEFAULT '',
+    repoUrl TEXT NOT NULL DEFAULT '',
     timeCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     timeModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (workflow) REFERENCES workflow(id)
+);
+
+-- The last clone or fetch of a project's Official link (url).
+CREATE TABLE repository_sync (
+    project   INTEGER PRIMARY KEY REFERENCES project(id) ON DELETE CASCADE,
+    url       TEXT NOT NULL,
+    fetchedAt INTEGER,
+    error     TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TRIGGER setProjectTimeModified

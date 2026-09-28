@@ -12,7 +12,7 @@ import (
 
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
-	"github.com/waseem-polus/aycorn/server/internal/worktree"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 )
 
 type ConductorService struct {
@@ -123,15 +123,8 @@ func (s *ConductorService) UpdateSettings(ctx context.Context, project int, patc
 			}
 		}
 		if next.UseRepository {
-			p, err := s.AI.Projects.FindOne(project)
-			if err != nil {
+			if _, err = repolink.Locate(ctx, s.AI.Projects.DB, project); err != nil {
 				return current, err
-			}
-			if strings.TrimSpace(p.RepoPath) == "" {
-				return current, ErrRepoPathMissing
-			}
-			if _, err = worktree.RepoRootFromDir(ctx, p.RepoPath); err != nil {
-				return current, fmt.Errorf("%w: %v", ErrRepoInvalid, err)
 			}
 		}
 	}

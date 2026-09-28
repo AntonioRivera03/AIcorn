@@ -33,6 +33,7 @@ import {
 } from "@/features/agentJob/queries/useAgentJobs";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
 import type { AITask } from "@/features/ai/ai-context";
+import { hasLinkedRepository } from "@/features/repository/repository";
 import type { AIIntent } from "@/features/ai/types";
 
 const intents: { value: AIIntent; label: string; hint: string }[] = [
@@ -85,7 +86,7 @@ export function AIPanel({
     needsRepo &&
     !context.projects.isPending &&
     !context.projects.isError &&
-    !context.project?.RepoPath;
+    !hasLinkedRepository(context.project);
   const canRun =
     ready &&
     !repoMissing &&
@@ -214,7 +215,7 @@ export function AIPanel({
                     onChange={(e) => setUseRepository(e.target.checked)}
                   />{" "}
                   Include linked repository
-                  {context.project?.RepoPath
+                  {context.project && hasLinkedRepository(context.project)
                     ? ` · ${context.project.Name}`
                     : ""}
                 </label>
