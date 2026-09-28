@@ -271,6 +271,10 @@ func (s *Service) syncClone(ctx context.Context, root string, repo Repo) (string
 			return "", describe("fetch", repo, err)
 		}
 	case errors.Is(err, os.ErrNotExist):
+		// Anything at root without a .git isn't a clone, only in the way.
+		if err = os.RemoveAll(root); err != nil {
+			return "", err
+		}
 		if err = s.clone(ctx, root, remote); err != nil {
 			return "", describe("clone", repo, err)
 		}
@@ -301,7 +305,11 @@ func (s *Service) clone(ctx context.Context, root, remote string) error {
 	}
 	// Agent runs add worktrees under <clone>/.worktrees; keep them out of the
 	// clone's own status, as a user's checkout does with .gitignore.
-	exclude, err := os.OpenFile(filepath.Join(temp, ".git", "info", "exclude"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	info := filepath.Join(temp, ".git", "info")
+	if err = os.MkdirAll(info, 0o755); err != nil {
+		return err
+	}
+	exclude, err := os.OpenFile(filepath.Join(info, "exclude"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}

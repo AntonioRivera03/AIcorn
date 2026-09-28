@@ -264,10 +264,21 @@ func TestFailedCloneLeavesNothingBehindAndSaysWhy(t *testing.T) {
 	if entries, _ := os.ReadDir(filepath.Join(repos, "1")); len(entries) != 0 {
 		t.Fatalf("a failed clone left %d entries behind", len(entries))
 	}
-	// Fixing access and fetching again recovers.
+	// Fixing access and fetching again recovers, even past a folder that is
+	// in the clone's way.
+	stray := filepath.Join(repos, "1", "acme", "app", "stray.txt")
+	if err = os.MkdirAll(filepath.Dir(stray), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(stray, []byte("not a clone"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	remotes["acme/app"] = u.bare
 	if status, err = s.Fetch(ctx, 1); err != nil || !status.Cloned || status.Error != "" || status.FetchedAt == nil {
 		t.Fatalf("fetch now = %+v, %v", status, err)
+	}
+	if _, err = os.Stat(stray); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("clone kept a stray file: %v", err)
 	}
 }
 
