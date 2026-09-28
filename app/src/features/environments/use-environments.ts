@@ -38,6 +38,7 @@ export type Environment = {
   jobId: number;
   name: string;
   branch: string;
+  remote: boolean;
   commit: string;
   includeChanges: boolean;
   digest: string;
@@ -68,10 +69,13 @@ export type EnvironmentList = {
   projectId: number;
   environments: Environment[];
 };
+// A remote branch (origin/<name> of an Official repository's clone) has no
+// working tree, and is current when it's the repository's default branch.
 export type EnvironmentBranch = {
   name: string;
   current: boolean;
   hasWorktree: boolean;
+  remote: boolean;
 };
 
 export async function environmentRequest<T>(
