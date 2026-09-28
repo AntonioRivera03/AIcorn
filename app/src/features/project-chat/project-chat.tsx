@@ -5,6 +5,7 @@ import { PanelLeft, SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
+import { useTaskOwnership } from "@/features/ai/queries/use-task-ownership";
 import { ChatComposer } from "@/features/project-chat/chat-composer";
 import { ChatList } from "@/features/project-chat/chat-list";
 import { ChatTimeline } from "@/features/project-chat/chat-timeline";
@@ -27,6 +28,8 @@ export function ProjectChat({ projectId }: { projectId: number }) {
   const [listOpen, setListOpen] = useState(false);
   const conversation = useProjectChatQuery(projectId, chatId);
   const tasks = useChatTasksQuery(projectId);
+  const ownership = useTaskOwnership(projectId);
+  const owners = new Map((ownership.data ?? []).map((owner) => [owner.taskId, owner]));
   const names = useChatNames(tasks.data);
   const turns = conversation.data?.turns ?? [];
   const activeTurn = turns.find((turn) => isWorking(turn.status));
@@ -75,7 +78,9 @@ export function ProjectChat({ projectId }: { projectId: number }) {
           </Button>
         </div>
 
-        {started && <ChatTimeline turns={turns} names={names} />}
+        {started && (
+          <ChatTimeline turns={turns} names={names} tasks={tasks.data ?? []} owners={owners} />
+        )}
 
         {/* One wrapper for both positions, so the move from the middle to the
             bottom animates. */}

@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { TaskOwner } from "@/features/ai/queries/use-task-ownership";
 import type { Names } from "@/features/project-chat/activity";
 import { AssistantTurn } from "@/features/project-chat/chat-timeline/assistant-turn";
 import { UserMessage } from "@/features/project-chat/chat-timeline/user-message";
+import type { MentionTask } from "@/features/project-chat/mentions";
 import type { ChatTurn } from "@/features/project-chat/types";
 
 type ChatTimelineProps = {
   turns: ChatTurn[];
   names: Names;
+  tasks: MentionTask[];
+  owners: Map<number, TaskOwner>;
 };
 
 // Close enough to the bottom to keep following new output.
 const NEAR_BOTTOM = 120;
 
-export function ChatTimeline({ turns, names }: ChatTimelineProps) {
+export function ChatTimeline({ turns, names, tasks, owners }: ChatTimelineProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
   const last = turns.at(-1);
@@ -49,8 +53,8 @@ export function ChatTimeline({ turns, names }: ChatTimelineProps) {
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 pt-4 pb-44 sm:px-4">
           {turns.map((turn) => (
             <div key={turn.id} className="flex flex-col gap-4">
-              <UserMessage turn={turn} />
-              <AssistantTurn turn={turn} names={names} />
+              <UserMessage turn={turn} tasks={tasks} owners={owners} />
+              <AssistantTurn turn={turn} names={names} tasks={tasks} owners={owners} />
             </div>
           ))}
         </div>

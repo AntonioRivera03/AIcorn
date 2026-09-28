@@ -23,11 +23,26 @@ type ChatTurn struct {
 }
 
 type ProjectChatTurn struct {
-	ConversationID int             `json:"conversationId"`
-	TurnID         int             `json:"turnId"`
-	SessionID      string          `json:"sessionId,omitempty"`
-	Context        json.RawMessage `json:"context"`
-	TaskIDs        []int           `json:"taskIds"`
+	ConversationID  int              `json:"conversationId"`
+	TurnID          int              `json:"turnId"`
+	SessionID       string           `json:"sessionId,omitempty"`
+	Context         json.RawMessage  `json:"context"`
+	TaskIDs         []int            `json:"taskIds"`
+	ReferencedTasks []ReferencedTask `json:"referencedTasks,omitempty"`
+}
+
+// ReferencedTask is the bounded context Chatter gets for a task the user's
+// message named with #id: enough to answer or act without a read_task round
+// trip for the common case, while staying small. Owner/State are set only
+// when the task is currently busy.
+type ReferencedTask struct {
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Stage   string `json:"stage"`
+	Type    string `json:"type"`
+	Owner   string `json:"owner,omitempty"`
+	State   string `json:"state,omitempty"`
+	Excerpt string `json:"excerpt,omitempty"`
 }
 
 // TaskSession identifies a persistent, independent task agent. Chat holds its

@@ -158,6 +158,17 @@ func TestProjectChatPersistentResumeIdempotencyAndScope(t *testing.T) {
 	a := projectChatApp(t)
 	s := a.projectChatService
 	ctx := context.Background()
+	// A real task belonging to another project, so the scope check below
+	// proves cross-project isolation and not just "the id exists".
+	if _, err := s.DB.Exec(`INSERT INTO project (id, name, pinned, workflow, defaultView) VALUES (2,'other',0,1,'')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB.Exec(`INSERT INTO checklist (id, project, name, isDefault) VALUES (2,2,'c',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DB.Exec(`INSERT INTO task (id, checklist, stage, name, priority, type, assignee) VALUES (2,2,2,'other project task','Medium',1,'')`); err != nil {
+		t.Fatal(err)
+	}
 	calls := 0
 	s.Engine = chatEngine{func(ctx context.Context, spec harness.RunSpec) (harness.RunResult, error) {
 		calls++
@@ -207,7 +218,7 @@ func TestProjectChatPersistentResumeIdempotencyAndScope(t *testing.T) {
 	if err != nil || len(got.Turns) != 2 || got.Turns[1].ID != two.ID || got.Turns[0].Output != "Completed #1" || got.Turns[1].Status != "completed" {
 		t.Fatalf("%+v %v", got, err)
 	}
-	if _, err = s.Send(ctx, 1, chat, projectchat.Input{Message: "Wrong scope", Key: "wrong", TaskIDs: []int{999}}); !errors.Is(err, projectchat.ErrInvalid) {
+	if _, err = s.Send(ctx, 1, chat, projectchat.Input{Message: "Wrong scope", Key: "wrong", TaskIDs: []int{2}}); !errors.Is(err, projectchat.ErrInvalid) {
 		t.Fatal(err)
 	}
 	if err = taskownership.CheckChat(s.DB, 1, two.ID); !errors.Is(err, taskownership.ErrNotOwner) {
@@ -222,6 +233,38 @@ func TestProjectChatPersistentResumeIdempotencyAndScope(t *testing.T) {
 	a.routes().ServeHTTP(r, httptest.NewRequest("POST", "/api/project-chats/project/1/messages", strings.NewReader(`{"message":"forged","key":"bad","sessionId":"foreign"}`)))
 	if r.Code != 400 {
 		t.Fatal(r.Code)
+	}
+}
+// Chatter gets more than a bare id for a #mention: enough to answer without
+// a read_task round trip, plus who currently owns the task if it's busy.
+func TestProjectChatReferencedTaskContext(t *testing.T) {
+	a := projectChatApp(t)
+	s := a.projectChatService
+	ctx := context.Background()
+	if _, err := s.DB.Exec(`INSERT INTO conductor_task (task, project, state, expectedStage) VALUES (1,1,'working',2)`); err != nil {
+		t.Fatal(err)
+	}
+	var seen []harness.RunSpec
+	s.Engine = chatEngine{func(_ context.Context, spec harness.RunSpec) (harness.RunResult, error) {
+		seen = append(seen, spec)
+		return harness.RunResult{Output: "Ok"}, nil
+	}}
+	if _, err := s.Send(ctx, 1, 0, projectchat.Input{Message: "Look at #1", Key: "ref", TaskIDs: []int{1}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 {
+		t.Fatalf("want one run, got %d", len(seen))
+	}
+	refs := seen[0].Request.ProjectChat.ReferencedTasks
+	if len(refs) != 1 {
+		t.Fatalf("want one referenced task, got %+v", refs)
+	}
+	ref := refs[0]
+	if ref.ID != 1 || ref.Title != "t" || ref.Stage != "Plan" || ref.Type != "Task" || ref.Owner != "Conductor" || ref.State != "working" {
+		t.Fatalf("bad referenced task context: %+v", ref)
 	}
 }
 func TestProjectChatConcurrencyCancelAndRestart(t *testing.T) {

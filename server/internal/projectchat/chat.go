@@ -201,6 +201,59 @@ func TitleFrom(message string) string {
 	return strings.TrimRight(cut, " ,.;:-") + "…"
 }
 
+// referencedTaskExcerptLength bounds each referenced task's body excerpt in
+// the turn payload, so a handful of #mentions can't balloon the request.
+const referencedTaskExcerptLength = 300
+
+// referencedTaskContext resolves the message's #id references inside the
+// same transaction that will enqueue the turn, rejecting an id outside the
+// project before anything is queued. Bodies come back as raw Plate.js JSON;
+// the caller converts them to markdown in one batched call.
+func referencedTaskContext(tx *sql.Tx, project int, ids []int) ([]models.ReferencedTask, []string, error) {
+	referenced := make([]models.ReferencedTask, 0, len(ids))
+	bodies := make([]string, 0, len(ids))
+	for _, id := range ids {
+		var rt models.ReferencedTask
+		var body string
+		err := tx.QueryRow(`SELECT t.id,t.name,s.name,tt.name,t.body FROM task t
+JOIN stage s ON s.id=t.stage
+JOIN task_type tt ON tt.id=t.type
+JOIN checklist c ON c.id=t.checklist
+WHERE t.id=? AND c.project=?`, id, project).Scan(&rt.ID, &rt.Title, &rt.Stage, &rt.Type, &body)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, fmt.Errorf("%w: task #%d is outside this project", ErrInvalid, id)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		owner, err := taskownership.Current(tx, id)
+		if err != nil {
+			return nil, nil, err
+		}
+		if owner != nil {
+			rt.Owner, rt.State = owner.Name, owner.State
+		}
+		referenced = append(referenced, rt)
+		bodies = append(bodies, body)
+	}
+	return referenced, bodies, nil
+}
+
+// excerpt shortens converted markdown to a bound for the AI payload, cutting
+// at a word boundary like TitleFrom does for chat titles.
+func excerpt(text string, max int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	runes := []rune(text)
+	if len(runes) <= max {
+		return text
+	}
+	cut := string(runes[:max])
+	if i := strings.LastIndexByte(cut, ' '); i > max/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(cut, " ,.;:-") + "…"
+}
+
 func (s Store) Cancel(project, id int) error {
 	res, err := s.DB.Exec(`UPDATE project_chat_turn SET status=CASE WHEN status='pending' THEN 'canceled' ELSE 'canceling' END,finishedAt=CASE WHEN status='pending' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=? AND status IN ('pending','running') AND conversation IN (SELECT id FROM project_chat WHERE project=? AND archivedAt IS NULL)`, id, project)
 	if err != nil {
@@ -329,16 +382,23 @@ func (s *Service) Send(ctx context.Context, project, chat int, in Input) (Turn, 
 		return Turn{}, err
 	}
 	defer tx.Rollback()
-	// Scope is rechecked under the same lock as the durable enqueue.
-	for _, id := range in.TaskIDs {
-		var valid bool
-		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND c.project=?)", id, project).Scan(&valid); err != nil {
+	// Scope is rechecked under the same lock as the durable enqueue, and this
+	// also gathers what Chatter needs about each reference so it doesn't need
+	// a tool round trip for the common case.
+	referenced, bodies, err := referencedTaskContext(tx, project, in.TaskIDs)
+	if err != nil {
+		return Turn{}, err
+	}
+	if len(bodies) > 0 {
+		converted, err := s.AI.Converter.ToMarkdown(ctx, bodies)
+		if err != nil {
 			return Turn{}, err
 		}
-		if !valid {
-			return Turn{}, fmt.Errorf("%w: task #%d is outside this project", ErrInvalid, id)
+		for i := range referenced {
+			referenced[i].Excerpt = excerpt(converted[i], referencedTaskExcerptLength)
 		}
 	}
+	req.ProjectChat.ReferencedTasks = referenced
 	if previous, found, err := previousTurn(tx, project, in); err != nil || found {
 		return previous, err
 	}

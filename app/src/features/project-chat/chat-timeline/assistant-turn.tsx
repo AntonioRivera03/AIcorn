@@ -1,18 +1,27 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { AIMarkdown } from "@/features/ai/ai-markdown";
+import type { TaskOwner } from "@/features/ai/queries/use-task-ownership";
 import { formatDuration, taskChanges, type Names } from "@/features/project-chat/activity";
 import { CopyButton } from "@/features/project-chat/chat-timeline/copy-button";
 import { TaskChanges } from "@/features/project-chat/chat-timeline/task-changes";
 import { WorkLog } from "@/features/project-chat/chat-timeline/work-log";
+import type { MentionTask } from "@/features/project-chat/mentions";
 import { isWorking, serverTime, type ChatTurn } from "@/features/project-chat/types";
 import { useNow } from "@/features/project-chat/use-now";
 import { cn } from "@/lib/utils";
 
+type AssistantTurnProps = {
+  turn: ChatTurn;
+  names: Names;
+  tasks: MentionTask[];
+  owners: Map<number, TaskOwner>;
+};
+
 // Chatter's side of a turn, laid out like T3 Code: a "Working for 12s" header
 // with its work underneath while live; afterwards the work folds behind
 // "Worked for 1m 12s", leaving the answer and what it changed.
-export function AssistantTurn({ turn, names }: { turn: ChatTurn; names: Names }) {
+export function AssistantTurn({ turn, names, tasks, owners }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const working = isWorking(turn.status);
   const now = useNow(working);
@@ -63,7 +72,9 @@ export function AssistantTurn({ turn, names }: { turn: ChatTurn; names: Names })
 
       {turn.output && (
         <div className="px-1 [&>div]:text-foreground/85 [&>div]:leading-relaxed">
-          <AIMarkdown>{turn.output}</AIMarkdown>
+          <AIMarkdown linkTasks={tasks} owners={owners}>
+            {turn.output}
+          </AIMarkdown>
         </div>
       )}
       {turn.error && turn.status !== "canceled" && (
