@@ -61,7 +61,7 @@ func (t *toolset) readProjectDocument(ctx context.Context, req *mcp.CallToolRequ
 	if err != nil {
 		return nil, nil, err
 	}
-	return nil, map[string]any{"id": d.ID, "title": d.Title, "body": body, "file": d.File, "binaryContentsIncluded": false}, nil
+	return nil, map[string]any{"id": d.ID, "title": d.Title, "tags": d.Tags, "details": d.Details, "body": body, "file": d.File, "binaryContentsIncluded": false}, nil
 }
 
 type RequestTaskWorkInput struct {

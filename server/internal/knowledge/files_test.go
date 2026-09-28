@@ -3,6 +3,7 @@ package knowledge
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -11,7 +12,7 @@ import (
 func TestFilesPreserveOriginalAndCascade(t *testing.T) {
 	s := testStore(t)
 	raw := []byte("Fabiana wants us to add the export button.\nKeep the original request.")
-	d, err := s.UploadDocument(101, "request.txt", raw)
+	d, err := s.UploadDocument(context.Background(), 101, "request.txt", raw)
 	if err != nil || d.File == nil || d.File.Size != len(raw) {
 		t.Fatalf("%+v %v", d, err)
 	}

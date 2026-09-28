@@ -1,533 +1,158 @@
-// TODO(redesign): The Documents page doesn't match the rest of the app's
-// design and is due for a rework. Keep changes here minimal until then.
-import { apiFetch } from "@/lib/api";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Download,
-  FileText,
-  Image,
-  Plus,
-  Search,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import React, { useState } from "react";
+import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
+import { ItemGroup, ItemSeparator } from "@/components/ui/item";
+import { filterDocuments, projectTags, usedTags } from "@/features/documents/document-filter";
+import { DocumentPanel } from "@/features/documents/document-panel";
+import { DocumentRow } from "@/features/documents/documents-view/document-row";
+import { DocumentsToolbar } from "@/features/documents/documents-view/documents-toolbar";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { RichEditor } from "@/features/editor/rich-editor";
-import { extractPlainText } from "@/features/task/task-utils";
+  useCreateDocumentMutation,
+  useDocumentsQuery,
+  useUploadDocumentMutation,
+} from "@/features/documents/queries/use-documents";
 import { cn } from "@/lib/utils";
-import { DocumentDraft, type ProjectDocument } from "./document-draft";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await apiFetch(url, init);
-  if (!response.ok)
-    throw new Error(
-      (await response.text()).trim() || "Could not load documents",
-    );
-  return response.status === 204 ? (undefined as T) : response.json();
-}
-
-// Retain unsaved edits across tab/route navigation, including failed requests.
-// Successfully saved sessions are discarded when their editor unmounts.
-const drafts = new Map<string, DocumentDraft>();
+const hasFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files");
 
 export function DocumentsView({ projectId }: { projectId: number }) {
-  const client = useQueryClient();
-  const base = `/api/documents/project/${projectId}`;
-  const queryKey = ["project-documents", projectId];
-  const documents = useQuery({
-    queryKey,
-    queryFn: () => request<ProjectDocument[]>(base),
-  });
-  const [selected, setSelected] = useState<number | null>(null);
+  const documents = useDocumentsQuery(projectId);
+  const create = useCreateDocumentMutation(projectId);
+  const upload = useUploadDocumentMutation(projectId);
   const [search, setSearch] = useState("");
-  const [editorVersion, setEditorVersion] = useState(0);
-  const editor = useRef<DocumentDraft | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      if (file.size > 20 * 1024 * 1024)
-        throw new Error("Files must be 20 MiB or smaller.");
-      if (editor.current && !(await editor.current.flush()))
-        throw new Error("Resolve the unsaved note before uploading.");
-      const body = new FormData();
-      body.append("file", file);
-      return request<ProjectDocument>(`${base}/upload`, {
-        method: "POST",
-        body,
-      });
-    },
-    onSuccess: (doc) => {
-      client.setQueryData<ProjectDocument[]>(queryKey, (items) => [
-        doc,
-        ...(items ?? []),
-      ]);
-      setSearch("");
-      setSelected(doc.id);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const addFiles = (files: File[]) => {
-    if (upload.isPending) return;
-    if (files.length !== 1) {
-      toast.error("Upload one file at a time.");
-      return;
-    }
-    upload.mutate(files[0]);
-  };
-  const create = useMutation({
-    mutationFn: () => request<ProjectDocument>(base, { method: "POST" }),
-    onSuccess: (doc) => {
-      client.setQueryData<ProjectDocument[]>(queryKey, (items) => [
-        doc,
-        ...(items ?? []),
-      ]);
-      setSearch("");
-      setSelected(doc.id);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // The id stays set while the panel closes, so it animates out with content.
+  const [panel, setPanel] = useState<{ id: number; open: boolean } | null>(null);
+  const [dropping, setDropping] = useState(false);
+
   const items = documents.data ?? [];
-  const current = items.find((doc) => doc.id === selected);
-  const filtered = items.filter((doc) =>
-    `${doc.title}\n${extractPlainText(doc.body)}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
-  );
-  const select = async (id: number) => {
-    if (editor.current && !(await editor.current.flush())) return;
-    setSelected(id);
+  const shown = filterDocuments(items, search, selectedTags);
+  const current = items.find((doc) => doc.id === panel?.id);
+  const busy = create.isPending || upload.isPending;
+
+  const open = (id: number) => setPanel({ id, open: true });
+
+  const uploadFiles = async (files: File[]) => {
+    if (busy || files.length === 0) return;
+    let last: number | null = null;
+    let uploaded = 0;
+    // One request per file: the server stores each as its own document.
+    for (const file of files) {
+      try {
+        last = (await upload.mutateAsync(file)).id;
+        uploaded++;
+      } catch {
+        // The mutation already showed why.
+      }
+    }
+    setSearch("");
+    setSelectedTags([]);
+    if (files.length === 1 && last !== null) open(last);
+    else if (uploaded > 1) toast.success(`Uploaded ${uploaded} files.`);
   };
 
+  const createNote = () =>
+    create.mutate(undefined, {
+      onSuccess: (doc) => {
+        setSearch("");
+        setSelectedTags([]);
+        open(doc.id);
+      },
+    });
+
   return (
-    <section
-      className="flex min-h-96 flex-1 flex-col overflow-hidden rounded-lg border md:flex-row"
+    <div
+      className="relative flex h-full min-h-0 flex-1 flex-col gap-2"
       aria-label="Project documents"
       onDragOver={(event) => {
-        if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false);
       }}
       onDrop={(event) => {
-        if (event.dataTransfer.files.length) {
-          event.preventDefault();
-          event.stopPropagation();
-          addFiles(Array.from(event.dataTransfer.files));
-        }
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        setDropping(false);
+        void uploadFiles(Array.from(event.dataTransfer.files));
       }}
       onPasteCapture={(event) => {
+        // Pasting a screenshot anywhere on the list uploads it, unless the
+        // paste is going into a field.
         const files = Array.from(event.clipboardData.files);
-        if (files.length) {
-          event.preventDefault();
-          event.stopPropagation();
-          addFiles(files);
-        }
+        if (!files.length || (event.target as HTMLElement).closest("input, textarea, [contenteditable=true]")) return;
+        event.preventDefault();
+        void uploadFiles(files);
       }}
     >
-      <aside className="flex max-h-64 flex-col gap-3 border-b p-3 md:max-h-none md:w-64 md:shrink-0 md:border-r md:border-b-0">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Documents</h2>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={create.isPending || upload.isPending}
-            onClick={async () => {
-              if (editor.current && !(await editor.current.flush())) return;
-              create.mutate();
-            }}
-          >
-            <Plus /> New note
-          </Button>
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          className="sr-only"
-          tabIndex={-1}
-          aria-label="Upload project file"
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.md"
-          onChange={(event) => {
-            if (event.target.files?.length)
-              addFiles(Array.from(event.target.files));
-            event.target.value = "";
-          }}
-        />
-        <Button
-          variant="outline"
-          disabled={upload.isPending || create.isPending}
-          onClick={() => fileInput.current?.click()}
-        >
-          <Upload className="size-4" />
-          {upload.isPending ? "Uploading…" : "Upload file"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Drop a file or paste a screenshot here. PDF, Word, images, or text ·
-          up to 20 MiB.
-        </p>
-        {upload.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {upload.error.message}
-          </p>
-        )}
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-          <Input
-            aria-label="Search documents"
-            placeholder="Search knowledge…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-8"
-          />
-        </div>
-        {documents.isPending && (
-          <p className="text-sm text-muted-foreground">Loading documents…</p>
-        )}
-        {documents.isError && (
-          <div role="alert" className="text-sm text-destructive">
-            {documents.error.message}
-            <Button variant="link" onClick={() => documents.refetch()}>
+      <DocumentsToolbar
+        search={search}
+        onSearchChange={setSearch}
+        count={shown.length}
+        tags={usedTags(items)}
+        selectedTags={selectedTags}
+        onSelectedTagsChange={setSelectedTags}
+        busy={busy}
+        onUpload={(files) => void uploadFiles(files)}
+        onCreate={createNote}
+      />
+
+      <div className="h-full min-h-0 overflow-auto">
+        {documents.isPending ? (
+          <p className="p-4 text-sm text-muted-foreground">Loading documents…</p>
+        ) : documents.isError ? (
+          <p role="alert" className="p-4 text-sm text-destructive">
+            {documents.error.message}{" "}
+            <Button variant="link" onClick={() => void documents.refetch()}>
               Retry
             </Button>
-          </div>
-        )}
-        <nav
-          className="flex min-h-0 flex-col gap-1 overflow-y-auto"
-          aria-label="Documents"
-        >
-          {filtered.map((doc) => (
-            <button
-              key={doc.id}
-              type="button"
-              aria-current={current?.id === doc.id ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring",
-                current?.id === doc.id && "bg-accent",
-              )}
-              onClick={() => void select(doc.id)}
-            >
-              {doc.file?.mediaType.startsWith("image/") ? (
-                <Image className="size-4 shrink-0 text-muted-foreground" />
-              ) : (
-                <FileText className="size-4 shrink-0 text-muted-foreground" />
-              )}
-              <span className="truncate">
-                {doc.title || "Untitled document"}
-              </span>
-            </button>
-          ))}
-          {!documents.isPending &&
-            !documents.isError &&
-            filtered.length === 0 && (
-              <p className="p-2 text-sm text-muted-foreground">
-                {search
-                  ? "No matching documents."
-                  : "Keep requests, notes, screenshots, and project files here."}
-              </p>
-            )}
-        </nav>
-      </aside>
-      {current ? (
-        <DocumentEditor
-          key={`${projectId}:${current.id}:${editorVersion}`}
-          document={current}
-          onReady={(draft) => {
-            editor.current = draft;
-          }}
-          onReload={() => setEditorVersion((value) => value + 1)}
-          onDeleted={() => {
-            editor.current = null;
-            setSelected(null);
-          }}
-        />
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center text-muted-foreground">
-          <FileText className="size-8" />
-          <p>Select an item, upload a file, or create a note.</p>
-          <p className="text-sm">
-            Capture a quick request like “Fabiana wants us to do this” and add
-            the details.
           </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function DocumentEditor({
-  document,
-  onReady,
-  onDeleted,
-  onReload,
-}: {
-  document: ProjectDocument;
-  onReady: (draft: DocumentDraft | null) => void;
-  onDeleted: () => void;
-  onReload: () => void;
-}) {
-  const client = useQueryClient();
-  const url = `/api/documents/project/${document.projectId}/${document.id}`;
-  const key = `${document.projectId}:${document.id}`;
-  const [draft] = useState(() => {
-    const existing = drafts.get(key);
-    if (existing) return existing;
-    const session = new DocumentDraft(document, async (value) => {
-      const saved = await request<ProjectDocument>(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: value.title,
-          body: value.body,
-          revision: value.revision,
-        }),
-      });
-      client.setQueryData<ProjectDocument[]>(
-        ["project-documents", document.projectId],
-        (items) => items?.map((item) => (item.id === saved.id ? saved : item)),
-      );
-      return saved;
-    });
-    drafts.set(key, session);
-    return session;
-  });
-  const state = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [reloadOpen, setReloadOpen] = useState(false);
-  const discarded = useRef(false);
-  const mounted = useRef(false);
-  const reload = useMutation({
-    mutationFn: () => request<ProjectDocument>(url),
-    onSuccess: (saved) => {
-      discarded.current = true;
-      drafts.delete(key);
-      client.setQueryData<ProjectDocument[]>(
-        ["project-documents", document.projectId],
-        (items) => items?.map((item) => (item.id === saved.id ? saved : item)),
-      );
-      onReload();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const remove = useMutation({
-    mutationFn: async () => {
-      if (!(await draft.flush()))
-        throw new Error("Resolve the unsaved document before deleting it.");
-      return request<void>(url, {
-        method: "DELETE",
-        headers: { "If-Match": String(draft.getSnapshot().value.revision) },
-      });
-    },
-    onSuccess: () => {
-      drafts.delete(key);
-      client.setQueryData<ProjectDocument[]>(
-        ["project-documents", document.projectId],
-        (items) => items?.filter((item) => item.id !== document.id),
-      );
-      onDeleted();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  useEffect(() => {
-    mounted.current = true;
-    drafts.set(key, draft);
-    onReady(draft);
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (draft.getSnapshot().dirty) {
-        event.preventDefault();
-        event.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", beforeUnload);
-    return () => {
-      mounted.current = false;
-      onReady(null);
-      window.removeEventListener("beforeunload", beforeUnload);
-      if (!discarded.current)
-        void draft.flush().then((saved) => {
-          if (saved && !mounted.current && drafts.get(key) === draft)
-            drafts.delete(key);
-        });
-    };
-    // Each editor is keyed to one document; callbacks don't own its lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, key]);
-
-  return (
-    <article className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
-      <div className="mb-4 flex items-start gap-3">
-        <Input
-          autoFocus
-          aria-label="Document title"
-          placeholder="Untitled document"
-          value={state.value.title}
-          maxLength={500}
-          onChange={(event) => draft.edit({ title: event.target.value })}
-          onBlur={() => {
-            if (!state.error) void draft.flush();
-          }}
-          className="h-auto border-transparent px-1 text-xl! font-semibold shadow-none"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Delete document"
-          onClick={() => setDeleteOpen(true)}
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      </div>
-      <div
-        className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"
-        role="status"
-      >
-        {state.error ? (
-          <>
-            <span className="text-destructive">
-              {state.error} Your edits are retained.
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void draft.flush()}
-            >
-              Retry save
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setReloadOpen(true)}
-            >
-              Reload saved version
-            </Button>
-          </>
-        ) : state.saving ? (
-          "Saving…"
-        ) : state.dirty ? (
-          "Unsaved changes"
+        ) : shown.length > 0 ? (
+          <ItemGroup className="box-border h-fit rounded-md p-1">
+            {shown.map((doc, index) => (
+              <React.Fragment key={doc.id}>
+                <DocumentRow
+                  document={doc}
+                  active={panel?.open === true && panel.id === doc.id}
+                  onOpen={() => open(doc.id)}
+                />
+                {index < shown.length - 1 && <ItemSeparator />}
+              </React.Fragment>
+            ))}
+          </ItemGroup>
         ) : (
-          "All changes saved"
+          <Empty>
+            <EmptyTitle>{items.length ? "No matching documents" : "No documents yet"}</EmptyTitle>
+            <EmptyDescription>
+              {items.length
+                ? "Try another search or tag."
+                : "Write a note, or drop files here: PDFs, Word files, images, emails (.eml), text, or Markdown, up to 20 MB each. You can also paste a screenshot."}
+            </EmptyDescription>
+          </Empty>
         )}
       </div>
-      {state.value.file && <DocumentFilePreview document={state.value} />}
-      {state.value.file && (
-        <p className="mt-5 mb-2 text-sm font-medium">Context and notes</p>
-      )}
-      <RichEditor
-        initialValue={state.value.body}
-        onValueChange={(body) => draft.edit({ body })}
-        className="px-1"
-      />
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              “{state.value.title || "Untitled document"}” will be permanently
-              deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={reloadOpen} onOpenChange={setReloadOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reload saved document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This discards your unsaved edits and loads the latest saved
-              version. Copy any writing you want to keep first.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={reload.isPending}
-              onClick={() => reload.mutate()}
-            >
-              Discard edits and reload
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </article>
-  );
-}
 
-function DocumentFilePreview({ document }: { document: ProjectDocument }) {
-  const file = document.file!;
-  const url = `/api/documents/project/${document.projectId}/${document.id}/file`;
-  return (
-    <section
-      className="mt-6 space-y-3 border-t pt-4"
-      aria-label="Original file"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 break-all text-sm text-muted-foreground">
-          {file.name} ·{" "}
-          {file.size < 1024 * 1024
-            ? `${Math.ceil(file.size / 1024)} KB`
-            : `${(file.size / (1024 * 1024)).toFixed(1)} MiB`}
-        </p>
-        <Button variant="outline" size="sm" asChild>
-          <a href={`${url}?download=1`} download={file.name}>
-            <Download className="size-4" />
-            Download original
-          </a>
-        </Button>
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary bg-background/80 text-sm font-medium opacity-0 transition-opacity",
+          dropping && "opacity-100",
+        )}
+      >
+        <Upload className="size-4" />
+        Drop to upload
       </div>
-      {file.mediaType.startsWith("image/") ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open full-size image"
-        >
-          <img
-            src={url}
-            alt={document.title || file.name}
-            className="max-h-[65vh] max-w-full rounded-md border object-contain"
-          />
-        </a>
-      ) : file.mediaType === "application/pdf" ? (
-        <>
-          <a
-            className="text-sm underline"
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open PDF in a new tab
-          </a>
-          <iframe
-            src={url}
-            title={`Preview of ${file.name}`}
-            className="h-[65vh] w-full rounded-md border"
-          />
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          The original file is preserved. Add project context in the note below.
-        </p>
-      )}
-    </section>
+
+      <DocumentPanel
+        document={current}
+        open={panel?.open ?? false}
+        onOpenChange={(next) => setPanel((value) => (value ? { ...value, open: next } : value))}
+        tagSuggestions={projectTags(items)}
+      />
+    </div>
   );
 }

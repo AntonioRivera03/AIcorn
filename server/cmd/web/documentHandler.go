@@ -48,7 +48,10 @@ func (app *app) documentUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store := knowledge.Store{DB: app.projectRepo.DB}
-	doc, err := store.UploadDocument(project, name, content)
+	if app.aiService != nil && app.aiService.Converter != nil {
+		store.Markdown = app.aiService.Converter
+	}
+	doc, err := store.UploadDocument(r.Context(), project, name, content)
 	if err != nil {
 		respondErr(w, err)
 		return

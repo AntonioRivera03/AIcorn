@@ -50,7 +50,7 @@ var descriptions = map[Name]string{
 	StartConductorTask:  "Start an independent persistent task session by projectId and taskId, choosing coder, researcher, or reviewer. Server code validates ownership and dependencies, moves the task to its configured In progress stage, and queues its session. Does not wait for completion. Repeated calls return the existing active job.",
 	DeferConductorTask:  "Record a specific blocker for a waiting managed task. It will await explicit recheck instead of repeatedly running.",
 	ProjectContext:      "Read this project’s actual workflow, stages, checklists, task types, Conductor settings, active task owners, and document metadata.",
-	ReadProjectDocument: "Read a project document’s written notes and original-file metadata. Binary file contents are not included.",
+	ReadProjectDocument: "Read a project document’s written notes, tags, imported email headers, and original-file metadata. Binary file contents are not included.",
 	RequestTaskWork:     "Queue a task agent to work on a free task in this project. Implement/review requires a linked repository. Active owners block dispatch; queued does not mean completed.",
 	SearchTasks:         "Search and filter accessible tasks. Agent runs are limited to their assigned project. Bodies are returned as markdown. Discover stage IDs through project_context in scoped runs, or list_workflow_stages in interactive sessions.",
 	ReadTask:            "Read a single task's full details by id. The body is returned as markdown.",

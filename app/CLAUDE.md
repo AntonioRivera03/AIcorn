@@ -134,6 +134,10 @@ Add `cursor-text` to the `EditableHeader` className when it lives inside a `curs
 
 Side effect: with `remarkMdx` loaded, literal `{braces}` typed directly into the editor now serialize as escaped `\{braces}` on "Copy as markdown" (still correct — round-trips to the same characters — just a visible formatting change from before this plugin was added). This is inherent to enabling MDX parsing, not a bug; splitting the live editor onto a separate non-MDX pipeline would just reintroduce the export crash for any document containing a callout, toggle, or toc.
 
+### Documents (`features/documents/`)
+
+A list like the task list view; a document opens in a side panel (`document-panel.tsx`) like a task. PDFs and images show in a zoomable viewer instead of a body (`viewers/`; PDF.js is loaded on first use). **Files load through `apiFetch` as blobs**, never as a plain `<img src>`, `<iframe src>`, or `<a href>` to the file URL: those can't send the workspace header, so the server rejects them. Tags autosave through the same `DocumentDraft` revision queue as the title and body.
+
 ### Task Types (`features/task-types/`)
 
 Task types belong to categories (`TaskTypeCategory`). The global task types page (`/task-types`) renders a collapsible, reorderable category section per category, each containing a card grid. Task type ordering within categories is deferred.
