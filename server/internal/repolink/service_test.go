@@ -237,6 +237,46 @@ func TestSyncIsSerializedPerProject(t *testing.T) {
 	}
 }
 
+// A sync that waited out a link change must not hand its caller the new
+// repository in place of the one it asked for.
+func TestSyncNeverSubstitutesAChangedLink(t *testing.T) {
+	ctx := context.Background()
+	db, repos := testDB(t)
+	u := newUpstream(t)
+	s, _ := testService(t, db, map[string]string{"acme/one": u.bare, "acme/two": u.bare})
+	if _, err := saveAndLoad(t, db, 1, Link{Mode: Official, URL: "https://github.com/acme/one"}); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := s.lock(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		source Source
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		source, err := s.SourceRepo(ctx, 1)
+		done <- result{source, err}
+	}()
+	for !s.syncing(1, "https://github.com/acme/one") {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err = s.Update(ctx, 1, Patch{URL: ptr("https://github.com/acme/two")}); err != nil {
+		t.Fatal(err)
+	}
+	unlock()
+	got := <-done
+	if !errors.Is(got.err, ErrBusy) || !strings.Contains(got.err.Error(), "link changed") {
+		t.Fatalf("the sync for acme/one returned %+v, %v", got.source, got.err)
+	}
+	source, err := s.SourceRepo(ctx, 1)
+	if err != nil || source.Root != filepath.Join(repos, "1", "acme", "two") {
+		t.Fatalf("the new link = %+v, %v", source, err)
+	}
+}
+
 func saveAndLoad(t *testing.T, db *sql.DB, project int, link Link) (Link, error) {
 	t.Helper()
 	if err := saveLink(context.Background(), db, project, link); err != nil {
@@ -318,6 +358,16 @@ func TestLinkChangesRemoveTheOldClone(t *testing.T) {
 		t.Fatalf("refused change was saved: %+v", link)
 	}
 	if _, err = db.Exec(`UPDATE agent_job SET status='completed' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	// Nor while a preview has yet to capture its source from the clone.
+	if _, err = db.Exec(`INSERT INTO task_environment(id,project,requestKey,name,repo,branch,remote,sourceCommit,settings,state,expiresAt) VALUES(1,1,'k','main',?,'origin/main',1,'','{}','snapshotting',0)`, one.Root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Update(ctx, 1, Patch{Mode: ptr(Personal)}); !errors.Is(err, ErrBusy) {
+		t.Fatalf("relinked under a capturing preview: %v", err)
+	}
+	if _, err = db.Exec(`UPDATE task_environment SET state='ready' WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 

@@ -69,11 +69,13 @@ ON CONFLICT(project) DO UPDATE SET fetchedAt = CASE WHEN repository_sync.url = e
 	return err
 }
 
-// agentWorkingIn reports whether an agent run is using the checkout at root.
-// Runs record the repository root they work in as requestJson.repoPath.
-func agentWorkingIn(ctx context.Context, db *sql.DB, root string) (bool, error) {
+// cloneInUse reports whether an agent run is working in the checkout at root
+// (runs record it as requestJson.repoPath), or a preview has yet to capture
+// its source from it (environments snapshot from task_environment.repo).
+func cloneInUse(ctx context.Context, db *sql.DB, root string) (bool, error) {
 	var busy bool
-	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agent_job WHERE status IN ('claimed','running','canceling') AND json_extract(requestJson, '$.repoPath') = ?)`, root).Scan(&busy)
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM agent_job WHERE status IN ('claimed','running','canceling') AND json_extract(requestJson, '$.repoPath') = ?)
+OR EXISTS(SELECT 1 FROM task_environment WHERE repo = ? AND desired = 'running' AND state IN ('queued','snapshotting'))`, root, root).Scan(&busy)
 	return busy, err
 }
 

@@ -216,7 +216,7 @@ func (s *Service) startSync(project int, url string) *flight {
 		s.mu.Unlock()
 		close(f.done)
 	}
-	if !s.background(func(ctx context.Context) { finish(s.sync(ctx, project)) }) {
+	if !s.background(func(ctx context.Context) { finish(s.sync(ctx, project, url)) }) {
 		finish(Source{}, fmt.Errorf("%w: the workspace is shutting down", ErrBusy))
 	}
 	return f
@@ -228,9 +228,10 @@ func (s *Service) syncing(project int, url string) bool {
 	return s.flights[flightKey{project, url}] != nil
 }
 
-// sync clones or fetches the project's current Official link, under the
-// project's lock, and records the outcome.
-func (s *Service) sync(ctx context.Context, project int) (Source, error) {
+// sync clones or fetches url, under the project's lock, and records the
+// outcome. If the link changed while it waited for the lock, it syncs nothing:
+// its callers asked for url, and the new link's own sync handles that one.
+func (s *Service) sync(ctx context.Context, project int, url string) (Source, error) {
 	unlock, err := s.lock(ctx, project)
 	if err != nil {
 		return Source{}, err
@@ -240,9 +241,12 @@ func (s *Service) sync(ctx context.Context, project int) (Source, error) {
 	if err != nil {
 		return Source{}, err
 	}
+	if link.Mode != Official || link.URL != url {
+		return Source{}, fmt.Errorf("%w: the project's repository link changed; try again", ErrBusy)
+	}
 	source, err := locate(ctx, s.DB, project, link)
-	if err != nil || source.Mode != Official {
-		return source, err
+	if err != nil {
+		return Source{}, err
 	}
 	repo, _ := ParseGitHubURL(link.URL) // locate validated it
 	source.Base, err = s.syncClone(ctx, source.Root, repo)

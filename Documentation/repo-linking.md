@@ -19,14 +19,14 @@ Both fields are kept, so switching modes back and forth doesn't lose the other o
 
 - It clones when you link the repository, or the first time something needs it.
 - It runs `git fetch --prune` before each environment build from a branch, before each agent run, when the Environments tab lists branches, and when you press **Fetch now**. A fetch also follows a change of the repository's default branch.
-- Only one clone or fetch runs per project at a time. Callers that arrive while one is running share it. A page request that can't wait gets "still cloning or fetching", and the work finishes in the background.
+- Only one clone or fetch runs per project at a time. Callers that arrive while one is running share it. A sync started for one URL never syncs another: if the link changes while it waits, it stops and asks to try again. A page request that can't wait gets "still cloning or fetching", and the work finishes in the background.
 - Each clone or fetch has a time limit (20 minutes to clone, 5 to fetch). A clone goes into a temporary folder and is moved into place only when it completes.
 
 **Status.** The Repository section shows whether the repository is cloned, when it was last fetched, and the last error (cleared by the next successful fetch).
 
 **Branches and runs.** In Official mode the Environments branch picker lists the repository's branches on GitHub (`origin/*`), with its default branch selected. A preview builds from the branch's latest commit, fetched when you create the preview. There is no working-tree option, because nobody edits the clone. New agent runs start from the repository's default branch as of the fetch, not from whatever the clone has checked out.
 
-**Changing or removing the link.** Changing the URL, or switching to Personal, deletes Aycorn's clone, including agent branches in it. The app asks first, and the server refuses while an agent is working in the clone. Deleting the project deletes its clone too. Changing the link while a run is queued makes that run stop with "start it again" instead of working in the wrong repository. When a workspace starts up on the server, Aycorn removes any clone left behind by an interrupted deletion.
+**Changing or removing the link.** Changing the URL, or switching to Personal, deletes Aycorn's clone, including agent branches in it. The app asks first, and the server refuses while an agent is working in the clone or a preview is still capturing its source from it. Deleting the project deletes its clone too, agent branches included; its tasks and their runs go with it, and any run still going is stopped. Changing the link while a run is queued makes that run stop with "start it again" instead of working in the wrong repository. When a workspace starts up on the server, Aycorn removes any clone left behind by an interrupted deletion.
 
 ## Aycorn never pushes
 
