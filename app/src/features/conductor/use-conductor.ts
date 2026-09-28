@@ -2,7 +2,8 @@ import { apiFetch } from "@/lib/api";
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { BulkResult } from "@/types/types";
+import { conductorSendNote } from "@/features/conductor/conductor-send-note";
+import type { BulkResult, Stage } from "@/types/types";
 
 export type ConductorSettings = {
   enabled: boolean;
@@ -26,6 +27,11 @@ export type ConductorBoard = {
   settings: ConductorSettings;
   tasks: ConductorTask[];
   configurationError?: string;
+  // Whether the working/finish stage above came from an automatic pick
+  // rather than a saved choice (see stage-select.tsx).
+  stagesAutoPicked?: boolean;
+  // Whether configurationError's fix is a one-click "Add a Review stage".
+  canAddReviewStage?: boolean;
 };
 export type ConductorAction = "send" | "release" | "recheck";
 
@@ -77,9 +83,20 @@ export function useConductor(projectId: number) {
     onSuccess: (result, input) => {
       void client.invalidateQueries({ queryKey: ["conductor", projectId] });
       const verb = input.action === "release" ? "Released" : input.action === "recheck" ? "Sent for recheck" : "Sent to Conductor";
-      toast(`${verb}: ${result.success}.` + (result.skipped ? ` ${result.skipped} ineligible or already managed.` : "") + (result.failed ? ` ${result.failed} failed — try again.` : ""));
+      const note = input.action === "send" && result.success > 0 ? conductorSendNote(query.data) : "";
+      toast(`${verb}: ${result.success}.` + (result.skipped ? ` ${result.skipped} ineligible or already managed.` : "") + (result.failed ? ` ${result.failed} failed — try again.` : "") + note);
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  return { ...query, update, manage };
+  const addReviewStage = useMutation({
+    mutationFn: () => request<Stage>(`/api/project/${projectId}/settings/conductor/review-stage`, "POST"),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["conductor", projectId] });
+      void client.invalidateQueries({ queryKey: ["projectWorkflowSettings", projectId] });
+      void client.invalidateQueries({ queryKey: ["projectDetails", projectId] });
+      toast("Added a Review stage.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  return { ...query, update, manage, addReviewStage };
 }

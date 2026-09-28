@@ -16,37 +16,39 @@ import (
 )
 
 type ConductorService struct {
-	Repo *repos.ConductorRepo
-	AI   *AIService
-	Runs *repos.AgentRunRepo
+	Repo   *repos.ConductorRepo
+	AI     *AIService
+	Runs   *repos.AgentRunRepo
+	Stages *repos.StageRepo
 }
 
 type ConductorBoard struct {
 	Settings           models.ConductorSettings `json:"settings"`
 	Tasks              []models.ConductorTask   `json:"tasks"`
 	ConfigurationError string                   `json:"configurationError,omitempty"`
+	// StagesAutoPicked reports the settings' working/finish stage came from
+	// resolveConductorStages rather than a saved choice.
+	StagesAutoPicked bool `json:"stagesAutoPicked,omitempty"`
+	// CanAddReviewStage offers AddReviewStage as a fix for ConfigurationError.
+	CanAddReviewStage bool `json:"canAddReviewStage,omitempty"`
 }
 
 func (s *ConductorService) Board(project int) (ConductorBoard, error) {
-	c, _, err := s.Repo.Settings(project)
+	settings, autoPicked, canAddReviewStage, configError, err := s.Configuration(project)
 	if err != nil {
 		return ConductorBoard{}, err
 	}
 	tasks, err := s.Repo.Tasks(project)
-	b := ConductorBoard{Settings: c, Tasks: tasks}
-	if configErr := s.Repo.ValidateStages(project, c); configErr != nil {
-		b.ConfigurationError = configErr.Error()
-	} else if c.ConductorAgentID == 0 || c.TaskAgentID == 0 {
-		b.ConfigurationError = "Bundled Conductor agents are unavailable."
-	} else {
-		for _, id := range []int{c.ConductorAgentID, c.TaskAgentID} {
-			if _, err := s.AI.ResolveAgent(context.Background(), id); err != nil {
-				b.ConfigurationError = err.Error()
-				break
-			}
-		}
+	if err != nil {
+		return ConductorBoard{}, err
 	}
-	return b, err
+	return ConductorBoard{
+		Settings:           settings,
+		Tasks:              tasks,
+		ConfigurationError: configError,
+		StagesAutoPicked:   autoPicked,
+		CanAddReviewStage:  canAddReviewStage,
+	}, nil
 }
 
 // Settings are field patches, auto-saved in place. Unknown keys are rejected.
@@ -98,6 +100,12 @@ func (s *ConductorService) UpdateSettings(ctx context.Context, project int, patc
 		}
 	}
 	if next.Enabled {
+		// Starting is the first actual use for a project that never chose
+		// stages: pick and persist them now instead of requiring a settings
+		// visit first.
+		if _, err = s.fillAutoStages(project, &next); err != nil {
+			return current, err
+		}
 		if err = s.Repo.ValidateStages(project, next); err != nil {
 			return current, err
 		}
@@ -137,7 +145,16 @@ func (s *ConductorService) Manage(project int, ids []int, action string) (models
 	if action != "send" && action != "release" && action != "recheck" {
 		return models.BulkResult{}, fmt.Errorf("%w: unknown Conductor action", ErrInvalidAIRun)
 	}
-	if _, _, err := s.Repo.Settings(project); err != nil {
+	if action == "send" {
+		// A send is an actual use: persist an automatic stage pick so the
+		// task can be worked once Conductor runs, without a settings visit
+		// first. A workflow with no candidate yet isn't an error here — the
+		// send still queues the task; callers tell the user separately that
+		// Conductor isn't ready for it (see Configuration).
+		if _, err := s.EnsureStages(project); err != nil && !isConductorConfigError(err) {
+			return models.BulkResult{}, err
+		}
+	} else if _, _, err := s.Repo.Settings(project); err != nil {
 		return models.BulkResult{}, err
 	}
 	return s.Repo.Manage(project, ids, action)

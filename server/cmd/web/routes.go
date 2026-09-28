@@ -54,6 +54,7 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/project/{projectId}/settings/workflow", app.getProjectWorkflowSettings)
 	mux.HandleFunc("GET /api/project/{projectId}/settings/conductor", app.getConductor)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/conductor", app.putConductor)
+	mux.HandleFunc("POST /api/project/{projectId}/settings/conductor/review-stage", app.addConductorReviewStage)
 	mux.HandleFunc("POST /api/project/{projectId}/conductor/bulk", app.bulkConductor)
 	mux.HandleFunc("PUT /api/project/{projectId}/settings/workflow", app.switchProjectWorkflow)
 	mux.HandleFunc("GET /api/project/{projectId}/settings/task-types", app.getProjectTaskTypeSettings)

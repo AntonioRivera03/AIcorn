@@ -163,7 +163,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 	// In-flight work is interrupted on restart and requires an explicit recheck.
 	// WAL + busy_timeout already handles concurrent DB access.
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: cfg.mcpPath}
-	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
+	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo, Stages: stageRepo}
 	engine := &harness.Registry{Codex: &harness.Codex{MCPExecutable: cfg.mcpPath, DBPath: dbPath}}
 	w := worker.New(agentJobService, engine)
 	w.Conductor = conductorService

@@ -65,6 +65,8 @@ func httpStatusForError(err error) int {
 	case errors.Is(err, projectchat.ErrInvalid), errors.Is(err, knowledge.ErrInvalid), errors.Is(err, repos.ErrChatType), errors.Is(err, jobs.ErrInvalid), errors.Is(err, worktree.ErrBranchUnavailable),
 		errors.Is(err, environments.ErrInvalid),
 		errors.Is(err, repos.ErrConductorConfig),
+		errors.Is(err, services.ErrConductorNoWorkingStage),
+		errors.Is(err, services.ErrConductorNoFinishStage),
 		errors.Is(err, services.ErrInvalidAIRun),
 		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),

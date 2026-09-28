@@ -48,7 +48,7 @@ func fixture(t *testing.T) *Service {
 	ai := &services.AIService{Jobs: &repos.AgentJobRepo{DB: db}, Tasks: &repos.TaskRepo{DB: db}, Projects: &repos.ProjectRepo{DB: db}, Presets: &repos.PersonaRepo{DB: db}, Converter: &markdown.Converter{}, Probe: func(context.Context, string) harness.EngineHealth {
 		return harness.EngineHealth{Ready: true, Executable: "fake"}
 	}}
-	c := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: ai, Runs: &repos.AgentRunRepo{DB: db}}
+	c := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: ai, Runs: &repos.AgentRunRepo{DB: db}, Stages: &repos.StageRepo{DB: db}}
 	settings := models.DefaultConductorSettings()
 	settings.UseRepository = false
 	settings.PlanningStage = 2

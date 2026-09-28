@@ -77,7 +77,7 @@ func main() {
 		log.Fatal(err)
 	}
 	toolset.aiService = &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: toolset.converter, MCPExecutable: executable}
-	toolset.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: toolset.aiService, Runs: agentRunRepo}
+	toolset.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: toolset.aiService, Runs: agentRunRepo, Stages: stageRepo}
 	if raw, scoped := os.LookupEnv("AYCORN_DISPATCH"); scoped {
 		id, err := strconv.Atoi(raw)
 		if err != nil || id <= 0 {

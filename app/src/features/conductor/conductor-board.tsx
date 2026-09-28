@@ -2,7 +2,7 @@
 // changes here minimal until then.
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { AudioLines, Filter, Pause, Play, Settings2 } from "lucide-react";
+import { AudioLines, Filter, Pause, Play, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useBoardConductor } from "./conductor-context";
@@ -22,7 +22,12 @@ export function ConductorControls({ projectId, only, onOnlyChange }: { projectId
       <Link to="/app/project/settings/$projectId" params={{ projectId: String(projectId) }} search={{ tab: "conductor" }} aria-label="Conductor settings"><Settings2 className="size-4" /></Link>
     </Button>
     {conductor?.isError && <span role="alert" className="text-xs text-destructive">Conductor is unavailable. <button className="underline" onClick={() => void conductor.refetch()}>Retry</button></span>}
-    {data?.configurationError && !data.settings.enabled && <span className="text-xs text-muted-foreground">Choose stages in Conductor settings.</span>}
+    {data?.configurationError && !data.settings.enabled && <span className="text-xs text-muted-foreground">{data.configurationError}</span>}
+    {data?.canAddReviewStage && !data.settings.enabled && (
+      <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={conductor?.addReviewStage.isPending} onClick={() => conductor?.addReviewStage.mutate()}>
+        <Plus className="size-3" />Add a Review stage
+      </Button>
+    )}
   </div>;
 }
 
