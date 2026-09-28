@@ -40,6 +40,19 @@ func NotFound(entity string, id int) error {
 	return NotFoundError{Entity: entity, ID: id}
 }
 
+// requireRow reports id as NotFound(entity) unless table has a row with it.
+// table is always a literal from this file, never caller input.
+func requireRow(q taskownership.Querier, table, entity string, id int) error {
+	var exists bool
+	if err := q.QueryRow("SELECT EXISTS(SELECT 1 FROM "+table+" WHERE id=?)", id).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return NotFound(entity, id)
+	}
+	return nil
+}
+
 func agentTaskProject(tx *sql.Tx, task, scope, job int, chatTurn ...int) (int, error) {
 	var project int
 	err := tx.QueryRow("SELECT c.project FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND (?=0 OR c.project=?)", task, scope, scope).Scan(&project)
@@ -90,12 +103,8 @@ func (r *TaskRepo) UpdateByAgent(task, scope, job int, patch AgentTaskPatch, cha
 		project = dest
 	}
 	if patch.TypeID != nil {
-		var exists bool
-		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM task_type WHERE id=?)", *patch.TypeID).Scan(&exists); err != nil {
+		if err = requireRow(tx, "task_type", "task type", *patch.TypeID); err != nil {
 			return false, err
-		}
-		if !exists {
-			return false, NotFound("task type", *patch.TypeID)
 		}
 		var valid bool
 		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM project_task_type WHERE project=? AND task_type=?)", project, *patch.TypeID).Scan(&valid); err != nil {
@@ -126,12 +135,8 @@ func (r *TaskRepo) MoveByAgent(task, scope, job, from, to int, chatTurn ...int) 
 	if err != nil {
 		return false, err
 	}
-	var exists bool
-	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM stage WHERE id=?)", to).Scan(&exists); err != nil {
+	if err = requireRow(tx, "stage", "stage", to); err != nil {
 		return false, err
-	}
-	if !exists {
-		return false, NotFound("stage", to)
 	}
 	var valid bool
 	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM stage s JOIN project p ON p.workflow=s.workflow WHERE s.id=? AND p.id=?)", to, project).Scan(&valid); err != nil {
@@ -170,18 +175,11 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 	default:
 		return nil, fmt.Errorf("invalid priority")
 	}
-	var checklistExists, stageExists bool
-	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM checklist WHERE id=?)", task.Checklist).Scan(&checklistExists); err != nil {
+	if err = requireRow(tx, "checklist", "checklist", task.Checklist); err != nil {
 		return nil, err
 	}
-	if !checklistExists {
-		return nil, NotFound("checklist", task.Checklist)
-	}
-	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM stage WHERE id=?)", task.Stage).Scan(&stageExists); err != nil {
+	if err = requireRow(tx, "stage", "stage", task.Stage); err != nil {
 		return nil, err
-	}
-	if !stageExists {
-		return nil, NotFound("stage", task.Stage)
 	}
 	var valid bool
 	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM checklist c JOIN project p ON p.id=c.project JOIN stage s ON s.workflow=p.workflow WHERE c.id=? AND p.id=? AND s.id=?)", task.Checklist, project, task.Stage).Scan(&valid); err != nil {
@@ -194,14 +192,8 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 		if err = tx.QueryRow("SELECT tt.id FROM task_type tt JOIN project_task_type pt ON pt.task_type=tt.id WHERE pt.project=? ORDER BY tt.isDefault DESC,tt.id LIMIT 1", project).Scan(&task.Type.ID); err != nil {
 			return nil, err
 		}
-	} else {
-		var typeExists bool
-		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM task_type WHERE id=?)", task.Type.ID).Scan(&typeExists); err != nil {
-			return nil, err
-		}
-		if !typeExists {
-			return nil, NotFound("task type", task.Type.ID)
-		}
+	} else if err = requireRow(tx, "task_type", "task type", task.Type.ID); err != nil {
+		return nil, err
 	}
 	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM project_task_type WHERE project=? AND task_type=?)", project, task.Type.ID).Scan(&valid); err != nil {
 		return nil, err
@@ -226,27 +218,14 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 // error ("constraint failed: FOREIGN KEY constraint failed") instead of
 // naming the id an agent got wrong.
 func (r *TaskRepo) ValidateCreateRefs(checklistID, stageID, typeID int) error {
-	var exists bool
-	if err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM checklist WHERE id=?)", checklistID).Scan(&exists); err != nil {
+	if err := requireRow(r.DB, "checklist", "checklist", checklistID); err != nil {
 		return err
 	}
-	if !exists {
-		return NotFound("checklist", checklistID)
-	}
-	if err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM stage WHERE id=?)", stageID).Scan(&exists); err != nil {
+	if err := requireRow(r.DB, "stage", "stage", stageID); err != nil {
 		return err
-	}
-	if !exists {
-		return NotFound("stage", stageID)
 	}
 	if typeID == 0 {
 		return nil
 	}
-	if err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM task_type WHERE id=?)", typeID).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return NotFound("task type", typeID)
-	}
-	return nil
+	return requireRow(r.DB, "task_type", "task type", typeID)
 }
