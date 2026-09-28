@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterMentions,
   insertMention,
+  keepTaskLinks,
   linkifyMarkdownMentions,
   mentionAt,
   referencedTasks,
@@ -64,5 +65,10 @@ describe("project task mentions", () => {
   });
   it("leaves markdown unchanged when no tasks are known", () => {
     expect(linkifyMarkdownMentions("See #12", [])).toBe("See #12");
+  });
+  it("keeps task links through the markdown URL sanitizer and still blocks unsafe schemes", () => {
+    expect(keepTaskLinks("aycorn-task:12")).toBe("aycorn-task:12");
+    expect(keepTaskLinks("https://github.com/o/r/pull/1")).toBe("https://github.com/o/r/pull/1");
+    expect(keepTaskLinks("javascript:alert(1)")).toBe("");
   });
 });

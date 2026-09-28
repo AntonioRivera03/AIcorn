@@ -205,38 +205,67 @@ func TitleFrom(message string) string {
 // the turn payload, so a handful of #mentions can't balloon the request.
 const referencedTaskExcerptLength = 300
 
+// referencedExcerpts converts the referenced tasks' bodies to short markdown
+// excerpts in one batched call. Conversion starts a node process, so Send runs
+// this before taking the writer lock; an id outside the project is skipped
+// here and rejected by referencedTaskContext under the lock.
+func (s *Service) referencedExcerpts(ctx context.Context, project int, ids []int) (map[int]string, error) {
+	var found []int
+	var bodies []string
+	for _, id := range ids {
+		var body string
+		err := s.DB.QueryRow("SELECT COALESCE(t.body,'[]') FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND c.project=?", id, project).Scan(&body)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, id)
+		bodies = append(bodies, body)
+	}
+	if len(bodies) == 0 {
+		return nil, nil
+	}
+	converted, err := s.AI.Converter.ToMarkdown(ctx, bodies)
+	if err != nil {
+		return nil, err
+	}
+	excerpts := make(map[int]string, len(found))
+	for i, id := range found {
+		excerpts[id] = excerpt(converted[i], referencedTaskExcerptLength)
+	}
+	return excerpts, nil
+}
+
 // referencedTaskContext resolves the message's #id references inside the
 // same transaction that will enqueue the turn, rejecting an id outside the
-// project before anything is queued. Bodies come back as raw Plate.js JSON;
-// the caller converts them to markdown in one batched call.
-func referencedTaskContext(tx *sql.Tx, project int, ids []int) ([]models.ReferencedTask, []string, error) {
+// project before anything is queued.
+func referencedTaskContext(tx *sql.Tx, project int, ids []int, excerpts map[int]string) ([]models.ReferencedTask, error) {
 	referenced := make([]models.ReferencedTask, 0, len(ids))
-	bodies := make([]string, 0, len(ids))
 	for _, id := range ids {
-		var rt models.ReferencedTask
-		var body string
-		err := tx.QueryRow(`SELECT t.id,t.name,s.name,tt.name,t.body FROM task t
+		rt := models.ReferencedTask{Excerpt: excerpts[id]}
+		err := tx.QueryRow(`SELECT t.id,t.name,s.name,tt.name FROM task t
 JOIN stage s ON s.id=t.stage
 JOIN task_type tt ON tt.id=t.type
 JOIN checklist c ON c.id=t.checklist
-WHERE t.id=? AND c.project=?`, id, project).Scan(&rt.ID, &rt.Title, &rt.Stage, &rt.Type, &body)
+WHERE t.id=? AND c.project=?`, id, project).Scan(&rt.ID, &rt.Title, &rt.Stage, &rt.Type)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, fmt.Errorf("%w: task #%d is outside this project", ErrInvalid, id)
+			return nil, fmt.Errorf("%w: task #%d is outside this project", ErrInvalid, id)
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		owner, err := taskownership.Current(tx, id)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if owner != nil {
 			rt.Owner, rt.State = owner.Name, owner.State
 		}
 		referenced = append(referenced, rt)
-		bodies = append(bodies, body)
 	}
-	return referenced, bodies, nil
+	return referenced, nil
 }
 
 // excerpt shortens converted markdown to a bound for the AI payload, cutting
@@ -377,6 +406,10 @@ func (s *Service) Send(ctx context.Context, project, chat int, in Input) (Turn, 
 	rawContext, _ := json.Marshal(contextData)
 	req.ProjectChat = &models.ProjectChatTurn{Context: json.RawMessage(rawContext), TaskIDs: in.TaskIDs}
 	req.PresetName = "Chatter"
+	excerpts, err := s.referencedExcerpts(ctx, project, in.TaskIDs)
+	if err != nil {
+		return Turn{}, err
+	}
 	tx, err := taskownership.Begin(s.DB)
 	if err != nil {
 		return Turn{}, err
@@ -385,18 +418,9 @@ func (s *Service) Send(ctx context.Context, project, chat int, in Input) (Turn, 
 	// Scope is rechecked under the same lock as the durable enqueue, and this
 	// also gathers what Chatter needs about each reference so it doesn't need
 	// a tool round trip for the common case.
-	referenced, bodies, err := referencedTaskContext(tx, project, in.TaskIDs)
+	referenced, err := referencedTaskContext(tx, project, in.TaskIDs, excerpts)
 	if err != nil {
 		return Turn{}, err
-	}
-	if len(bodies) > 0 {
-		converted, err := s.AI.Converter.ToMarkdown(ctx, bodies)
-		if err != nil {
-			return Turn{}, err
-		}
-		for i := range referenced {
-			referenced[i].Excerpt = excerpt(converted[i], referencedTaskExcerptLength)
-		}
 	}
 	req.ProjectChat.ReferencedTasks = referenced
 	if previous, found, err := previousTurn(tx, project, in); err != nil || found {

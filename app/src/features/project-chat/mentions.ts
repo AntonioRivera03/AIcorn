@@ -1,3 +1,5 @@
+import { defaultUrlTransform } from "react-markdown";
+
 export type MentionTask = { id: number; title: string };
 export type Mention = {
   start: number;
@@ -75,6 +77,16 @@ export function splitMentionSegments(text: string, tasks: MentionTask[]): Mentio
   return segments;
 }
 
+// The scheme linkifyMarkdownMentions gives a resolved #id, so a markdown
+// renderer can tell a task mention apart from a real URL.
+export const taskLinkPrefix = "aycorn-task:";
+
+// react-markdown's default URL sanitizer blanks any scheme it doesn't know,
+// which would turn every task link into an empty href. Pass this as its
+// `urlTransform` wherever linkifyMarkdownMentions output is rendered.
+export const keepTaskLinks = (url: string) =>
+  url.startsWith(taskLinkPrefix) ? url : defaultUrlTransform(url);
+
 // A fenced code block (``` or ~~~) or an inline `code` span — skipped so
 // mentions inside code are never linked.
 const codeSegmentPattern = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/g;
@@ -97,6 +109,6 @@ export function linkifyMarkdownMentions(markdown: string, tasks: MentionTask[]):
 
 function linkifyMentionRun(text: string, known: Set<number>): string {
   return text.replace(mentionIdPattern, (match, digits: string) =>
-    known.has(Number(digits)) ? `[${match}](aycorn-task:${digits})` : match,
+    known.has(Number(digits)) ? `[${match}](${taskLinkPrefix}${digits})` : match,
   );
 }
