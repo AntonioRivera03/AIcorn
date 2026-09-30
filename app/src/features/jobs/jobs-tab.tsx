@@ -406,7 +406,7 @@ function TemplateEditor({
         toast.success("Task created", {
           description: (
             <Link
-              to="/task/$taskId"
+              to="/app/task/$taskId"
               params={{ taskId: String(result.taskId) }}
               className="underline"
             >
@@ -589,9 +589,7 @@ function JobEditor({
   const fields = usePendingFields();
   const edit = useJobEdit<ScheduledJob>(j.projectId, j.id, "jobs");
   const agents = usePersonasQuery();
-  const taskAgents = (agents.data ?? []).filter(
-    (agent) => !["conductor", "chatter"].includes(agent.BuiltinRole ?? ""),
-  );
+  const taskAgents = (agents.data ?? []).filter((agent) => agent.TaskAgent);
   const url = `/api/project/${j.projectId}/automation/jobs/${j.id}`;
   const history = useQuery({
     queryKey: ["scheduled-job-runs", j.id],
@@ -725,7 +723,7 @@ function JobEditor({
           </p>
           <Button asChild variant="link" className="h-auto p-0">
             <Link
-              to="/project/settings/$projectId"
+              to="/app/project/settings/$projectId"
               params={{ projectId: String(j.projectId) }}
               search={{ tab: "conductor" }}
             >
@@ -788,7 +786,7 @@ function JobEditor({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {r.taskId ? (
                         <Link
-                          to="/task/$taskId"
+                          to="/app/task/$taskId"
                           params={{ taskId: String(r.taskId) }}
                           className="font-medium underline underline-offset-4"
                         >

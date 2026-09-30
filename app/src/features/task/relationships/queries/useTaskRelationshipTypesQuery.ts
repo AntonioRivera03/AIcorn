@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import type { TaskRelationshipType } from "@/types/types";
 
@@ -17,7 +18,7 @@ export function useTaskRelationshipTypesQuery(
       const url = qs
         ? `/api/task-relationship-type?${qs}`
         : "/api/task-relationship-type";
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },

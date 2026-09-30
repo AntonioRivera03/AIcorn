@@ -11,21 +11,50 @@ import (
 //go:embed *.toml *-instructions.md skills
 var Files embed.FS
 
+// Definition is one bundled agent. Internal agents (Conductor, Chatter) run
+// Aycorn itself: users never pick them, and they always use the workspace's
+// default model. The rest are task agents, which Conductor dispatches and
+// users can also start directly on a task.
 type Definition struct {
 	Role, Name, Description string
 	ReadOnly                bool
+	Internal                bool
+	// Models pins an internal agent to a model on a harness (keyed by harness
+	// ID), in place of the workspace's default model.
+	Models map[string]string
 }
 
 var definitions = []Definition{
-	{"conductor", "Conductor", "Default project orchestrator: selects managed tasks and starts independent sessions through MCP.", true},
-	{"planner", "Planner", "Checks readiness, dependencies and acceptance criteria before implementation.", true},
-	{"researcher", "Research", "Resolves technical questions using repository evidence and primary sources.", true},
-	{"coder", "Coder", "Implements assigned work and verifies the resulting behavior.", false},
-	{"reviewer", "Reviewer", "Independently reviews changes and validation against the requirements.", true},
-	{"chatter", "Chatter", "Persistent project conversation and scoped task coordination.", true},
+	{Role: "conductor", Name: "Conductor", Description: "Default project orchestrator: selects managed tasks and starts independent sessions through MCP.", ReadOnly: true, Internal: true},
+	{Role: "coder", Name: "Coder", Description: "Implements assigned work and verifies the resulting behavior."},
+	{Role: "reviewer", Name: "Reviewer", Description: "Independently reviews changes and validation against the requirements.", ReadOnly: true},
+	{Role: "researcher", Name: "Research", Description: "Resolves technical questions using repository evidence and primary sources.", ReadOnly: true},
+	{Role: "chatter", Name: "Chatter", Description: "Project knowledge bank and task manager for project chats. Never writes code.", ReadOnly: true, Internal: true, Models: map[string]string{"codex": "gpt-6-sol"}},
 }
 
 func All() []Definition { return append([]Definition(nil), definitions...) }
+
+// IsTaskRole reports whether role is a task agent Conductor may dispatch.
+func IsTaskRole(role string) bool {
+	d, ok := Lookup(role)
+	return ok && !d.Internal
+}
+
+// IsInternalRole reports whether role is one of Aycorn's own internal agents.
+func IsInternalRole(role string) bool {
+	d, ok := Lookup(role)
+	return ok && d.Internal
+}
+
+// PinnedModel is the model an internal agent always uses on harness, or ""
+// when it follows the workspace's default model.
+func PinnedModel(role, harness string) string {
+	d, ok := Lookup(role)
+	if !ok {
+		return ""
+	}
+	return d.Models[harness]
+}
 
 func Lookup(role string) (Definition, bool) {
 	for _, d := range definitions {

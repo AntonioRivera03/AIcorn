@@ -350,3 +350,40 @@ func TestManifestsKeepWorkloadCredentialsAndStorageSeparate(t *testing.T) {
 		t.Fatal("installations share namespaces")
 	}
 }
+
+// TestDeploymentSetsBothDataDirAndLegacyDBEnv guards against preview pods
+// losing accounts/workspace data on restart: the current server reads
+// AYCORN_DATA_DIR (an emptyDir HOME would otherwise be used instead), while
+// AYCORN_DB stays for preview images built from branches predating it.
+func TestDeploymentSetsBothDataDirAndLegacyDBEnv(t *testing.T) {
+	e := &Environment{ID: 7, Settings: Defaults(), Image: "preview", TestImage: "tests"}
+	container := deployment("instance", "http://127.0.0.1:8000", e)["spec"].(object)["template"].(object)["spec"].(object)["containers"].([]object)[0]
+
+	env := map[string]string{}
+	for _, entry := range container["env"].([]object) {
+		env[entry["name"].(string)] = entry["value"].(string)
+	}
+	if env["AYCORN_DATA_DIR"] != "/data" {
+		t.Fatalf("AYCORN_DATA_DIR = %q; want /data", env["AYCORN_DATA_DIR"])
+	}
+	if env["AYCORN_DB"] != "/data/app.db" {
+		t.Fatalf("AYCORN_DB = %q; want /data/app.db", env["AYCORN_DB"])
+	}
+}
+
+func TestTeardownDestroysEnvironments(t *testing.T) {
+	store := testStore(t)
+	root := repoFixture(t, map[string]string{"app.txt": "hello"})
+	configureFixture(t, store, root)
+	runtime := &fakeRuntime{}
+	s := &Service{Store: store, Runtime: runtime, Root: t.TempDir(), operations: map[int]operation{}, builds: make(chan struct{}, 1)}
+	if _, err := s.Create(context.Background(), 1, CreateInput{Branch: "main"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Teardown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.deletes != 1 {
+		t.Fatalf("expected the environment to be destroyed, got %d destroys", runtime.deletes)
+	}
+}

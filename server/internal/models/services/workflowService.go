@@ -85,7 +85,7 @@ func (s *WorkflowService) GetWorkflowDetails(id int) (*WorkflowSummary, error) {
 	}, nil
 }
 
-func (s *WorkflowService) CreateWorkflow() (int64, error) {
+func defaultWorkflowStages() []models.Stage {
 	stages := make([]models.Stage, 0, len(defaultWorkflowStageTypes))
 	for i, stageType := range defaultWorkflowStageTypes {
 		defaults := repos.StageDefaults[stageType]
@@ -99,7 +99,23 @@ func (s *WorkflowService) CreateWorkflow() (int64, error) {
 			Type:        defaults.Type,
 		})
 	}
-	return s.WorkflowRepo.CreateWithStages("", "", stages)
+	return stages
+}
+
+func (s *WorkflowService) CreateWorkflow() (int64, error) {
+	return s.WorkflowRepo.CreateWithStages("", "", defaultWorkflowStages())
+}
+
+// EnsureStarterWorkflow gives a brand-new workspace one workflow, so its first
+// project can be created without setting up a workflow first. It does nothing
+// once any workflow exists.
+func (s *WorkflowService) EnsureStarterWorkflow() error {
+	workflows, err := s.WorkflowRepo.All()
+	if err != nil || len(workflows) > 0 {
+		return err
+	}
+	_, err = s.WorkflowRepo.CreateWithStages("Default workflow", "Backlog, in progress, done.", defaultWorkflowStages())
+	return err
 }
 
 func (s *WorkflowService) UpdateWorkflow(workflow *models.Workflow) (bool, error) {

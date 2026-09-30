@@ -122,7 +122,7 @@ export function PageHeader({
           <BreadcrumbList className="flex-nowrap w-full">
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to="/">Home</Link>
+                <Link to="/app">Home</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {collapseMiddle && (

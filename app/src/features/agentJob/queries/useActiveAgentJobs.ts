@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -28,7 +29,7 @@ export function useActiveAgentJobs(projectId: number) {
       return isAnyWorking ? 5_000 : 15_000;
     },
     queryFn: async () => {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/agent-jobs?projectId=${projectId}&latest=1`,
       );
       if (!response.ok) throw new Error(await response.text());

@@ -42,7 +42,7 @@ export type TaskTypeWithCount = TaskType & {
   TaskCount: number;
 };
 
-export const PERSONA_HARNESSES = ["codex"] as const;
+export const PERSONA_HARNESSES = ["codex", "claude-code"] as const;
 export const PERSONA_AGENTS = [
   "code-analysis",
   "code-implementation",
@@ -56,18 +56,6 @@ export const PERSONA_AGENTS = [
   "test-integration",
   "worker",
 ] as const;
-// Suggestions; the API also accepts new OpenAI model IDs supported by Codex.
-export const PERSONA_MODELS = [
-  "gpt-5.6-sol",
-  "gpt-6-astra",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
-  "gpt-5.5",
-  "gpt-5.4",
-  "gpt-5.3-codex",
-] as const;
-export const ALL_PERSONA_MODELS = PERSONA_MODELS;
-
 export type PersonaHarness = (typeof PERSONA_HARNESSES)[number];
 export type PersonaModel = string;
 export type PersonaAgent = (typeof PERSONA_AGENTS)[number];
@@ -82,6 +70,9 @@ export type PersonaSummary = {
 
 export type Persona = PersonaSummary & {
   BuiltinRole?: string;
+  // Coder, Reviewer and Research: agents users can pick and Conductor can
+  // dispatch. Conductor, Chatter and retired agents are false.
+  TaskAgent?: boolean;
   Description?: string;
   Instructions?: string;
   InstructionPath?: string;

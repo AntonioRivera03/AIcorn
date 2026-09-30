@@ -9,245 +9,277 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowsRouteImport } from './routes/workflows'
-import { Route as UsageRouteImport } from './routes/usage'
-import { Route as UpcomingRouteImport } from './routes/upcoming'
-import { Route as TaskTypesRouteImport } from './routes/task-types'
-import { Route as TaskLinksRouteImport } from './routes/task-links'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PersonasIndexRouteImport } from './routes/personas.index'
-import { Route as WorkflowWorkflowIdRouteImport } from './routes/workflow.$workflowId'
-import { Route as TaskTaskIdRouteImport } from './routes/task.$taskId'
-import { Route as ProjectProjectIdRouteImport } from './routes/project.$projectId'
-import { Route as ProjectSettingsProjectIdRouteImport } from './routes/project.settings.$projectId'
+import { Route as AppRouteRouteImport } from './routes/app/route'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as AppSettingsRouteImport } from './routes/app/settings'
+import { Route as AppTaskLinksRouteImport } from './routes/app/task-links'
+import { Route as AppTaskTypesRouteImport } from './routes/app/task-types'
+import { Route as AppUpcomingRouteImport } from './routes/app/upcoming'
+import { Route as AppUsageRouteImport } from './routes/app/usage'
+import { Route as AppWorkflowsRouteImport } from './routes/app/workflows'
+import { Route as InviteCodeRouteImport } from './routes/invite.$code'
+import { Route as AppProjectProjectIdRouteImport } from './routes/app/project.$projectId'
+import { Route as AppTaskTaskIdRouteImport } from './routes/app/task.$taskId'
+import { Route as AppWorkflowWorkflowIdRouteImport } from './routes/app/workflow.$workflowId'
+import { Route as AppProjectSettingsProjectIdRouteImport } from './routes/app/project.settings.$projectId'
 
-const WorkflowsRoute = WorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UsageRoute = UsageRouteImport.update({
-  id: '/usage',
-  path: '/usage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UpcomingRoute = UpcomingRouteImport.update({
-  id: '/upcoming',
-  path: '/upcoming',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TaskTypesRoute = TaskTypesRouteImport.update({
-  id: '/task-types',
-  path: '/task-types',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TaskLinksRoute = TaskLinksRouteImport.update({
-  id: '/task-links',
-  path: '/task-links',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PersonasRoute = PersonasRouteImport.update({
-  id: '/personas',
-  path: '/personas',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PersonasIndexRoute = PersonasIndexRouteImport.update({
+const AppRouteRoute = AppRouteRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => PersonasRoute,
+  getParentRoute: () => AppRouteRoute,
 } as any)
-const WorkflowWorkflowIdRoute = WorkflowWorkflowIdRouteImport.update({
-  id: '/workflow/$workflowId',
-  path: '/workflow/$workflowId',
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppTaskLinksRoute = AppTaskLinksRouteImport.update({
+  id: '/task-links',
+  path: '/task-links',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppTaskTypesRoute = AppTaskTypesRouteImport.update({
+  id: '/task-types',
+  path: '/task-types',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppUpcomingRoute = AppUpcomingRouteImport.update({
+  id: '/upcoming',
+  path: '/upcoming',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppUsageRoute = AppUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppWorkflowsRoute = AppWorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const InviteCodeRoute = InviteCodeRouteImport.update({
+  id: '/invite/$code',
+  path: '/invite/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TaskTaskIdRoute = TaskTaskIdRouteImport.update({
-  id: '/task/$taskId',
-  path: '/task/$taskId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectProjectIdRoute = ProjectProjectIdRouteImport.update({
+const AppProjectProjectIdRoute = AppProjectProjectIdRouteImport.update({
   id: '/project/$projectId',
   path: '/project/$projectId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRouteRoute,
 } as any)
-const ProjectSettingsProjectIdRoute =
-  ProjectSettingsProjectIdRouteImport.update({
+const AppTaskTaskIdRoute = AppTaskTaskIdRouteImport.update({
+  id: '/task/$taskId',
+  path: '/task/$taskId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppWorkflowWorkflowIdRoute = AppWorkflowWorkflowIdRouteImport.update({
+  id: '/workflow/$workflowId',
+  path: '/workflow/$workflowId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppProjectSettingsProjectIdRoute =
+  AppProjectSettingsProjectIdRouteImport.update({
     id: '/project/settings/$projectId',
     path: '/project/settings/$projectId',
-    getParentRoute: () => rootRouteImport,
+    getParentRoute: () => AppRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/personas': typeof PersonasRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/task-links': typeof TaskLinksRoute
-  '/task-types': typeof TaskTypesRoute
-  '/upcoming': typeof UpcomingRoute
-  '/usage': typeof UsageRoute
-  '/workflows': typeof WorkflowsRoute
-  '/project/$projectId': typeof ProjectProjectIdRoute
-  '/task/$taskId': typeof TaskTaskIdRoute
-  '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
-  '/personas/': typeof PersonasIndexRoute
-  '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
+  '/app': typeof AppRouteRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/task-links': typeof AppTaskLinksRoute
+  '/app/task-types': typeof AppTaskTypesRoute
+  '/app/upcoming': typeof AppUpcomingRoute
+  '/app/usage': typeof AppUsageRoute
+  '/app/workflows': typeof AppWorkflowsRoute
+  '/invite/$code': typeof InviteCodeRoute
+  '/app/': typeof AppIndexRoute
+  '/app/project/$projectId': typeof AppProjectProjectIdRoute
+  '/app/task/$taskId': typeof AppTaskTaskIdRoute
+  '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
+  '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
-  '/task-links': typeof TaskLinksRoute
-  '/task-types': typeof TaskTypesRoute
-  '/upcoming': typeof UpcomingRoute
-  '/usage': typeof UsageRoute
-  '/workflows': typeof WorkflowsRoute
-  '/project/$projectId': typeof ProjectProjectIdRoute
-  '/task/$taskId': typeof TaskTaskIdRoute
-  '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
-  '/personas': typeof PersonasIndexRoute
-  '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/task-links': typeof AppTaskLinksRoute
+  '/app/task-types': typeof AppTaskTypesRoute
+  '/app/upcoming': typeof AppUpcomingRoute
+  '/app/usage': typeof AppUsageRoute
+  '/app/workflows': typeof AppWorkflowsRoute
+  '/invite/$code': typeof InviteCodeRoute
+  '/app': typeof AppIndexRoute
+  '/app/project/$projectId': typeof AppProjectProjectIdRoute
+  '/app/task/$taskId': typeof AppTaskTaskIdRoute
+  '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
+  '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/personas': typeof PersonasRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/task-links': typeof TaskLinksRoute
-  '/task-types': typeof TaskTypesRoute
-  '/upcoming': typeof UpcomingRoute
-  '/usage': typeof UsageRoute
-  '/workflows': typeof WorkflowsRoute
-  '/project/$projectId': typeof ProjectProjectIdRoute
-  '/task/$taskId': typeof TaskTaskIdRoute
-  '/workflow/$workflowId': typeof WorkflowWorkflowIdRoute
-  '/personas/': typeof PersonasIndexRoute
-  '/project/settings/$projectId': typeof ProjectSettingsProjectIdRoute
+  '/app': typeof AppRouteRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/app/settings': typeof AppSettingsRoute
+  '/app/task-links': typeof AppTaskLinksRoute
+  '/app/task-types': typeof AppTaskTypesRoute
+  '/app/upcoming': typeof AppUpcomingRoute
+  '/app/usage': typeof AppUsageRoute
+  '/app/workflows': typeof AppWorkflowsRoute
+  '/invite/$code': typeof InviteCodeRoute
+  '/app/': typeof AppIndexRoute
+  '/app/project/$projectId': typeof AppProjectProjectIdRoute
+  '/app/task/$taskId': typeof AppTaskTaskIdRoute
+  '/app/workflow/$workflowId': typeof AppWorkflowWorkflowIdRoute
+  '/app/project/settings/$projectId': typeof AppProjectSettingsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/personas'
-    | '/settings'
-    | '/task-links'
-    | '/task-types'
-    | '/upcoming'
-    | '/usage'
-    | '/workflows'
-    | '/project/$projectId'
-    | '/task/$taskId'
-    | '/workflow/$workflowId'
-    | '/personas/'
-    | '/project/settings/$projectId'
+    | '/app'
+    | '/forgot-password'
+    | '/login'
+    | '/onboarding'
+    | '/reset-password'
+    | '/signup'
+    | '/verify-email'
+    | '/app/settings'
+    | '/app/task-links'
+    | '/app/task-types'
+    | '/app/upcoming'
+    | '/app/usage'
+    | '/app/workflows'
+    | '/invite/$code'
+    | '/app/'
+    | '/app/project/$projectId'
+    | '/app/task/$taskId'
+    | '/app/workflow/$workflowId'
+    | '/app/project/settings/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/settings'
-    | '/task-links'
-    | '/task-types'
-    | '/upcoming'
-    | '/usage'
-    | '/workflows'
-    | '/project/$projectId'
-    | '/task/$taskId'
-    | '/workflow/$workflowId'
-    | '/personas'
-    | '/project/settings/$projectId'
+    | '/forgot-password'
+    | '/login'
+    | '/onboarding'
+    | '/reset-password'
+    | '/signup'
+    | '/verify-email'
+    | '/app/settings'
+    | '/app/task-links'
+    | '/app/task-types'
+    | '/app/upcoming'
+    | '/app/usage'
+    | '/app/workflows'
+    | '/invite/$code'
+    | '/app'
+    | '/app/project/$projectId'
+    | '/app/task/$taskId'
+    | '/app/workflow/$workflowId'
+    | '/app/project/settings/$projectId'
   id:
     | '__root__'
     | '/'
-    | '/personas'
-    | '/settings'
-    | '/task-links'
-    | '/task-types'
-    | '/upcoming'
-    | '/usage'
-    | '/workflows'
-    | '/project/$projectId'
-    | '/task/$taskId'
-    | '/workflow/$workflowId'
-    | '/personas/'
-    | '/project/settings/$projectId'
+    | '/app'
+    | '/forgot-password'
+    | '/login'
+    | '/onboarding'
+    | '/reset-password'
+    | '/signup'
+    | '/verify-email'
+    | '/app/settings'
+    | '/app/task-links'
+    | '/app/task-types'
+    | '/app/upcoming'
+    | '/app/usage'
+    | '/app/workflows'
+    | '/invite/$code'
+    | '/app/'
+    | '/app/project/$projectId'
+    | '/app/task/$taskId'
+    | '/app/workflow/$workflowId'
+    | '/app/project/settings/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PersonasRoute: typeof PersonasRouteWithChildren
-  SettingsRoute: typeof SettingsRoute
-  TaskLinksRoute: typeof TaskLinksRoute
-  TaskTypesRoute: typeof TaskTypesRoute
-  UpcomingRoute: typeof UpcomingRoute
-  UsageRoute: typeof UsageRoute
-  WorkflowsRoute: typeof WorkflowsRoute
-  ProjectProjectIdRoute: typeof ProjectProjectIdRoute
-  TaskTaskIdRoute: typeof TaskTaskIdRoute
-  WorkflowWorkflowIdRoute: typeof WorkflowWorkflowIdRoute
-  ProjectSettingsProjectIdRoute: typeof ProjectSettingsProjectIdRoute
+  AppRouteRoute: typeof AppRouteRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SignupRoute: typeof SignupRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
+  InviteCodeRoute: typeof InviteCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflows': {
-      id: '/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof WorkflowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/usage': {
-      id: '/usage'
-      path: '/usage'
-      fullPath: '/usage'
-      preLoaderRoute: typeof UsageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/upcoming': {
-      id: '/upcoming'
-      path: '/upcoming'
-      fullPath: '/upcoming'
-      preLoaderRoute: typeof UpcomingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/task-types': {
-      id: '/task-types'
-      path: '/task-types'
-      fullPath: '/task-types'
-      preLoaderRoute: typeof TaskTypesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/task-links': {
-      id: '/task-links'
-      path: '/task-links'
-      fullPath: '/task-links'
-      preLoaderRoute: typeof TaskLinksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/personas': {
-      id: '/personas'
-      path: '/personas'
-      fullPath: '/personas'
-      preLoaderRoute: typeof PersonasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -255,69 +287,184 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/personas/': {
-      id: '/personas/'
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/': {
+      id: '/app/'
       path: '/'
-      fullPath: '/personas/'
-      preLoaderRoute: typeof PersonasIndexRouteImport
-      parentRoute: typeof PersonasRoute
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/workflow/$workflowId': {
-      id: '/workflow/$workflowId'
-      path: '/workflow/$workflowId'
-      fullPath: '/workflow/$workflowId'
-      preLoaderRoute: typeof WorkflowWorkflowIdRouteImport
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/task-links': {
+      id: '/app/task-links'
+      path: '/task-links'
+      fullPath: '/app/task-links'
+      preLoaderRoute: typeof AppTaskLinksRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/task-types': {
+      id: '/app/task-types'
+      path: '/task-types'
+      fullPath: '/app/task-types'
+      preLoaderRoute: typeof AppTaskTypesRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/upcoming': {
+      id: '/app/upcoming'
+      path: '/upcoming'
+      fullPath: '/app/upcoming'
+      preLoaderRoute: typeof AppUpcomingRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/usage': {
+      id: '/app/usage'
+      path: '/usage'
+      fullPath: '/app/usage'
+      preLoaderRoute: typeof AppUsageRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/workflows': {
+      id: '/app/workflows'
+      path: '/workflows'
+      fullPath: '/app/workflows'
+      preLoaderRoute: typeof AppWorkflowsRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/invite/$code': {
+      id: '/invite/$code'
+      path: '/invite/$code'
+      fullPath: '/invite/$code'
+      preLoaderRoute: typeof InviteCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/task/$taskId': {
-      id: '/task/$taskId'
-      path: '/task/$taskId'
-      fullPath: '/task/$taskId'
-      preLoaderRoute: typeof TaskTaskIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/project/$projectId': {
-      id: '/project/$projectId'
+    '/app/project/$projectId': {
+      id: '/app/project/$projectId'
       path: '/project/$projectId'
-      fullPath: '/project/$projectId'
-      preLoaderRoute: typeof ProjectProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/app/project/$projectId'
+      preLoaderRoute: typeof AppProjectProjectIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/project/settings/$projectId': {
-      id: '/project/settings/$projectId'
+    '/app/task/$taskId': {
+      id: '/app/task/$taskId'
+      path: '/task/$taskId'
+      fullPath: '/app/task/$taskId'
+      preLoaderRoute: typeof AppTaskTaskIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/workflow/$workflowId': {
+      id: '/app/workflow/$workflowId'
+      path: '/workflow/$workflowId'
+      fullPath: '/app/workflow/$workflowId'
+      preLoaderRoute: typeof AppWorkflowWorkflowIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/project/settings/$projectId': {
+      id: '/app/project/settings/$projectId'
       path: '/project/settings/$projectId'
-      fullPath: '/project/settings/$projectId'
-      preLoaderRoute: typeof ProjectSettingsProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/app/project/settings/$projectId'
+      preLoaderRoute: typeof AppProjectSettingsProjectIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
   }
 }
 
-interface PersonasRouteChildren {
-  PersonasIndexRoute: typeof PersonasIndexRoute
+interface AppRouteRouteChildren {
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppTaskLinksRoute: typeof AppTaskLinksRoute
+  AppTaskTypesRoute: typeof AppTaskTypesRoute
+  AppUpcomingRoute: typeof AppUpcomingRoute
+  AppUsageRoute: typeof AppUsageRoute
+  AppWorkflowsRoute: typeof AppWorkflowsRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppProjectProjectIdRoute: typeof AppProjectProjectIdRoute
+  AppTaskTaskIdRoute: typeof AppTaskTaskIdRoute
+  AppWorkflowWorkflowIdRoute: typeof AppWorkflowWorkflowIdRoute
+  AppProjectSettingsProjectIdRoute: typeof AppProjectSettingsProjectIdRoute
 }
 
-const PersonasRouteChildren: PersonasRouteChildren = {
-  PersonasIndexRoute: PersonasIndexRoute,
+const AppRouteRouteChildren: AppRouteRouteChildren = {
+  AppSettingsRoute: AppSettingsRoute,
+  AppTaskLinksRoute: AppTaskLinksRoute,
+  AppTaskTypesRoute: AppTaskTypesRoute,
+  AppUpcomingRoute: AppUpcomingRoute,
+  AppUsageRoute: AppUsageRoute,
+  AppWorkflowsRoute: AppWorkflowsRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppProjectProjectIdRoute: AppProjectProjectIdRoute,
+  AppTaskTaskIdRoute: AppTaskTaskIdRoute,
+  AppWorkflowWorkflowIdRoute: AppWorkflowWorkflowIdRoute,
+  AppProjectSettingsProjectIdRoute: AppProjectSettingsProjectIdRoute,
 }
 
-const PersonasRouteWithChildren = PersonasRoute._addFileChildren(
-  PersonasRouteChildren,
+const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
+  AppRouteRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PersonasRoute: PersonasRouteWithChildren,
-  SettingsRoute: SettingsRoute,
-  TaskLinksRoute: TaskLinksRoute,
-  TaskTypesRoute: TaskTypesRoute,
-  UpcomingRoute: UpcomingRoute,
-  UsageRoute: UsageRoute,
-  WorkflowsRoute: WorkflowsRoute,
-  ProjectProjectIdRoute: ProjectProjectIdRoute,
-  TaskTaskIdRoute: TaskTaskIdRoute,
-  WorkflowWorkflowIdRoute: WorkflowWorkflowIdRoute,
-  ProjectSettingsProjectIdRoute: ProjectSettingsProjectIdRoute,
+  AppRouteRoute: AppRouteRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SignupRoute: SignupRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
+  InviteCodeRoute: InviteCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { ProjectDetails, TaskFilter } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -34,7 +35,7 @@ export function useProjectDetailsQuery(
         url.searchParams.append("assignee", assignee.toString()),
       );
 
-      const res = await fetch(url.toString());
+      const res = await apiFetch(url.toString());
 
       return res.json();
     },

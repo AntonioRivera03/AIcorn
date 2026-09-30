@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import type { Checklist, ChecklistDetails, ProjectDetails } from "@/types/types";
 import { useMutation } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ const invalidateQueries = (projectId: number) => {
 export function useChecklistMutation(projectId: number) {
   const update = useMutation({
     mutationFn: async (checklist: Checklist) => {
-      const res = await fetch("/api/checklist", {
+      const res = await apiFetch("/api/checklist", {
         method: "PUT",
         body: JSON.stringify(checklist),
       });
@@ -20,7 +21,7 @@ export function useChecklistMutation(projectId: number) {
 
   const create = useMutation({
     mutationFn: async (name: string = "") => {
-      const res = await fetch(`/api/checklist/${projectId}`, {
+      const res = await apiFetch(`/api/checklist/${projectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ Name: name }),
@@ -51,7 +52,7 @@ export function useChecklistMutation(projectId: number) {
       id: number;
       transferChecklistId: number;
     }) => {
-      const res = await fetch(`/api/checklist/${id}`, {
+      const res = await apiFetch(`/api/checklist/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transferChecklistId }),

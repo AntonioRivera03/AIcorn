@@ -11,10 +11,6 @@ enabled = false
 description = "Aycorn conductor; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/conductor.toml"
 
-[agents.planner]
-description = "Aycorn planner; independent task sessions; lifecycle belongs to server code"
-config_file = "agents/planner.toml"
-
 [agents.researcher]
 description = "Aycorn researcher; independent task sessions; lifecycle belongs to server code"
 config_file = "agents/research.toml"

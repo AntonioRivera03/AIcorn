@@ -17,7 +17,7 @@ export function ProjectWorkflowFooter({ project }: { project: Project }) {
     createWorkflow.mutate(undefined, {
       onSuccess: (newId) => {
         navigate({
-          to: "/workflow/$workflowId",
+          to: "/app/workflow/$workflowId",
           params: { workflowId: String(newId) },
           search: { new: true },
         });
@@ -31,7 +31,7 @@ export function ProjectWorkflowFooter({ project }: { project: Project }) {
       <Info className="size-4 shrink-0" />
       <span>
         Need a different shape?{" "}
-        <Link to="/workflows" className="text-primary hover:underline">
+        <Link to="/app/workflows" className="text-primary hover:underline">
           Browse all workflows
         </Link>{" "}
         or{" "}

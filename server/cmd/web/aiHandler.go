@@ -15,7 +15,23 @@ func (app *app) getAISettings(w http.ResponseWriter, r *http.Request) {
 		respondErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.Health(r.Context(), settings.Executable), "providers": harness.Providers()})
+	writeJSON(w, http.StatusOK, map[string]any{"settings": settings, "engine": app.aiService.HarnessHealth(r.Context(), settings), "providers": harness.Providers()})
+}
+
+// getHarnessModels lists the models a harness offers for the AI settings
+// dropdowns, asking the harness itself when it can.
+func (app *app) getHarnessModels(w http.ResponseWriter, r *http.Request) {
+	id := models.PersonaHarness(r.PathValue("harness"))
+	if !models.IsValidPersonaHarness(id) {
+		http.Error(w, "unknown harness", http.StatusNotFound)
+		return
+	}
+	settings, err := app.aiService.Settings()
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, harness.Models(r.Context(), id, settings.Executable))
 }
 func (app *app) putAISettings(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()

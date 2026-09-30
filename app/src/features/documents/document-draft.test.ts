@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { DocumentDraft, type ProjectDocument } from "./document-draft";
+import { DocumentDraft } from "@/features/documents/document-draft";
+import type { ProjectDocument } from "@/features/documents/types";
 
 const document: ProjectDocument = {
   id: 1,
   projectId: 1,
   title: "",
   body: [{ type: "p", children: [{ text: "" }] }],
+  tags: [],
+  details: {},
   revision: 1,
   createdAt: "",
   updatedAt: "",
@@ -65,5 +68,18 @@ describe("document autosave", () => {
     });
     expect(await draft.flush()).toBe(true);
     expect(draft.getSnapshot().dirty).toBe(false);
+  });
+
+  it("saves tag changes like any other edit", async () => {
+    const save = vi.fn(async (value: ProjectDocument) => ({
+      ...value,
+      revision: value.revision + 1,
+    }));
+    const draft = new DocumentDraft(document, save);
+    draft.edit({ tags: ["Draft"] });
+    expect(draft.getSnapshot().dirty).toBe(true);
+    expect(await draft.flush()).toBe(true);
+    expect(save.mock.calls[0][0]).toMatchObject({ tags: ["Draft"], revision: 1 });
+    expect(draft.getSnapshot()).toMatchObject({ dirty: false, value: { tags: ["Draft"] } });
   });
 });

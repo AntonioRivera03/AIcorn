@@ -12,7 +12,7 @@ import (
 
 var ErrConductorConflict = errors.New("Conductor state changed; refresh and try again")
 var ErrConductorPaused = errors.New("Conductor is paused")
-var ErrConductorConfig = errors.New("Conductor needs distinct In progress and review stages from this project's workflow; neither can be Done")
+var ErrConductorConfig = errors.New("Choose two different stages for Conductor: one while an agent works and one for when it finishes. Neither can be a Done stage.")
 var ErrConductorBlocked = errors.New("An unresolved blocking task must be completed before this task can start; resolve it, then recheck")
 
 type ConductorRepo struct{ DB *sql.DB }
@@ -74,6 +74,7 @@ func (r *ConductorRepo) Settings(project int) (models.ConductorSettings, string,
 			return s, "", err
 		}
 		s.Enabled = enabled
+		s.UseBuiltinInstructions()
 	}
 	err = r.fixedAgents(&s)
 	return s, raw, err

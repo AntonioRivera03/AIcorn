@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/waseem-polus/aycorn/server/internal/harness"
+	"github.com/waseem-polus/aycorn/server/internal/harness/fleet"
 	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
@@ -54,11 +55,27 @@ func (s *AIService) Health(ctx context.Context, executable string) harness.Engin
 	}
 	return health
 }
+
+// HarnessHealth checks the workspace's chosen harness. Only Codex has an
+// adapter, so Claude Code always reports why it can't run yet.
+func (s *AIService) HarnessHealth(ctx context.Context, settings models.AISettings) harness.EngineHealth {
+	if settings.Harness != models.PersonaHarnessCodex {
+		return harness.EngineHealth{Error: harness.ClaudeCodeUnavailable}
+	}
+	return s.Health(ctx, settings.Executable)
+}
+
 func (s *AIService) UpdateSettings(settings models.AISettings) error {
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.Executable = strings.TrimSpace(settings.Executable)
-	if settings.Model != "" && !models.IsOpenAIModel(settings.Model) {
-		return fmt.Errorf("%w: choose an OpenAI model ID (for example gpt-5.6-sol)", ErrInvalidAIRun)
+	if !models.IsValidPersonaHarness(settings.Harness) {
+		return fmt.Errorf("%w: choose Codex or Claude Code", ErrInvalidAIRun)
+	}
+	if settings.Model == "" {
+		settings.Model = harness.DefaultModel(settings.Harness)
+	}
+	if !models.IsHarnessModel(settings.Harness, settings.Model) {
+		return fmt.Errorf("%w: choose a model from the list", ErrInvalidAIRun)
 	}
 	if settings.TimeoutSeconds < 10 || settings.TimeoutSeconds > 1800 {
 		return fmt.Errorf("%w: timeout must be 10–1800 seconds", ErrInvalidAIRun)
@@ -84,7 +101,7 @@ func (s *AIService) Start(ctx context.Context, taskID int, in AIRunInput) (*mode
 			role = p.BuiltinRole
 		}
 	}
-	if role == "conductor" || role == "chatter" {
+	if !fleet.IsTaskRole(role) {
 		return nil, fmt.Errorf("%w: choose a task agent", ErrInvalidAIRun)
 	}
 	task, err := s.Tasks.FindOneWithProject(taskID)
@@ -160,22 +177,28 @@ func (s *AIService) PrepareSnapshot(ctx context.Context, task *models.TaskWithPr
 			return nil, err
 		}
 	}
-	if agent != nil {
-		settings.Model = agent.Model
-	}
-	if !models.IsOpenAIModel(settings.Model) {
-		return nil, fmt.Errorf("%w: choose an OpenAI model in AI settings", ErrAISetup)
-	}
-	health := s.Health(ctx, settings.Executable)
+	health := s.HarnessHealth(ctx, settings)
 	if !health.Ready {
 		return nil, fmt.Errorf("%w: %s", ErrAISetup, health.Error)
 	}
-	req := models.AIRunRequest{Engine: "codex", Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
+	defaultModel := settings.Model
+	if agent != nil {
+		settings.Model = agent.Model
+	}
+	if !models.IsHarnessModel(settings.Harness, settings.Model) {
+		return nil, fmt.Errorf("%w: choose a default model in AI settings", ErrAISetup)
+	}
+	req := models.AIRunRequest{Engine: string(settings.Harness), Intent: in.Intent, Instruction: in.Instruction, TaskName: task.Name, Model: settings.Model, Executable: health.Executable, EngineVersion: health.Version, ProjectID: task.ProjectID, TimeoutSeconds: settings.TimeoutSeconds}
 
 	if s.Presets != nil {
 		req.AgentModels, err = s.Presets.FleetModels()
 		if err != nil {
 			return nil, err
+		}
+		for role, model := range req.AgentModels {
+			if model == "" || fleet.IsInternalRole(role) {
+				req.AgentModels[role] = internalModel(role, settings.Harness, defaultModel)
+			}
 		}
 	}
 	if agent != nil {
@@ -218,27 +241,47 @@ func (s *AIService) Cancel(id int) (bool, error) {
 	return s.Jobs.CancelAI(id)
 }
 
-// ResolveAgent snapshots the bundled instructions and editable model. Legacy
-// custom agents retain their saved instructions for existing task/Job references.
+// internalModel is the model an internal agent, or an agent left on Default,
+// runs on: a model pinned for this harness (Chatter uses GPT-6 Sol on Codex),
+// otherwise the workspace's default.
+func internalModel(role string, harness models.PersonaHarness, defaultModel string) string {
+	if pinned := fleet.PinnedModel(role, string(harness)); pinned != "" {
+		return pinned
+	}
+	return defaultModel
+}
+
+// ResolveAgent snapshots the bundled instructions and the concrete model: an
+// agent without its own model, and every internal agent, runs on the
+// workspace's default model. Legacy custom agents retain their saved
+// instructions for existing task/Job references.
 func (s *AIService) ResolveAgent(ctx context.Context, id int) (*models.AgentSnapshot, error) {
 	if id <= 0 {
-		return nil, fmt.Errorf("%w: select an agent from the AI page", ErrAISetup)
+		return nil, fmt.Errorf("%w: select an agent in AI settings", ErrAISetup)
 	}
 	p, err := s.Presets.FindOne(id)
 	if err != nil {
 		return nil, fmt.Errorf("%w: selected agent is missing; choose another agent", ErrAISetup)
 	}
-	if p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
-		return nil, fmt.Errorf("%w: selected agent must use Codex and an OpenAI model", ErrAISetup)
+	settings, err := s.Jobs.AISettings()
+	if err != nil {
+		return nil, err
+	}
+	model := string(p.Model)
+	if model == "" || fleet.IsInternalRole(p.BuiltinRole) {
+		model = internalModel(p.BuiltinRole, settings.Harness, settings.Model)
+	}
+	if !models.IsHarnessModel(settings.Harness, model) {
+		return nil, fmt.Errorf("%w: %s's model doesn't match the harness; choose it again in AI settings", ErrAISetup, p.Name)
 	}
 	if p.BuiltinRole != "" {
-		return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: p.Instructions}, nil
+		return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: model, Instructions: p.Instructions}, nil
 	}
 	prompts, err := s.Converter.ToMarkdown(ctx, []string{p.SystemPrompt})
 	if err != nil {
 		return nil, err
 	}
-	return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: string(p.Model), Instructions: prompts[0]}, nil
+	return &models.AgentSnapshot{ID: p.ID, Name: p.Name, Model: model, Instructions: prompts[0]}, nil
 }
 
 func (s *AIService) ResolveRole(ctx context.Context, role string) (*models.AgentSnapshot, error) {

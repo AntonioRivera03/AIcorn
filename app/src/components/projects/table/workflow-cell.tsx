@@ -21,7 +21,7 @@ export function WorkflowCell({ workflowId, workflowName }: WorkflowCellProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate({ to: "/workflow/$workflowId", params: { workflowId: String(workflowId) } });
+    navigate({ to: "/app/workflow/$workflowId", params: { workflowId: String(workflowId) } });
   };
 
   return (

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/waseem-polus/aycorn/server/internal/markdown"
 	"log"
 	"net"
 	"net/http"
@@ -15,14 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waseem-polus/aycorn/server/internal/accounts"
 	"github.com/waseem-polus/aycorn/server/internal/appdb"
 	"github.com/waseem-polus/aycorn/server/internal/environments"
-	"github.com/waseem-polus/aycorn/server/internal/harness"
 	"github.com/waseem-polus/aycorn/server/internal/jobs"
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
-	"github.com/waseem-polus/aycorn/server/internal/worker"
 	_ "modernc.org/sqlite"
 )
 
@@ -58,9 +56,10 @@ func resolvePort() int {
 //  2. $AYCORN_HOST env var
 //  3. Default: 127.0.0.1 (loopback only — not reachable from other devices)
 //
-// Aycorn is a localhost-only app by design; only override this if you know
-// you want it reachable from other devices (e.g. binding to a Tailscale
-// interface address, or "0.0.0.0" for your whole LAN).
+// Loopback is the safe default. To serve other people, bind to a Tailscale
+// interface address (or "0.0.0.0" for your whole LAN) — accounts and
+// sessions gate every workspace API. Anywhere past a private network, serve
+// HTTPS: see resolveTLS, or put a TLS-terminating proxy in front.
 func resolveHost() string {
 	args := os.Args[1:]
 	for i, arg := range args {
@@ -72,6 +71,27 @@ func resolveHost() string {
 		return h
 	}
 	return "127.0.0.1"
+}
+
+// resolveTLS returns the certificate and key files to serve HTTPS with, from
+// $AYCORN_TLS_CERT and $AYCORN_TLS_KEY. Both unset means plain HTTP (fine on
+// loopback, Tailscale, or behind a proxy that terminates TLS); setting only
+// one is a mistake worth refusing to start over.
+func resolveTLS() (certFile, keyFile string, err error) {
+	certFile, keyFile = os.Getenv("AYCORN_TLS_CERT"), os.Getenv("AYCORN_TLS_KEY")
+	if (certFile == "") != (keyFile == "") {
+		return "", "", fmt.Errorf("set both AYCORN_TLS_CERT and AYCORN_TLS_KEY to serve HTTPS, or neither")
+	}
+	return certFile, keyFile, nil
+}
+
+// envFlag reads a boolean environment variable, falling back to def when it's
+// unset or unreadable.
+func envFlag(name string, def bool) bool {
+	if v, err := strconv.ParseBool(os.Getenv(name)); err == nil {
+		return v
+	}
+	return def
 }
 
 // findAvailablePort tries to bind to startPort, then startPort+1, …, up to 10
@@ -86,6 +106,8 @@ func findAvailablePort(host string, startPort int) (net.Listener, int, error) {
 	return nil, 0, fmt.Errorf("no available port found in range %d–%d; use --port or $AYCORN_PORT to choose a different one", startPort, startPort+9)
 }
 
+// app is one workspace's API: the handlers plus the repositories and services
+// built on that workspace's database (see workspace_runtime.go).
 type app struct {
 	projectChatService   *projectchat.Service
 	jobService           *jobs.Service
@@ -132,117 +154,21 @@ func main() {
 		}
 	}
 
-	dbPath, err := appdb.ResolveDBPath()
+	dataDir, err := appdb.ResolveDataDir()
 	if err != nil {
 		log.Fatal(err)
 	}
-	// The engine runs from a different working directory; MCP must receive
-	// the same absolute database path, including when dev-test sets ./app.db.
-	dbPath, err = filepath.Abs(dbPath)
+	log.Printf("Using data directory %s", dataDir)
+
+	serverCtx, stopServer := context.WithCancel(context.Background())
+	defer stopServer()
+
+	accountsDB, err := accounts.Open(serverCtx, dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if resolved, resolveErr := filepath.EvalSymlinks(dbPath); resolveErr == nil {
-		dbPath = resolved
-	}
-	log.Printf("Using database at %s", dbPath)
+	defer accountsDB.Close()
 
-	db, err := appdb.Open(dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	releaseWorkerLock, err := worker.AcquireDatabaseLock(dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer releaseWorkerLock()
-
-	if err := appdb.Migrate(db, dbPath); err != nil {
-		log.Fatal(err)
-	}
-	if previewMode() {
-		if err := seedPreview(db); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	backupCtx, stopBackups := context.WithCancel(context.Background())
-	defer stopBackups()
-	backupLoopDone := make(chan struct{})
-	go func() {
-		defer close(backupLoopDone)
-		appdb.RunBackupLoop(backupCtx, db, dbPath, appdb.BackupInterval())
-	}()
-
-	projectRepo := &repos.ProjectRepo{DB: db}
-	checklistRepo := &repos.ChecklistRepo{DB: db}
-	taskRepo := &repos.TaskRepo{DB: db}
-	workflowRepo := &repos.WorkflowRepo{DB: db}
-	stageRepo := &repos.StageRepo{DB: db}
-	stagePersonaRepo := &repos.StagePersonaRepo{DB: db}
-	taskTypeRepo := &repos.TaskTypeRepo{DB: db}
-	taskTypeCategoryRepo := &repos.TaskTypeCategoryRepo{DB: db}
-	taskRelationshipRepo := &repos.TaskRelationshipRepo{DB: db}
-	personaRepo := &repos.PersonaRepo{DB: db}
-	agentJobRepo := &repos.AgentJobRepo{DB: db}
-	agentRunRepo := &repos.AgentRunRepo{DB: db}
-
-	agentJobService := &services.AgentJobService{
-		JobRepo:     agentJobRepo,
-		RunRepo:     agentRunRepo,
-		PersonaRepo: personaRepo,
-		TaskRepo:    taskRepo,
-	}
-
-	projectService := &services.ProjectService{
-		ProjectRepo:   projectRepo,
-		TaskRepo:      taskRepo,
-		ChecklistRepo: checklistRepo,
-		WorkflowRepo:  workflowRepo,
-		StageRepo:     stageRepo,
-		TaskTypeRepo:  taskTypeRepo,
-	}
-	checklistService := &services.ChecklistService{
-		ChecklistRepo: checklistRepo,
-		TaskRepo:      taskRepo,
-	}
-	taskService := &services.TaskService{
-		TaskRepo:         taskRepo,
-		TaskTypeRepo:     taskTypeRepo,
-		AgentJobService:  agentJobService,
-		StagePersonaRepo: stagePersonaRepo,
-		ProjectRepo:      projectRepo,
-		PersonaRepo:      personaRepo,
-	}
-	workflowService := &services.WorkflowService{
-		WorkflowRepo: workflowRepo,
-		ProjectRepo:  projectRepo,
-		StageRepo:    stageRepo,
-	}
-	stageService := &services.StageService{
-		StageRepo:        stageRepo,
-		StagePersonaRepo: stagePersonaRepo,
-	}
-	taskTypeService := &services.TaskTypeService{
-		TaskTypeRepo: taskTypeRepo,
-		CategoryRepo: taskTypeCategoryRepo,
-	}
-	taskTypeCategoryService := &services.TaskTypeCategoryService{
-		CategoryRepo: taskTypeCategoryRepo,
-		TaskTypeRepo: taskTypeRepo,
-	}
-	taskRelationshipService := &services.TaskRelationshipService{
-		TaskRelationshipRepo: taskRelationshipRepo,
-	}
-	personaService := &services.PersonaService{PersonaRepo: personaRepo}
-
-	// Single-worker ticker reconciles Conductor and claims one Codex job.
-	// In-flight work is interrupted on restart and requires an explicit recheck.
-	// WAL + busy_timeout already handles concurrent DB access.
-	workerCtx, stopWorker := context.WithCancel(context.Background())
-	defer stopWorker()
 	mcpName := "aycorn-mcp"
 	if runtime.GOOS == "windows" {
 		mcpName += ".exe"
@@ -259,87 +185,79 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: mcpPath}
-	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
-	engine := &harness.Registry{Codex: &harness.Codex{MCPExecutable: mcpPath, DBPath: dbPath}}
-	w := worker.New(agentJobService, engine)
-	w.Conductor = conductorService
-	if !previewMode() {
-		if err := w.Start(workerCtx, 2*time.Second); err != nil {
-			log.Fatalf("worker start: %v", err)
-		}
-	}
-	defer w.Stop()
-	jobService := &jobs.Service{DB: db, AI: aiService, Conductor: conductorService}
-	schedulerDone := make(chan struct{})
-	if previewMode() {
-		close(schedulerDone)
-	} else {
-		go func() { defer close(schedulerDone); jobService.Run(workerCtx, 15*time.Second) }()
-	}
-	defer func() { stopWorker(); <-schedulerDone }()
-
-	projectChatService := &projectchat.Service{Store: projectchat.Store{DB: db}, AI: aiService, Engine: engine, WorkspaceRoot: filepath.Join(filepath.Dir(dbPath), "project-chat-workspaces")}
-	chatDone := make(chan struct{})
-	if previewMode() {
-		close(chatDone)
-	} else {
-		if err := projectChatService.Start(workerCtx); err != nil {
-			log.Fatal(err)
-		}
-		go func() { defer close(chatDone); projectChatService.Run(workerCtx) }()
-	}
-	defer func() { stopWorker(); <-chatDone }()
-	app := app{
-		projectChatService:   projectChatService,
-		jobService:           jobService,
-		conductorService:     conductorService,
-		aiService:            aiService,
-		projectRepo:          projectRepo,
-		checklistRepo:        checklistRepo,
-		workflowRepo:         workflowRepo,
-		stageRepo:            stageRepo,
-		taskTypeRepo:         taskTypeRepo,
-		taskTypeCategoryRepo: taskTypeCategoryRepo,
-		taskRelationshipRepo: taskRelationshipRepo,
-		personaRepo:          personaRepo,
-
-		projectService:          projectService,
-		checklistService:        checklistService,
-		taskService:             taskService,
-		workflowService:         workflowService,
-		stageService:            stageService,
-		taskTypeService:         taskTypeService,
-		taskTypeCategoryService: taskTypeCategoryService,
-		taskRelationshipService: taskRelationshipService,
-		personaService:          personaService,
-		agentJobService:         agentJobService,
-	}
 
 	host := resolveHost()
+	certFile, keyFile, err := resolveTLS()
+	if err != nil {
+		log.Fatal(err)
+	}
 	ln, port, err := findAvailablePort(host, resolvePort())
 	if err != nil {
 		log.Fatal(err)
 	}
-	if !previewMode() {
-		store := &environments.Store{DB: db}
-		token, err := store.Installation()
-		if err != nil {
-			log.Fatal(err)
-		}
-		runtime := &environments.Kubernetes{Token: token, MainURL: fmt.Sprintf("http://127.0.0.1:%d", port)}
-		app.environmentService = &environments.Service{Store: store, Runtime: runtime, Root: filepath.Join(filepath.Dir(dbPath), "environments-"+token)}
-		if err := app.environmentService.Start(workerCtx); err != nil {
-			log.Fatal(err)
-		}
+
+	scheme := "http"
+	if certFile != "" {
+		scheme = "https"
+	}
+	workspaces := newWorkspaceRegistry(serverCtx, dataDir, runtimeConfig{
+		mainURL: fmt.Sprintf("%s://127.0.0.1:%d", scheme, port),
+		mcpPath: mcpPath,
+	})
+	defer workspaces.stopAll()
+	mailer := accounts.MailerFromEnv()
+	// Confirming email addresses needs email. It's on whenever email is, and
+	// AYCORN_VERIFY_EMAILS=0 turns it off (say, while Resend can only reach
+	// your own address).
+	verifyEmails := accounts.EmailEnabled(mailer) && envFlag("AYCORN_VERIFY_EMAILS", true)
+	if verifyEmails {
+		log.Println("New accounts must confirm their email address")
+	}
+	accountService := &accounts.Service{
+		Store:        accounts.NewStore(accountsDB),
+		Mailer:       mailer,
+		Provision:    workspaces.provision,
+		Unprovision:  workspaces.unprovision,
+		Retire:       workspaces.retire,
+		VerifyEmails: verifyEmails,
 	}
 
-	server := http.Server{Handler: app.routes()}
+	// Start every workspace up front so scheduled jobs and agent work keep
+	// running for workspaces nobody currently has open.
+	ids, err := accountService.AllWorkspaceIDs(serverCtx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, id := range ids {
+		if _, err := workspaces.get(id); err != nil {
+			log.Printf("starting %v", err)
+		}
+	}
+	go pruneSessionsLoop(serverCtx, accountService)
+
+	srv := &server{
+		accounts:   accountService,
+		workspaces: workspaces,
+		accountsDB: accountsDB,
+		publicURL:  os.Getenv("AYCORN_PUBLIC_URL"),
+		limits:     newAuthLimits(),
+		// Set when a reverse proxy sits in front, so rate limits apply per
+		// client rather than to the proxy's one address.
+		trustProxy:    envFlag("AYCORN_TRUST_PROXY", false),
+		previewSignIn: previewMode(),
+	}
+	httpServer := http.Server{Handler: srv.routes()}
 
 	// Start the server in a goroutine so we can listen for shutdown signals.
 	go func() {
-		log.Printf("Listening on http://%s", net.JoinHostPort(host, strconv.Itoa(port)))
-		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+		var err error
+		log.Printf("Listening on %s://%s", scheme, net.JoinHostPort(host, strconv.Itoa(port)))
+		if certFile != "" {
+			err = httpServer.ServeTLS(ln, certFile, keyFile)
+		} else {
+			err = httpServer.Serve(ln)
+		}
+		if err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
@@ -352,22 +270,26 @@ func main() {
 	log.Println("Shutting down — waiting for in-flight requests to finish...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
+	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Fatal("Forced shutdown:", err)
 	}
 
-	stopWorker()
-	<-schedulerDone
-	w.Stop()
-	if app.environmentService != nil {
-		app.environmentService.Wait()
-	}
-
-	stopBackups()
-	<-backupLoopDone
-
-	if err := appdb.BackupOnShutdown(db, dbPath); err != nil {
-		log.Printf("shutdown backup: %v", err)
-	}
+	stopServer()
+	workspaces.stopAll()
 	log.Println("Done")
+}
+
+func pruneSessionsLoop(ctx context.Context, service *accounts.Service) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		if err := service.PruneSessions(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("pruning sessions: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

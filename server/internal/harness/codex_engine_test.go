@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -285,6 +286,20 @@ func TestMCPApprovalsAreLimitedToExposedScopedTools(t *testing.T) {
 	}
 	if config["mcp_servers.aycorn.tools.create_task.approval_mode"] != "approve" {
 		t.Fatal(config)
+	}
+	// Chatter never touches code: no shell or other built-in tools, no web,
+	// and it hands work to Conductor rather than starting agents.
+	for _, feature := range []string{"shell_tool", "unified_exec", "browser_use", "computer_use"} {
+		if config["features."+feature] != false {
+			t.Fatalf("Chatter kept %s", feature)
+		}
+	}
+	if config["web_search"] != "disabled" {
+		t.Fatal("Chatter can search the web")
+	}
+	tools := config["mcp_servers.aycorn.enabled_tools"].([]string)
+	if !slices.Contains(tools, "send_to_conductor") || slices.Contains(tools, "request_task_work") {
+		t.Fatal(tools)
 	}
 	developer, _ := BuildContext(spec)
 	if strings.Contains(developer, "human-led ticket chat") || !strings.Contains(developer, "Chatter") {

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,8 +10,6 @@ export type ConductorSettings = {
   workingStage: number;
   completionStage: number;
   planningPrompt: string;
-  workingPrompt: string;
-  completionPrompt: string;
   conductorAgentId: number;
   taskAgentId: number;
   useRepository: boolean;
@@ -31,7 +30,7 @@ export type ConductorBoard = {
 export type ConductorAction = "send" | "release" | "recheck";
 
 async function request<T>(url: string, method?: string, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

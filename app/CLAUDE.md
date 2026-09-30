@@ -19,6 +19,15 @@ src/
 
 ---
 
+## Routing, Auth & Workspaces
+
+- **Route layout.** Public pages sit at the root: `/` (placeholder home), `/login`, `/signup`, `/onboarding`, `/invite/$code`, `/verify-email`, `/forgot-password`, `/reset-password`; they use `PublicLayout`. The signed-in app lives under `/app` — `routes/app/route.tsx` checks the session (redirecting to `/login`, `/verify-email` for an unconfirmed email, or `/onboarding`), picks the tab's workspace, and renders the sidebar layout. `destinationAfterAuth` (`features/auth/after-auth.ts`) holds the same order for post-login redirects. **New app pages go in `src/routes/app/`**, and links to them start with `/app`.
+- **All API calls go through `apiFetch` / `apiJson` (`@/lib/api`), never bare `fetch`.** They add the `X-Aycorn-Workspace` header, without which the server rejects workspace requests, send signed-out users to the login page, and report a response flagged `X-Aycorn-Workspace-Access: none` (removed from the organization, or it was deleted) to `WorkspaceProvider`, which moves the tab to the personal workspace. `apiJson` throws the server's error text (capitalized) for toasts.
+- **`useWorkspace()`** (`@/features/workspaces/workspace-context`) gives the signed-in account, the current workspace (with the user's role), all their workspaces, and `switchWorkspace`. Switching drops every cached query except `["me"]` and remounts the app, so query keys don't need a workspace ID. Account-level data (members, invites) is keyed by workspace ID explicitly.
+- The signed-in user and their workspaces come from the `["me"]` query (`meQueryOptions`), which resolves to `null` when signed out.
+
+---
+
 ## React & TypeScript Rules
 
 - **Functional components only.** No class components.
@@ -124,6 +133,10 @@ Add `cursor-text` to the `EditableHeader` className when it lives inside a `curs
 `MarkdownKit` is shared by the live editor's "Copy as markdown" export **and** the headless converter the MCP server shells out to (`markdown-editor.ts`) — one plugin config, two consumers. `remarkMdx` is loaded because the default rules for `callout`/`toc`/`kbd`/`highlight` all emit MDX JSX mdast nodes that `remark-stringify` can't render without it (an unconditional throw on export otherwise, for both consumers, since all of those node types exist in the live editor).
 
 Side effect: with `remarkMdx` loaded, literal `{braces}` typed directly into the editor now serialize as escaped `\{braces}` on "Copy as markdown" (still correct — round-trips to the same characters — just a visible formatting change from before this plugin was added). This is inherent to enabling MDX parsing, not a bug; splitting the live editor onto a separate non-MDX pipeline would just reintroduce the export crash for any document containing a callout, toggle, or toc.
+
+### Documents (`features/documents/`)
+
+A list like the task list view; a document opens in a side panel (`document-panel.tsx`) like a task. PDFs and images show in a zoomable viewer instead of a body (`viewers/`; PDF.js is loaded on first use). **Files load through `apiFetch` as blobs**, never as a plain `<img src>`, `<iframe src>`, or `<a href>` to the file URL: those can't send the workspace header, so the server rejects them. Tags autosave through the same `DocumentDraft` revision queue as the title and body.
 
 ### Task Types (`features/task-types/`)
 

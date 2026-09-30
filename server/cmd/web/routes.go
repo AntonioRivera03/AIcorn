@@ -2,6 +2,8 @@ package main
 
 import "net/http"
 
+// routes is one workspace's API. The server only reaches it after
+// authenticating the request and checking workspace membership (server.go).
 func (app *app) routes() http.Handler {
 	mux := http.NewServeMux()
 	if app.projectChatService != nil {
@@ -17,8 +19,6 @@ func (app *app) routes() http.Handler {
 	if app.jobService != nil {
 		app.jobRoutes(mux)
 	}
-	mux.HandleFunc("GET /api/health/ready", app.readiness)
-	mux.HandleFunc("GET /api/preview", app.getPreviewInfo)
 	if app.environmentService != nil {
 		mux.HandleFunc("GET /api/project/{projectId}/settings/environments", app.getEnvironmentSettings)
 		mux.HandleFunc("PUT /api/project/{projectId}/settings/environments", app.putEnvironmentSettings)
@@ -142,6 +142,7 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/stage/{stageId}/persona", app.deleteStagePersona)
 	mux.HandleFunc("GET /api/ai/settings", app.getAISettings)
 	mux.HandleFunc("PUT /api/ai/settings", app.putAISettings)
+	mux.HandleFunc("GET /api/ai/harnesses/{harness}/models", app.getHarnessModels)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/runs", app.startAIRun)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/chat", app.startChatTurn)
 	mux.HandleFunc("POST /api/ai/tasks/{taskId}/session/messages", app.taskSessionMessage)
@@ -152,9 +153,5 @@ func (app *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/agent-jobs", app.getAgentJobs)
 	mux.HandleFunc("GET /api/agent-jobs/{taskId}", app.getAgentJobsForTask)
 
-	if spa := spaHandler(); spa != nil {
-		mux.Handle("GET /", spa)
-	}
-
-	return withCommon(previewGuard(mux))
+	return previewGuard(mux)
 }

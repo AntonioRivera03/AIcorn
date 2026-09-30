@@ -1,15 +1,11 @@
-import type { Value } from "platejs";
+import type { ProjectDocument } from "@/features/documents/types";
 
-export type ProjectDocument = {
-  id: number;
-  projectId: number;
-  title: string;
-  body: Value;
-  revision: number;
-  createdAt: string;
-  updatedAt: string;
-  file?: { name: string; mediaType: string; size: number };
-};
+type Editable = Pick<ProjectDocument, "title" | "body" | "tags">;
+
+const differs = (a: Editable, b: Editable) =>
+  a.title !== b.title ||
+  JSON.stringify(a.body) !== JSON.stringify(b.body) ||
+  JSON.stringify(a.tags) !== JSON.stringify(b.tags);
 
 export type DocumentState = {
   value: ProjectDocument;
@@ -47,11 +43,9 @@ export class DocumentDraft {
     this.state = { ...this.state, ...patch };
     this.listeners.forEach((listener) => listener());
   }
-  edit(patch: Partial<Pick<ProjectDocument, "title" | "body">>) {
+  edit(patch: Partial<Editable>) {
     const value = { ...this.state.value, ...patch };
-    const dirty =
-      value.title !== this.saved.title ||
-      JSON.stringify(value.body) !== JSON.stringify(this.saved.body);
+    const dirty = differs(value, this.saved);
     this.emit({ value, dirty });
     clearTimeout(this.timer);
     // A failed write needs an explicit retry so a conflict isn't overwritten.
@@ -78,10 +72,9 @@ export class DocumentDraft {
           ...saved,
           title: this.state.value.title,
           body: this.state.value.body,
+          tags: this.state.value.tags,
         };
-        const dirty =
-          value.title !== saved.title ||
-          JSON.stringify(value.body) !== JSON.stringify(saved.body);
+        const dirty = differs(value, saved);
         this.emit({ value, dirty });
       }
       this.emit({ saving: false });

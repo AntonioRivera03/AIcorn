@@ -3,17 +3,27 @@ package harness
 import (
 	"context"
 	"fmt"
+
+	"github.com/waseem-polus/aycorn/server/internal/models"
 )
 
+// ProviderInfo is one harness a workspace can choose in AI settings. Runnable
+// is false while Aycorn has no adapter for it; Note says why.
 type ProviderInfo struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"`
-	Reason  string `json:"reason,omitempty"`
+	ID       models.PersonaHarness `json:"id"`
+	Name     string                `json:"name"`
+	Runnable bool                  `json:"runnable"`
+	Note     string                `json:"note,omitempty"`
 }
 
+// ClaudeCodeUnavailable explains why a workspace set to Claude Code cannot run.
+const ClaudeCodeUnavailable = "Aycorn can't start Claude Code sessions yet. Agents only run on Codex until the Claude Code adapter is built."
+
 func Providers() []ProviderInfo {
-	return []ProviderInfo{{ID: "codex", Name: "Codex", Enabled: true}, {ID: "opencode", Name: "OpenCode", Reason: "Coming later"}}
+	return []ProviderInfo{
+		{ID: models.PersonaHarnessCodex, Name: "Codex", Runnable: true},
+		{ID: models.PersonaHarnessClaudeCode, Name: "Claude Code", Note: ClaudeCodeUnavailable},
+	}
 }
 
 // Registry is the only production dispatch path. A saved/forged OpenCode request

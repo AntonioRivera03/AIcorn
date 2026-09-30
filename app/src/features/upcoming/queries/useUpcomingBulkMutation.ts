@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import type { BulkResult } from "@/types/types";
 import { useMutation } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ export function useUpcomingBulkMutation() {
       ids: number[];
       changes: Record<string, unknown>;
     }) => {
-      const res = await fetch("/api/task/bulk", {
+      const res = await apiFetch("/api/task/bulk", {
         method: "PUT",
         body: JSON.stringify({ ids, changes }),
       });
@@ -33,7 +34,7 @@ export function useUpcomingBulkMutation() {
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch("/api/task/bulk/delete", {
+      const res = await apiFetch("/api/task/bulk/delete", {
         method: "POST",
         body: JSON.stringify(ids),
       });

@@ -1,15 +1,17 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
   AIRunInput,
   AISettings,
   AISettingsResponse,
+  HarnessModels,
 } from "@/features/ai/types";
 import type { AgentJob } from "@/features/agentJob/queries/useAgentJobs";
-import type { Project, Task } from "@/types/types";
+import type { PersonaHarness, Project, Task } from "@/types/types";
 
 const request = async <T>(url: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(url, init);
+  const response = await apiFetch(url, init);
   if (!response.ok) throw new Error((await response.text()).trim());
   return response.json() as Promise<T>;
 };
@@ -18,6 +20,17 @@ export const useAISettings = () =>
     queryKey: ["ai-settings"],
     queryFn: () => request<AISettingsResponse>("/api/ai/settings"),
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+// Codex lists its own models (the server caches them); Claude Code uses a
+// fixed list.
+export const useHarnessModels = (harness: PersonaHarness | undefined) =>
+  useQuery({
+    queryKey: ["harness-models", harness],
+    queryFn: () =>
+      request<HarnessModels>(`/api/ai/harnesses/${harness}/models`),
+    enabled: harness !== undefined,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 export const useAIContext = (taskId: number) => {
@@ -81,6 +94,10 @@ export const useUpdateAISettings = () => {
         old ? { ...old, settings } : old,
       );
       void client.invalidateQueries({ queryKey: ["ai-settings"] });
+      // Switching harness sends every agent back to the default model.
+      void client.invalidateQueries({ queryKey: ["personas"] });
+      void client.invalidateQueries({ queryKey: ["persona"] });
+      void client.invalidateQueries({ queryKey: ["conductor"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });

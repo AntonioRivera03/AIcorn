@@ -40,9 +40,8 @@ func (s *ConductorService) Board(project int) (ConductorBoard, error) {
 		b.ConfigurationError = "Bundled Conductor agents are unavailable."
 	} else {
 		for _, id := range []int{c.ConductorAgentID, c.TaskAgentID} {
-			p, err := s.AI.Presets.FindOne(id)
-			if err != nil || p.Harness != models.PersonaHarnessCodex || !models.IsValidPersonaModel(p.Model) {
-				b.ConfigurationError = "A bundled agent model is invalid. Check the AI page."
+			if _, err := s.AI.ResolveAgent(context.Background(), id); err != nil {
+				b.ConfigurationError = err.Error()
 				break
 			}
 		}
@@ -63,7 +62,10 @@ func (s *ConductorService) UpdateSettings(ctx context.Context, project int, patc
 	}
 	for key, value := range patch {
 		if key == "conductorAgentId" || key == "taskAgentId" {
-			return current, fmt.Errorf("%w: %s is fixed by Aycorn; change its model on the AI page", ErrInvalidAIRun, key)
+			return current, fmt.Errorf("%w: %s is fixed by Aycorn; change its model in AI settings", ErrInvalidAIRun, key)
+		}
+		if key == "workingPrompt" || key == "completionPrompt" {
+			return current, fmt.Errorf("%w: the agent's working and handoff instructions are built into Aycorn", ErrInvalidAIRun)
 		}
 		if _, ok := fields[key]; !ok || string(value) == "null" {
 			return current, fmt.Errorf("%w: invalid Conductor setting %s", ErrInvalidAIRun, key)
@@ -81,10 +83,8 @@ func (s *ConductorService) UpdateSettings(ctx context.Context, project int, patc
 	if next.PlanningStage < 0 || next.WorkingStage < 0 || next.CompletionStage < 0 {
 		return current, repos.ErrConductorConfig
 	}
-	for _, prompt := range []string{next.PlanningPrompt, next.WorkingPrompt, next.CompletionPrompt} {
-		if len(prompt) > 16000 {
-			return current, fmt.Errorf("%w: stage prompts must be under 16000 characters", ErrInvalidAIRun)
-		}
+	if len(next.PlanningPrompt) > 16000 {
+		return current, fmt.Errorf("%w: Conductor's instructions must be under 16000 characters", ErrInvalidAIRun)
 	}
 	if next.ConductorAgentID < 0 || next.TaskAgentID < 0 {
 		return current, fmt.Errorf("%w: invalid agent", ErrInvalidAIRun)

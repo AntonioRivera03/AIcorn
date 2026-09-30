@@ -98,7 +98,7 @@ export function SelectTaskType({
               <div className="text-sm text-muted-foreground">
                 No types found.{" "}
                 <Link
-                  to="/project/settings/$projectId"
+                  to="/app/project/settings/$projectId"
                   params={{ projectId: String(Project.ID) }}
                   search={{ tab: "task-types" }}
                   className="text-primary hover:underline"
@@ -108,7 +108,7 @@ export function SelectTaskType({
                 </Link>{" "}
                 or{" "}
                 <Link
-                  to="/task-types"
+                  to="/app/task-types"
                   className="text-primary hover:underline"
                   onClick={() => setOpen(false)}
                 >

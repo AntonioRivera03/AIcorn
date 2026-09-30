@@ -74,7 +74,7 @@ export function ProjectRowActions({
           <DropdownMenuItem
             onClick={() =>
               navigate({
-                to: "/project/settings/$projectId",
+                to: "/app/project/settings/$projectId",
                 params: { projectId: project.ID.toString() },
                 search: { tab: "workflow" },
               })
@@ -86,7 +86,7 @@ export function ProjectRowActions({
           <DropdownMenuItem
             onClick={() =>
               navigate({
-                to: "/workflow/$workflowId",
+                to: "/app/workflow/$workflowId",
                 params: { workflowId: project.Workflow.toString() },
               })
             }

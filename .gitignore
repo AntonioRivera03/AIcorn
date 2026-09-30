@@ -3,6 +3,7 @@ server/backups/
 server/ui/dist/
 server/assets/bin/md-convert.cjs
 server/dev.db*
+server/data/
 aycorn
 server/web
 server/bin/
@@ -15,3 +16,6 @@ aycorn-worktrees/
 build/Aycorn.app
 build/AppIcon.iconset
 server/cmd/web/build/
+
+# Agent session state (oh-my-opencode)
+**/.omo/run-continuation/

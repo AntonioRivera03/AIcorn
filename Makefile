@@ -26,20 +26,22 @@ fi
 endef
 
 # Development: build frontend with dev icon, then start Go server against your
-# personal DB (no AYCORN_DB override → internal/appdb.ResolveDBPath() falls
-# back to <UserConfigDir>/aycorn/app.db, same DB the installed binary uses).
+# personal data directory (no AYCORN_DATA_DIR override →
+# internal/appdb.ResolveDataDir() falls back to <UserConfigDir>/aycorn, the same
+# data the installed binary uses: accounts.db + workspaces/<id>/app.db).
 dev: build-app-dev build-mcp
 	@$(load-dev-kubeconfig); \
     trap 'kill 0' INT; \
     cd $(SRV_DIR) && go run ./cmd/web; \
     wait
 
-# Development against a disposable test DB: pins AYCORN_DB to server/app.db so
-# it never touches your personal data. Safe to `rm -f server/app.db` anytime.
+# Development against disposable test data: pins AYCORN_DATA_DIR to
+# server/data so it never touches your personal data. Safe to
+# `rm -rf server/data` anytime (you'll sign up again).
 dev-test: build-app-dev build-mcp
 	@$(load-dev-kubeconfig); \
     trap 'kill 0' INT; \
-    cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web; \
+    cd $(SRV_DIR) && AYCORN_DATA_DIR=./data go run ./cmd/web; \
     wait
 
 # Full release build: React → embed → single Go binary
@@ -105,21 +107,24 @@ upgrade:
 	$(MAKE) install
 	@echo "Upgraded to $$(aycorn --version)"
 
-# Snapshot / restore your personal database via the binary's subcommands (no
-# AYCORN_DB override → same DB `make dev` and the installed binary use).
+# Snapshot / restore a single database via the binary's subcommands. Pass
+# WORKSPACE=<id> to act on one workspace of your personal data directory, or
+# set AYCORN_DB to target any file. With neither, a data directory that has
+# accounts refuses and lists its workspaces; only a pre-accounts install's
+# single app.db is used directly.
 backup:
-	cd $(SRV_DIR) && go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && $(if $(WORKSPACE),AYCORN_WORKSPACE=$(WORKSPACE)) go run ./cmd/web backup $(DEST)
 
 restore:
-	cd $(SRV_DIR) && go run ./cmd/web restore $(SRC)
+	cd $(SRV_DIR) && $(if $(WORKSPACE),AYCORN_WORKSPACE=$(WORKSPACE)) go run ./cmd/web restore $(SRC)
 
-# Snapshot / restore the disposable TEST database (server/app.db) — pairs with
-# `make dev-test`.
+# Snapshot / restore one workspace of the disposable TEST data (server/data) —
+# pairs with `make dev-test`. Usage: make backup-test WORKSPACE=1
 backup-test:
-	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web backup $(DEST)
+	cd $(SRV_DIR) && AYCORN_DATA_DIR=./data AYCORN_WORKSPACE=$(WORKSPACE) go run ./cmd/web backup $(DEST)
 
 restore-test:
-	cd $(SRV_DIR) && AYCORN_DB=./app.db go run ./cmd/web restore $(SRC)
+	cd $(SRV_DIR) && AYCORN_DATA_DIR=./data AYCORN_WORKSPACE=$(WORKSPACE) go run ./cmd/web restore $(SRC)
 
 clean:
 	rm -f $(BINARY)

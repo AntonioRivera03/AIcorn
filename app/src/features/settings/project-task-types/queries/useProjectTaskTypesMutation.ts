@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type SetEnabledTypesParams = {
@@ -15,7 +16,7 @@ export function useProjectTaskTypesMutation(projectId: number) {
       disableTypeId,
       routeToTypeId,
     }: SetEnabledTypesParams) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${projectId}/settings/task-types`,
         {
           method: "PUT",

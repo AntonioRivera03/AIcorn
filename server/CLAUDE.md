@@ -16,23 +16,34 @@ Implications an agent must account for:
 
 - **Backend changes do not take effect until the server is restarted.** After editing any Go file, the running process is still the old binary. If you (or the user) have a server running, it must be manually killed and re-run. Verifying a new endpoint against a still-running old process returns `404`/`405` — that's a stale binary, not a routing bug.
 - **`:8000` gets held by stale processes.** A previous `go run` leaves a `cmd/web`-built binary bound to `:8000`; a fresh run then fails to bind but the old one keeps serving old code (and possibly an old `app.db`). When something behaves like old code, check `lsof -nP -i :8000` before debugging further.
-- **Two databases, two `make` targets.** `app.db` is not committed to git — the server auto-creates and migrates it via goose on startup. Its path is controlled by `$AYCORN_DB`; if unset, the binary uses `<os.UserConfigDir()>/aycorn/app.db` (e.g. `~/Library/Application Support/aycorn/app.db` on macOS) — your **personal**, persistent data.
-  - `make dev` — no `AYCORN_DB` override, runs against your personal DB. Same DB the installed `aycorn` binary uses.
-  - `make dev-test` — sets `AYCORN_DB=./app.db`, runs against a disposable DB at `server/app.db`. Safe to wipe anytime; never touches personal data.
-  To reset the test DB to a clean state:
-  ```
-  cd server
-  rm -f app.db
-  AYCORN_DB=./app.db go run ./cmd/web   # goose creates all tables automatically
-  ```
-  (or just `make dev-test`, which sets `AYCORN_DB` for you).
+- **Data directory, two `make` targets.** Nothing in it is committed; the server creates and migrates everything on startup. Its location is `$AYCORN_DATA_DIR`, defaulting to `<os.UserConfigDir()>/aycorn` (e.g. `~/.config/aycorn` on Linux). Inside it:
+  - `accounts.db` — accounts, sessions, workspaces, memberships, invites (migrations in `internal/accounts/migrations/`).
+  - `workspaces/<id>/app.db` — one database per workspace (migrations in `internal/migrations/sql/`), with that workspace's backups, worktrees, chat workspaces, and environments beside it.
+  - A single-user `app.db` from before accounts may also sit there; the server no longer reads it.
+  - `make dev` — no override, runs against your personal data directory.
+  - `make dev-test` — sets `AYCORN_DATA_DIR=./data`: disposable data at `server/data/` (gitignored). Reset with `rm -rf data` and sign up again.
+- **Server environment variables** (beyond host/port): `RESEND_API_KEY` enables email — invites, email confirmation, password resets (without it, emails are logged, the inviter gets a link to share, and accounts start confirmed); `AYCORN_EMAIL_FROM` sets the sender (must be a Resend-verified domain to reach anyone but the Resend account owner); `AYCORN_VERIFY_EMAILS=0` turns email confirmation off even with Resend; `AYCORN_PUBLIC_URL` fixes the origin used in emailed links (default: the request's origin). Serving other people means binding `AYCORN_HOST` to a Tailscale/LAN address; beyond a private network serve HTTPS, either directly (`AYCORN_TLS_CERT` + `AYCORN_TLS_KEY`) or behind a TLS proxy with `AYCORN_TRUST_PROXY=1` (so rate limits read the client address from `X-Forwarded-For`).
 - **`go build ./...` needs the markdown bundle.** `assets/bin/md-convert.cjs` is a gitignored build artifact (like `ui/dist`) that `internal/markdown` embeds, so a fresh clone must run `make build-md-convert` before any build that reaches it. `make build-mcp` does it for you. It is rebuilt from the frontend — see the Markdown Conversion section below.
 - **Schema changes go through migration files**, not `schema.sql` directly. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for the full migration workflow.
-- **`placeholder.sql` is seed data** for development — load it into the **test** DB only, never the personal one:
+- **`placeholder.sql` is seed data** for development — load it into a **test** workspace only, never a personal one:
   ```
-  sqlite3 app.db < assets/queries/placeholder.sql
+  sqlite3 data/workspaces/<id>/app.db < assets/queries/placeholder.sql
   ```
-- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Manual subcommands: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup` / `make restore SRC=...` act on your personal DB; `make backup-test` / `make restore-test SRC=...` act on the test DB (`server/backups/`, gitignored).
+- **Backups & restore.** The binary snapshots the DB with SQLite `VACUUM INTO` (see [`cmd/web/backup.go`](cmd/web/backup.go)). On startup, `backupBeforeMigrate` snapshots the DB *before* `goose.Up` whenever the on-disk version is behind the embedded migrations — so an upgrade can never silently lose data; a snapshot failure aborts startup. Snapshots land in a `backups/` folder beside the DB, rotated to the newest `AYCORN_BACKUP_KEEP` (default 10, `0` = keep all). Every workspace database and `accounts.db` gets its own `backups/` folder. Manual subcommands act on the single database `appdb.ResolveDBPath()` resolves — `$AYCORN_DB`, or `$AYCORN_WORKSPACE=<id>` to name a workspace by id: `aycorn backup [dest]` and `aycorn restore <src>` (`restore` integrity-checks the snapshot, snapshots the current DB first, then swaps the file in; refuses if an `aycorn` process is detected). `make backup-test WORKSPACE=<id>` / `make restore-test WORKSPACE=<id> SRC=...` act on one workspace of the test data.
+
+---
+
+## Multi-user request flow
+
+See "Accounts & Workspaces" in the root `CLAUDE.md` for the model. In code:
+
+- `cmd/web/server.go` is the front door. It serves health/preview, the account API (`accountHandler.go` → `internal/accounts`), and forwards every other `/api/` request to a workspace: session cookie → confirmed email → `X-Aycorn-Workspace` header → membership check → that workspace's handler. A failed membership check sets `X-Aycorn-Workspace-Access: none` so the app can tell "you lost access" from an ordinary 404.
+- **Middleware:** `withAccount` (signed in; in preview mode it signs visitors into the shared reviewer account instead of returning 401), `withVerifiedAccount` (also a confirmed email — use it for anything that reaches workspace data or other people), `limitByIP` (for endpoints anyone can hit: login, signup, password reset, links, invite lookups; limits live in `ratelimit.go`, in memory).
+- `cmd/web/workspace_runtime.go` builds one `app` (repos, services, handlers from `routes.go`) plus its background work (agent worker, job scheduler, project chat, environments, backups) per workspace database. `workspaceRegistry` starts all workspaces at boot and new ones when they're created (`provision`, which also seeds a starter workflow). `retire` handles a deleted organization: stops its runtime, tears down its branch environments' cluster resources, and moves its directory to `<data dir>/deleted-workspaces/<id>-<time>`.
+- **Adding a workspace feature** works exactly as before: add the handler to `routes.go` and write single-database queries. Never reach into another workspace's database, and derive any on-disk path from the workspace's `dbPath` directory.
+- **Adding an account-level feature** (anything about users, organizations, or invites): SQL in `internal/accounts/store.go`, rules in `internal/accounts/service.go`, handler in `cmd/web/accountHandler.go`, route in `server.routes()`.
+- The signed-in account is available to any handler via `accountFromContext(r.Context())`.
+- **`aycorn-mcp` is still single-database:** it opens whatever `appdb.ResolveDBPath()` resolves — `$AYCORN_DB` (an explicit file), or `$AYCORN_WORKSPACE=<id>` (resolved under the data directory). Agent runs pass `AYCORN_DB` explicitly (`internal/harness/codex_session.go`), so they work unchanged. An MCP client configured by hand should set `AYCORN_WORKSPACE=<id>`; with neither set, a multi-user data directory refuses to guess and lists its workspaces.
 
 ---
 
@@ -91,7 +102,7 @@ Nullable text columns (e.g. `description`) are therefore wrapped in `COALESCE(co
 
 **Driver:** `modernc.org/sqlite` (registered as `"sqlite"`), a pure-Go transpilation of SQLite — not `mattn/go-sqlite3`. This is deliberate: it needs no C toolchain to build, on any OS. If you ever reach for `mattn/go-sqlite3`'s DSN pragma syntax (`?_foreign_keys=on`) out of habit, use modernc's instead: `?_pragma=foreign_keys(1)` (repeat `_pragma=` per pragma).
 
-**Migrations:** `server/internal/migrations/sql/` — goose applies these on startup. See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for how to add migrations.
+**Migrations:** `server/internal/migrations/sql/` — goose applies these to every workspace database on startup. The accounts database has its own set in `server/internal/accounts/migrations/`, applied through a goose `Provider` (not the package-level goose API, which the workspace migrations use). See [`server/assets/queries/CLAUDE.md`](../assets/queries/CLAUDE.md) for how to add migrations.
 
 `server/assets/queries/schema.sql` is a **human-readable reference only** — keep it in sync with migrations when you change the schema, but it is not loaded by the server.
 
@@ -133,4 +144,6 @@ Trigger-enforced invariants (don't reimplement these in app code — rely on the
 Migration notes:
 - `body` is a JSON array (Plate.js document format).
 - `persona.allowed_tools` is a JSON array with a restrictive `[]` default; harness/model values are validated against curated Go constants rather than SQLite `CHECK` constraints.
+- **Harness and models.** `ai_settings.harness` picks one harness per workspace (`codex` or `claude-code`); `internal/harness/models.go` lists each harness's models (Codex live via app-server `model/list`, otherwise a fixed list). Models are validated by family (`models.IsHarnessModel`), not by list. `persona.model = ''` means "use the workspace default model"; Conductor and Chatter are internal (`fleet.Definition.Internal`): Conductor always uses the default, and Chatter is pinned to GPT-6 Sol on Codex (`fleet.Definition.Models`). Switching harness resets every bundled agent to `''`. Only Codex has a run adapter; a workspace on Claude Code gets an `ErrAISetup` when a run starts.
+- **Conductor settings.** A project picks two stages (while an agent works, when it finishes), whether agents use the repository, and optional task-choosing guidance (`planningPrompt`). The agent's working and handoff instructions are built in (`ConductorSettings.UseBuiltinInstructions`) and rejected as patches; they stay on the struct only because run snapshots carry them.
 - Workflows/stages are fully implemented (custom workflows no longer need a migration). The remaining hardcoded `CHECK` constraints are **`task.priority`, `task.type`, and `stage.type`** — changing those allowed values still requires a **schema migration**. Flag this whenever a feature touches them.

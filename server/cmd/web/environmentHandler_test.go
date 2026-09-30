@@ -26,7 +26,6 @@ func TestEnvironmentHTTPAndPreviewGuard(t *testing.T) {
 		}
 		return r
 	}
-	call("GET", "/api/health/ready", "", 200)
 	call("GET", "/api/project/1/settings/environments", "", 200)
 	call("PUT", "/api/project/1/settings/environments", `{"memoryMiB":512}`, 200)
 	call("PUT", "/api/project/1/settings/environments", `{"port":80}`, 400)
@@ -41,20 +40,11 @@ func TestEnvironmentHTTPAndPreviewGuard(t *testing.T) {
 	if json.Unmarshal(r.Body.Bytes(), &result) != nil || result["skipped"] != 1 || result["success"] != 0 {
 		t.Fatal("invalid bulk result")
 	}
-	request := httptest.NewRequest("POST", "http://127.0.0.1:8000/api/project", strings.NewReader(`{}`))
-	request.Header.Set("Origin", "http://127.0.0.1:49200")
-	response := httptest.NewRecorder()
-	a.routes().ServeHTTP(response, request)
-	if response.Code != 403 || response.Header().Get("Access-Control-Allow-Origin") != "" {
-		t.Fatal("preview origin can access main app")
-	}
 	t.Setenv("AYCORN_PREVIEW", "1")
 	for _, path := range []string{"/api/ai/tasks/1/runs", "/api/ai/tasks/1/chat", "/api/task/1/request-agent", "/api/project/1/conductor/bulk", "/api/environments/project/1", "/api/environment/1/stop"} {
 		call("POST", path, `{}`, 403)
 	}
 	call("GET", "/api/ai/tasks/1/branches", "", 403)
-	call("GET", "/api/preview", "", 200)
-	call("GET", "/api/health/ready", "", 200)
 	call("GET", "/api/task/1", "", 200)
 }
 

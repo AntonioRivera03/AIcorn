@@ -63,10 +63,14 @@ type AIRunRequest struct {
 	TimeoutSeconds int               `json:"timeoutSeconds"`
 }
 
+// AISettings are per workspace. Harness selects the coding agent that runs
+// every AI session; Model is the default for Conductor, Chatter and any task
+// agent without its own model.
 type AISettings struct {
-	Model          string `json:"model"`
-	Executable     string `json:"executable"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
+	Harness        PersonaHarness `json:"harness"`
+	Model          string         `json:"model"`
+	Executable     string         `json:"executable"`
+	TimeoutSeconds int            `json:"timeoutSeconds"`
 }
 
 type AIRunArtifacts struct {

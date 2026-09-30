@@ -30,7 +30,7 @@ export function ProjectWorkflowCard({
 
   const goToWorkflow = () =>
     navigate({
-      to: "/workflow/$workflowId",
+      to: "/app/workflow/$workflowId",
       params: { workflowId: String(workflow.ID) },
     });
 

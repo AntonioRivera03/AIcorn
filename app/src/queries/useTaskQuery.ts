@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import type { TaskWithProject } from "@/types/types";
 import { toValidBody } from "@/lib/plate";
@@ -15,7 +16,7 @@ export function useTaskQuery(taskId: number) {
   return useQuery({
     queryKey: ["task", taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/task/${taskId}`);
+      const response = await apiFetch(`/api/task/${taskId}`);
       if (!response.ok) throw new Error(await response.text());
       rememberTaskBodyRevision(taskId, response);
       const raw = await response.json();
@@ -35,7 +36,7 @@ export function useTaskBodyQuery(taskId: number, enabled: boolean) {
   const { isPending, error, data, isFetching, refetch } = useQuery({
     queryKey: ["taskBody", taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/task/body/${taskId}`);
+      const response = await apiFetch(`/api/task/body/${taskId}`);
       if (!response.ok) throw new Error(await response.text());
       rememberTaskBodyRevision(taskId, response);
       const res = await response.json();

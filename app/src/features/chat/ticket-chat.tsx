@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useEffect, useId, useRef, useState } from "react";
 import { TaskSessionComposer } from "@/features/ai/task-session-composer";
 import { conductorOutput } from "@/features/conductor/conductor-output";
@@ -86,7 +87,7 @@ export function TicketChat({ taskId }: { taskId: number }) {
   }, [draftKey, message]);
   const send = useMutation({
     mutationFn: async (input: MessageInput) => {
-      const response = await fetch(`/api/ai/tasks/${taskId}/chat`, {
+      const response = await apiFetch(`/api/ai/tasks/${taskId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -273,16 +274,18 @@ export function TicketChat({ taskId }: { taskId: number }) {
                 disabled={busy || agents.isPending}
                 onChange={(e) => setPresetId(Number(e.target.value))}
               >
-                <option value={0}>Codex · default model</option>
+                <option value={0}>Default model</option>
                 {selectedAgent > 0 &&
                   !agents.data?.some((a) => a.ID === selectedAgent) && (
                     <option value={selectedAgent}>Agent unavailable</option>
                   )}
-                {agents.data?.map((a) => (
-                  <option key={a.ID} value={a.ID}>
-                    {a.Name || "Untitled"} · {a.Model}
-                  </option>
-                ))}
+                {agents.data
+                  ?.filter((a) => a.TaskAgent)
+                  .map((a) => (
+                    <option key={a.ID} value={a.ID}>
+                      {a.Name} · {a.Model || "default model"}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="space-y-1">
@@ -374,7 +377,7 @@ export function TicketChat({ taskId }: { taskId: number }) {
             !settings.data.engine.ready && (
               <p role="alert" className="text-sm text-destructive">
                 {settings.data.engine.error}{" "}
-                <Link to="/settings" className="underline">
+                <Link to="/app/settings" className="underline">
                   AI settings
                 </Link>
               </p>

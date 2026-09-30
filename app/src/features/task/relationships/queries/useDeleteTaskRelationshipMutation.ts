@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useContext } from "react";
@@ -14,7 +15,7 @@ export function useDeleteTaskRelationshipMutation() {
 
   return useMutation({
     mutationFn: async (input: DeleteRelationshipInput) => {
-      const res = await fetch(`/api/task-relationship/${input.relationshipId}`, {
+      const res = await apiFetch(`/api/task-relationship/${input.relationshipId}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(await res.text());

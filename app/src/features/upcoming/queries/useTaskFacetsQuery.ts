@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { TaskFacets } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -5,7 +6,7 @@ export function useTaskFacetsQuery() {
   return useQuery<TaskFacets>({
     queryKey: ["taskFacets"],
     queryFn: async () => {
-      const res = await fetch("/api/tasks/facets");
+      const res = await apiFetch("/api/tasks/facets");
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },

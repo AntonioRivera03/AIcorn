@@ -333,4 +333,4 @@ CREATE TABLE agent_run (
 CREATE INDEX idx_agent_job_status ON agent_job(status, createdAt);
 
 CREATE UNIQUE INDEX one_active_ai_job_per_task ON agent_job(task) WHERE status IN ('pending','claimed','running','canceling');
-CREATE TABLE ai_settings (id INTEGER PRIMARY KEY CHECK(id=1), model TEXT NOT NULL DEFAULT '', executable TEXT NOT NULL DEFAULT '', timeoutSeconds INTEGER NOT NULL DEFAULT 300);
+CREATE TABLE ai_settings (id INTEGER PRIMARY KEY CHECK(id=1), model TEXT NOT NULL DEFAULT '', executable TEXT NOT NULL DEFAULT '', timeoutSeconds INTEGER NOT NULL DEFAULT 300, harness TEXT NOT NULL DEFAULT 'codex');

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { AIRunRequest, AIArtifacts } from "@/features/ai/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -81,7 +82,7 @@ export function useAgentJobs(taskId: number, enabled = true) {
       return working ? 1_000 : false;
     },
     queryFn: async () => {
-      const response = await fetch(`/api/agent-jobs/${taskId}`);
+      const response = await apiFetch(`/api/agent-jobs/${taskId}`);
       if (!response.ok) throw new Error(await response.text());
       return (await response.json()) as AgentJobsResponse;
     },

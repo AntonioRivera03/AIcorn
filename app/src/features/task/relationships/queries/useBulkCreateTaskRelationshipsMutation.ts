@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryClient } from "@/main";
@@ -13,7 +14,7 @@ type BulkCreateRelationshipsInput = {
 export function useBulkCreateTaskRelationshipsMutation() {
   return useMutation({
     mutationFn: async (input: BulkCreateRelationshipsInput) => {
-      const res = await fetch("/api/task-relationship/bulk", {
+      const res = await apiFetch("/api/task-relationship/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),

@@ -203,7 +203,7 @@ export function ProjectsDataTable({
   const handleRowClick = (row: Row<Project>) => {
     if (editingId !== null) return;
     navigate({
-      to: "/project/$projectId",
+      to: "/app/project/$projectId",
       params: { projectId: `${row.original.ID}` },
     });
   };

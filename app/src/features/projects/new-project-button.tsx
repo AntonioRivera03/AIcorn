@@ -27,7 +27,7 @@ export function NewProjectButton() {
   const navigate = useNavigate();
 
   const onSuccess = (id: number) =>
-    navigate({ to: "/project/$projectId", params: { projectId: String(id) } });
+    navigate({ to: "/app/project/$projectId", params: { projectId: String(id) } });
 
   const handleClick = () => {
     if ((workflows ?? []).length === 1) {
@@ -61,7 +61,7 @@ export function NewProjectButton() {
     createWorkflow.mutate(undefined, {
       onSuccess: (newId) => {
         navigate({
-          to: "/workflow/$workflowId",
+          to: "/app/workflow/$workflowId",
           params: { workflowId: String(newId) },
           search: { new: true },
         });

@@ -27,7 +27,7 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 	}
 	if c := spec.Request.ProjectChat; c != nil {
 		env = map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_CHAT_TURN": fmt.Sprint(c.TurnID), "AYCORN_CHAT_PROJECT": fmt.Sprint(spec.Request.ProjectID)}
-		tools = []string{"project_context", "read_task", "search_tasks", "create_task", "update_task", "move_task_stage", "list_task_links", "add_task_link", "remove_task_link", "read_project_document", "request_task_work"}
+		tools = []string{"project_context", "read_task", "search_tasks", "create_task", "update_task", "move_task_stage", "list_task_links", "add_task_link", "remove_task_link", "read_project_document", "send_to_conductor"}
 	}
 	if spec.Request.DispatchID > 0 {
 		env = map[string]string{"AYCORN_DB": h.DBPath, "AYCORN_DISPATCH": fmt.Sprint(spec.Request.DispatchID), "AYCORN_DISPATCH_PROJECT": fmt.Sprint(spec.Request.ProjectID)}
@@ -47,6 +47,15 @@ func (h *Codex) sessionConfig(spec RunSpec) map[string]any {
 	}
 	if spec.Request.DispatchID > 0 || (spec.Request.TaskSession != nil && spec.Request.TaskSession.Mode == "question") {
 		config["features.shell_tool"] = false
+		config["web_search"] = "disabled"
+	}
+	if spec.Request.ProjectChat != nil {
+		// Chatter never touches code: none of Codex's own tools for commands,
+		// browsers, or the computer, and no web. Run also gives it a read-only
+		// sandbox in an empty folder rather than the repository.
+		for _, feature := range []string{"shell_tool", "unified_exec", "browser_use", "browser_use_external", "computer_use", "image_generation", "plugins", "multi_agent"} {
+			config["features."+feature] = false
+		}
 		config["web_search"] = "disabled"
 	}
 	// These scoped local tools are authorized by starting the Aycorn operation;
@@ -110,6 +119,7 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 		defer state.mu.Unlock()
 		result.Output, result.UsageJson = state.output.String(), state.usage
 		result.SessionID, result.TurnID = state.threadID, state.turnID
+		result.Activity = state.activity.snapshot()
 	}()
 	if err = client.call(ctx, "initialize", map[string]any{"clientInfo": map[string]string{"name": "aycorn", "title": "Aycorn", "version": "1.0"}}, nil); err != nil {
 		return result, err
@@ -195,6 +205,10 @@ func (h *Codex) Run(parent context.Context, spec RunSpec) (result RunResult, err
 	// supplies the task objective; Aycorn owns turn/start, locking and review.
 
 	params := map[string]any{"threadId": opened.Thread.ID, "input": []map[string]any{{"type": "text", "text": prompt}}}
+	if r.ProjectChat != nil {
+		// Summaries of the model's reasoning, shown as its thinking.
+		params["summary"] = "auto"
+	}
 	if r.Conductor != nil {
 		var schema any
 		_ = json.Unmarshal(conductorSchema(r.Conductor.Phase), &schema)
@@ -245,6 +259,7 @@ type sessionState struct {
 	spec                             RunSpec
 	threadID, turnID, usage, failure string
 	output                           limitedBuffer
+	activity                         activityLog
 	done                             chan struct{}
 	once                             sync.Once
 	lastFlush                        time.Time
@@ -260,7 +275,10 @@ func (s *sessionState) notify(m rpcMessage) {
 	var p struct {
 		ThreadID   string          `json:"threadId"`
 		TurnID     string          `json:"turnId"`
+		ItemID     string          `json:"itemId"`
 		Delta      string          `json:"delta"`
+		StartedAt  int64           `json:"startedAtMs"`
+		FinishedAt int64           `json:"completedAtMs"`
 		TokenUsage json.RawMessage `json:"tokenUsage"`
 		WillRetry  bool            `json:"willRetry"`
 		Error      struct {
@@ -291,6 +309,18 @@ func (s *sessionState) notify(m rpcMessage) {
 		return
 	}
 	progress := "Thinking"
+	var item struct {
+		Item codexItem `json:"item"`
+	}
+	if m.Method == "item/started" || m.Method == "item/completed" {
+		_ = json.Unmarshal(m.Params, &item)
+	}
+	switch m.Method {
+	case "item/reasoning/summaryTextDelta":
+		s.activity.thinkingDelta(p.ItemID, p.Delta, false)
+	case "item/reasoning/summaryPartAdded":
+		s.activity.thinkingDelta(p.ItemID, "", true)
+	}
 	switch m.Method {
 	case "turn/started":
 		s.turnID = p.Turn.ID
@@ -298,11 +328,13 @@ func (s *sessionState) notify(m rpcMessage) {
 		s.output.Write([]byte(p.Delta))
 		progress = "Writing response"
 	case "item/completed":
+		s.activity.completed(item.Item, p.FinishedAt)
 		if p.Item.Type == "agentMessage" {
 			s.output = limitedBuffer{}
 			s.output.Write([]byte(p.Item.Text))
 		}
 	case "item/started":
+		s.activity.started(item.Item, p.StartedAt)
 		switch p.Item.Type {
 		case "agentMessage":
 			s.output = limitedBuffer{}
@@ -330,11 +362,18 @@ func (s *sessionState) notify(m rpcMessage) {
 		}
 		s.once.Do(func() { close(s.done) })
 	}
-	if s.spec.OnProgress != nil && time.Since(s.lastFlush) > 500*time.Millisecond {
+	// A finished step is worth showing right away; streaming waits its turn.
+	due := time.Since(s.lastFlush) > 500*time.Millisecond || m.Method == "item/completed" || m.Method == "item/started"
+	if s.spec.OnProgress != nil && due {
 		if err := s.spec.OnProgress(progress, s.output.String()); err != nil {
 			s.fail("Could not persist run progress: " + err.Error())
 		}
 		s.lastFlush = time.Now()
+	}
+	if s.spec.OnActivity != nil && s.activity.changed && due {
+		if err := s.spec.OnActivity(s.activity.snapshot()); err != nil {
+			s.fail("Could not persist run progress: " + err.Error())
+		}
 	}
 }
 

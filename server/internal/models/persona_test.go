@@ -21,10 +21,21 @@ func TestPersonaHarnessIsValid_whenValueIsUnknown(t *testing.T) {
 	}
 }
 
-func TestPersonaModelIsValid_whenValueIsCurated(t *testing.T) {
-	for _, model := range models.PersonaModels {
-		if !models.IsValidPersonaModel(model) {
-			t.Fatalf("expected curated model %q to be valid", model)
+func TestHarnessModel_acceptsOnlyItsOwnFamily(t *testing.T) {
+	cases := []struct {
+		harness models.PersonaHarness
+		model   string
+		want    bool
+	}{
+		{models.PersonaHarnessCodex, "gpt-5.6-sol", true},
+		{models.PersonaHarnessCodex, "claude-sonnet-5", false},
+		{models.PersonaHarnessClaudeCode, "claude-opus-5-5", true},
+		{models.PersonaHarnessClaudeCode, "gpt-6-astra", false},
+		{"unknown", "gpt-5.5", false},
+	}
+	for _, c := range cases {
+		if got := models.IsHarnessModel(c.harness, c.model); got != c.want {
+			t.Fatalf("IsHarnessModel(%q, %q) = %v, want %v", c.harness, c.model, got, c.want)
 		}
 	}
 }

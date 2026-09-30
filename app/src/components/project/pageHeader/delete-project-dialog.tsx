@@ -106,7 +106,7 @@ export function DeleteProjectDialog({ open, onOpenChange }: DeleteProjectDialogP
               setIsDeleting(true);
               deleteProject.mutate(Project.ID, {
                 onSuccess: () =>
-                  navigate({ to: "/" }).then(() =>
+                  navigate({ to: "/app" }).then(() =>
                     setTimeout(
                       () => toast(`Deleted ${Project.Name} successfully.`),
                       200,

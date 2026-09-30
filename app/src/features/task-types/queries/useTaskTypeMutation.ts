@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { BulkResult, TaskType } from "@/types/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -12,7 +13,7 @@ export function useTaskTypeMutation() {
 
   const createTaskType = useMutation({
     mutationFn: async (tt: Partial<TaskType>) => {
-      const res = await fetch("/api/task-type", {
+      const res = await apiFetch("/api/task-type", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(tt),
@@ -25,7 +26,7 @@ export function useTaskTypeMutation() {
 
   const updateTaskType = useMutation({
     mutationFn: async (tt: TaskType) => {
-      const res = await fetch(`/api/task-type/${tt.ID}`, {
+      const res = await apiFetch(`/api/task-type/${tt.ID}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(tt),
@@ -44,7 +45,7 @@ export function useTaskTypeMutation() {
       id: number;
       transferTypeId: number;
     }) => {
-      const res = await fetch(`/api/task-type/${id}`, {
+      const res = await apiFetch(`/api/task-type/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transferTypeId }),
@@ -63,7 +64,7 @@ export function useTaskTypeMutation() {
       ids: number[];
       changes: TaskTypeChanges;
     }) => {
-      const res = await fetch("/api/task-type/bulk", {
+      const res = await apiFetch("/api/task-type/bulk", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, changes }),
@@ -82,7 +83,7 @@ export function useTaskTypeMutation() {
       ids: number[];
       taskMappings: Record<number, number>;
     }) => {
-      const res = await fetch("/api/task-type/bulk/delete", {
+      const res = await apiFetch("/api/task-type/bulk/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, taskMappings }),

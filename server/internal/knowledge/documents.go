@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 var ErrInvalid = errors.New("invalid knowledge item")
@@ -16,6 +18,8 @@ type Store struct {
 	DB           *sql.DB
 	ProjectScope int // Optional agent scope, enforced again inside link write transactions.
 	ChatTurnID   int
+	// Markdown converts uploaded .md files to rich text; optional.
+	Markdown MarkdownConverter
 }
 
 type Document struct {
@@ -23,33 +27,80 @@ type Document struct {
 	ProjectID int             `json:"projectId"`
 	Title     string          `json:"title"`
 	Body      json.RawMessage `json:"body"`
+	Tags      []string        `json:"tags"`
+	Details   DocumentDetails `json:"details"`
 	Revision  int             `json:"revision"`
 	CreatedAt string          `json:"createdAt"`
 	UpdatedAt string          `json:"updatedAt"`
 	File      *DocumentFile   `json:"file,omitempty"`
 }
 
+// DocumentDetails are read from an uploaded file when it's imported, and
+// shown alongside the document. They aren't editable.
+type DocumentDetails struct {
+	Email *EmailDetails `json:"email,omitempty"`
+}
+
 type DocumentPatch struct {
 	Title    *string         `json:"title,omitempty"`
 	Body     json.RawMessage `json:"body,omitempty"`
+	Tags     *[]string       `json:"tags,omitempty"`
 	Revision int             `json:"revision"`
 }
 
-const documentColumns = `id,project,title,body,revision,timeCreated,timeModified,
+const (
+	maxTags      = 20
+	maxTagLength = 40
+)
+
+// normalizeTags trims each tag and drops blanks and case-insensitive
+// duplicates, keeping the first spelling.
+func normalizeTags(tags []string) ([]string, error) {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, tag := range tags {
+		tag = strings.Join(strings.Fields(tag), " ")
+		if tag == "" {
+			continue
+		}
+		if utf8.RuneCountInString(tag) > maxTagLength || strings.ContainsFunc(tag, unicode.IsControl) {
+			return nil, fmt.Errorf("%w: tags must be at most %d characters", ErrInvalid, maxTagLength)
+		}
+		key := strings.ToLower(tag)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, tag)
+	}
+	if len(out) > maxTags {
+		return nil, fmt.Errorf("%w: a document can have at most %d tags", ErrInvalid, maxTags)
+	}
+	return out, nil
+}
+
+const documentColumns = `id,project,title,body,tags,details,revision,timeCreated,timeModified,
 COALESCE((SELECT fileName FROM project_document_file WHERE documentId=project_document.id),''),
 COALESCE((SELECT mediaType FROM project_document_file WHERE documentId=project_document.id),''),
 COALESCE((SELECT byteSize FROM project_document_file WHERE documentId=project_document.id),0)`
 
 func scanDocument(row interface{ Scan(...any) error }) (Document, error) {
 	var d Document
-	var body string
+	var body, tags, details string
 	var file DocumentFile
-	err := row.Scan(&d.ID, &d.ProjectID, &d.Title, &body, &d.Revision, &d.CreatedAt, &d.UpdatedAt, &file.Name, &file.MediaType, &file.Size)
+	err := row.Scan(&d.ID, &d.ProjectID, &d.Title, &body, &tags, &details, &d.Revision, &d.CreatedAt, &d.UpdatedAt, &file.Name, &file.MediaType, &file.Size)
+	if err != nil {
+		return d, err
+	}
 	if file.Size > 0 {
 		d.File = &file
 	}
 	d.Body = json.RawMessage(body)
-	return d, err
+	if json.Unmarshal([]byte(tags), &d.Tags) != nil || d.Tags == nil {
+		d.Tags = []string{}
+	}
+	_ = json.Unmarshal([]byte(details), &d.Details)
+	return d, nil
 }
 
 func (s *Store) Documents(project int) ([]Document, error) {
@@ -94,7 +145,7 @@ func (s *Store) UpdateDocument(project, id int, patch DocumentPatch) (Document, 
 	if s.ProjectScope > 0 && s.ProjectScope != project {
 		return Document{}, sql.ErrNoRows
 	}
-	if patch.Revision <= 0 || (patch.Title == nil && patch.Body == nil) {
+	if patch.Revision <= 0 || (patch.Title == nil && patch.Body == nil && patch.Tags == nil) {
 		return Document{}, fmt.Errorf("%w: supply changed fields and a revision", ErrInvalid)
 	}
 	if patch.Title != nil && (len(*patch.Title) > 500 || strings.ContainsRune(*patch.Title, 0)) {
@@ -107,7 +158,16 @@ func (s *Store) UpdateDocument(project, id int, patch DocumentPatch) (Document, 
 		}
 		body = string(patch.Body)
 	}
-	d, err := scanDocument(s.DB.QueryRow("UPDATE project_document SET title=COALESCE(?,title),body=COALESCE(?,body),revision=revision+1,timeModified=CURRENT_TIMESTAMP WHERE project=? AND id=? AND revision=? RETURNING "+documentColumns, patch.Title, body, project, id, patch.Revision))
+	var tags any
+	if patch.Tags != nil {
+		clean, err := normalizeTags(*patch.Tags)
+		if err != nil {
+			return Document{}, err
+		}
+		raw, _ := json.Marshal(clean)
+		tags = string(raw)
+	}
+	d, err := scanDocument(s.DB.QueryRow("UPDATE project_document SET title=COALESCE(?,title),body=COALESCE(?,body),tags=COALESCE(?,tags),revision=revision+1,timeModified=CURRENT_TIMESTAMP WHERE project=? AND id=? AND revision=? RETURNING "+documentColumns, patch.Title, body, tags, project, id, patch.Revision))
 	if errors.Is(err, sql.ErrNoRows) {
 		if _, lookup := s.Document(project, id); lookup != nil {
 			return d, lookup

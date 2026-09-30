@@ -37,7 +37,7 @@ export function NavMain({
             <Link
               to={item.url}
               className="flex"
-              activeOptions={{ exact: item.url === "/" }}
+              activeOptions={{ exact: item.url === "/app" }}
               activeProps={{ "data-active": true }}
             >
               {item.icon && <item.icon />}

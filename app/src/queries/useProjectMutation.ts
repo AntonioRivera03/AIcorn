@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { queryClient } from "@/main";
 import { useMutation } from "@tanstack/react-query";
 import type { Project } from "@/types/types";
@@ -5,7 +6,7 @@ import type { Project } from "@/types/types";
 export function useProjectMutation(projectId: number) {
   const updateProject = useMutation({
     mutationFn: async (project: Project) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${project.ID}`,
         {
           method: "PUT",
@@ -33,7 +34,7 @@ export function useProjectMutation(projectId: number) {
 
   const deleteProject = useMutation({
     mutationFn: async (projectId: number) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${projectId}`,
         {
           method: "DELETE",

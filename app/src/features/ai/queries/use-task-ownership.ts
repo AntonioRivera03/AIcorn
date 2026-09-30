@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 export type TaskOwner = {
@@ -12,7 +13,7 @@ export function useTaskOwnership(projectId: number | undefined) {
   return useQuery({
     queryKey: ["task-ownership", projectId],
     queryFn: async () => {
-      const response = await fetch(`/api/task-ownership/project/${projectId}`);
+      const response = await apiFetch(`/api/task-ownership/project/${projectId}`);
       if (!response.ok)
         throw new Error("Could not check which tasks are being worked on.");
       return response.json() as Promise<TaskOwner[]>;

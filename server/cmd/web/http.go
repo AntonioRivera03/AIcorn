@@ -29,6 +29,7 @@ func withCommon(next http.Handler) http.Handler {
 		}
 		if origin := r.Header.Get("Origin"); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Expose-Headers", workspaceAccessHeader)
 			w.Header().Add("Vary", "Origin")
 		}
 		log.Println(r.Method, r.RequestURI)
@@ -52,6 +53,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func httpStatusForError(err error) int {
+	if status, ok := accountsStatus(err); ok {
+		return status
+	}
 	switch {
 	case errors.Is(err, sql.ErrNoRows),
 		errors.Is(err, services.ErrInvalidTask),
@@ -65,6 +69,7 @@ func httpStatusForError(err error) int {
 		errors.Is(err, services.ErrInvalidStageType),
 		errors.Is(err, services.ErrInvalidPersonaHarness),
 		errors.Is(err, services.ErrInvalidPersonaModel),
+		errors.Is(err, services.ErrInternalAgent),
 		errors.Is(err, services.ErrInvalidPersonaAgent),
 		errors.Is(err, services.ErrInvalidStageColor),
 		errors.Is(err, services.ErrCannotDeleteOpenStage),

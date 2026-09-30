@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { TaskTypeCategory } from "@/types/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -11,7 +12,7 @@ export function useTaskTypeCategoryMutation() {
 
   const createCategory = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/task-type-category", { method: "POST" });
+      const res = await apiFetch("/api/task-type-category", { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
       return res.json() as Promise<TaskTypeCategory>;
     },
@@ -20,7 +21,7 @@ export function useTaskTypeCategoryMutation() {
 
   const updateCategory = useMutation({
     mutationFn: async ({ id, name }: { id: number; name: string }) => {
-      const res = await fetch(`/api/task-type-category/${id}`, {
+      const res = await apiFetch(`/api/task-type-category/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -39,7 +40,7 @@ export function useTaskTypeCategoryMutation() {
       id: number;
       transferCategoryId?: number;
     }) => {
-      const res = await fetch(`/api/task-type-category/${id}`, {
+      const res = await apiFetch(`/api/task-type-category/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transferCategoryId }),
@@ -52,7 +53,7 @@ export function useTaskTypeCategoryMutation() {
 
   const reorderCategories = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch("/api/task-type-category/reorder", {
+      const res = await apiFetch("/api/task-type-category/reorder", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),

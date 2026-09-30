@@ -85,7 +85,7 @@ func (toolset *toolset) register(server *mcp.Server) {
 		mcp.AddTool(server, mcptools.Tool(mcptools.ReadProjectDocument), toolset.readProjectDocument)
 	}
 	if toolset.runChatTurnID > 0 {
-		mcp.AddTool(server, mcptools.Tool(mcptools.RequestTaskWork), toolset.requestTaskWork)
+		mcp.AddTool(server, mcptools.Tool(mcptools.SendToConductor), toolset.sendToConductor)
 		mcp.AddTool(server, mcptools.Tool(mcptools.ReadTask), toolset.readTask)
 		mcp.AddTool(server, mcptools.Tool(mcptools.SearchTasks), toolset.searchTasks)
 		mcp.AddTool(server, mcptools.Tool(mcptools.CreateTask), toolset.createTask)

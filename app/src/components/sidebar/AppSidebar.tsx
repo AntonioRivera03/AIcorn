@@ -6,18 +6,14 @@ import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { WorkspaceSwitcher } from "@/features/workspaces/workspace-switcher";
 import {
   CalendarClockIcon,
-  BotIcon,
   ChartAreaIcon,
   FolderIcon,
   LinkIcon,
   SettingsIcon,
-  Squirrel,
   TagsIcon,
   WorkflowIcon,
 } from "lucide-react";
@@ -27,34 +23,29 @@ const data = {
   navMain: [
     {
       title: "Projects",
-      url: "/",
+      url: "/app",
       icon: FolderIcon,
     },
     {
       title: "Upcoming",
-      url: "/upcoming",
+      url: "/app/upcoming",
       icon: CalendarClockIcon,
     },
   ],
   navConfigure: [
     {
       title: "Workflows",
-      url: "/workflows",
+      url: "/app/workflows",
       icon: WorkflowIcon,
     },
     {
       title: "Task Types",
-      url: "/task-types",
+      url: "/app/task-types",
       icon: TagsIcon,
     },
     {
-      title: "AI",
-      url: "/personas",
-      icon: BotIcon,
-    },
-    {
       title: "Task Links",
-      url: "/task-links",
+      url: "/app/task-links",
       icon: LinkIcon,
       badge: <Badge className="text-xs py-0.5 -rotate-2">New!</Badge>,
     },
@@ -62,12 +53,12 @@ const data = {
   navSecondary: [
     {
       title: "Usage",
-      url: "/usage",
+      url: "/app/usage",
       icon: ChartAreaIcon,
     },
     {
       title: "Settings",
-      url: "/settings",
+      url: "/app/settings",
       icon: SettingsIcon,
     },
   ],
@@ -77,19 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <a href="/">
-                <Squirrel className="size-5!" />
-                <span className="text-base font-semibold">Aycorn Corp.</span>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <WorkspaceSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />

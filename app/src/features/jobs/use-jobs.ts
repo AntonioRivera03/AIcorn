@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRef } from "react";
@@ -44,7 +45,7 @@ export async function jobRequest<T>(
   method = "GET",
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     method,
     headers:
       body === undefined ? undefined : { "Content-Type": "application/json" },
@@ -97,7 +98,7 @@ export function useRunJob(projectId: number, jobId: number) {
           label: "Open task",
           onClick: () =>
             void navigate({
-              to: "/task/$taskId",
+              to: "/app/task/$taskId",
               params: { taskId: String(result.taskId) },
             }),
         },

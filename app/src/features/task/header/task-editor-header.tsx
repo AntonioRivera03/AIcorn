@@ -94,7 +94,7 @@ export function TaskEditorHeader({
             onClick={() => {
               setOpen(false);
               navigate({
-                to: "/task/$taskId",
+                to: "/app/task/$taskId",
                 params: { taskId: String(task.ID) },
               });
             }}

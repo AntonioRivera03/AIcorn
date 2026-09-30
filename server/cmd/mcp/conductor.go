@@ -11,7 +11,7 @@ import (
 type StartConductorTaskInput struct {
 	ProjectID int    `json:"projectId"`
 	TaskID    int    `json:"taskId"`
-	Role      string `json:"role" jsonschema:"coder, researcher, reviewer, or planner"`
+	Role      string `json:"role" jsonschema:"coder, researcher, or reviewer"`
 }
 type DeferConductorTaskInput struct {
 	ProjectID int    `json:"projectId"`

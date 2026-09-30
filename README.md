@@ -154,10 +154,10 @@ Use this path if you want to contribute, if you're on an unsupported platform, o
 aycorn
 ```
 
-Aycorn starts a local web server and prints where your database lives and which port it's on:
+Aycorn starts a local web server and prints where your data lives and which port it's on:
 ```
-2025/01/01 12:00:00 Using database at /Users/you/Library/Application Support/aycorn/app.db
-2025/01/01 12:00:00 Listening on http://localhost:8000
+2025/01/01 12:00:00 Using data directory /Users/you/Library/Application Support/aycorn
+2025/01/01 12:00:00 Listening on http://127.0.0.1:8000
 ```
 
 Open the URL from the `Listening on` line in your browser. Aycorn defaults to port 8000, but automatically tries the next port up if 8000 is already in use. Task storage runs on your machine. Optional AI runs send the selected task and repository context to OpenAI through Codex.
@@ -176,6 +176,21 @@ aycorn --host 100.x.x.x
 ```
 
 Binding to your Tailscale IP keeps Aycorn reachable only over your private tailnet, rather than opening it to your whole LAN.
+
+**Serving other people.** Everyone signs up with an email and password and gets a personal workspace; organizations invite people by email. These settings matter once other people use your server:
+
+| Variable | What it does |
+|---|---|
+| `RESEND_API_KEY` | Sends invites, email confirmations, and password resets through [Resend](https://resend.com). Without it, emails are written to the server log, invites show a link to share by hand, and new accounts skip email confirmation. |
+| `AYCORN_EMAIL_FROM` | The sender, e.g. `Aycorn <aycorn@yourdomain.com>`. It must be on a domain verified in Resend; Resend's default test sender only reaches your own address. |
+| `AYCORN_VERIFY_EMAILS` | With email set up, new accounts must confirm their address before using a workspace. Set to `0` to turn that off. |
+| `AYCORN_PUBLIC_URL` | The address used in emailed links, e.g. `https://aycorn.example.com`. Defaults to the address each request came in on. |
+| `AYCORN_TLS_CERT`, `AYCORN_TLS_KEY` | Certificate and key files to serve HTTPS directly. |
+| `AYCORN_TRUST_PROXY` | Set to `1` when a reverse proxy sits in front of Aycorn, so login rate limits apply per visitor instead of to the proxy. |
+
+Over Tailscale, plain HTTP stays inside your tailnet (and `tailscale serve` can add HTTPS). Anywhere beyond a private network, serve HTTPS: either set the two TLS variables, or put a proxy such as [Caddy](https://caddyserver.com/) in front (`caddy reverse-proxy --from aycorn.example.com --to 127.0.0.1:8000`) and set `AYCORN_TRUST_PROXY=1`.
+
+Login, signup, and password reset attempts are rate limited per address and per account. When an owner deletes an organization, its data is moved to `deleted-workspaces/` inside the data directory rather than erased, so whoever runs the server can recover it or delete it for good.
 
 **To check the version:**
 ```bash
@@ -209,32 +224,36 @@ aycorn          # start the new version
 
 ## Where your data lives
 
-Aycorn stores everything in a single SQLite database file. Its location depends on your operating system:
+Aycorn keeps a data directory: `accounts.db` (your accounts, workspaces, and memberships) plus one `workspaces/<id>/app.db` per workspace. Its location depends on your operating system:
 
-| OS | Database path |
+| OS | Data directory |
 |---|---|
-| macOS | `~/Library/Application Support/aycorn/app.db` |
-| Linux | `~/.config/aycorn/app.db` |
-| Windows | `C:\Users\<YourName>\AppData\Roaming\aycorn\app.db` |
+| macOS | `~/Library/Application Support/aycorn/` |
+| Linux | `~/.config/aycorn/` |
+| Windows | `C:\Users\<YourName>\AppData\Roaming\aycorn\` |
 
-Aycorn prints the exact path on startup — look for the `Using database at` line.
+Aycorn prints the exact path on startup — look for the `Using data directory` line.
 
 **To inspect or query your data directly**, you can use the `sqlite3` command-line tool:
 
 ```bash
 # macOS
-sqlite3 "$HOME/Library/Application Support/aycorn/app.db"
+sqlite3 "$HOME/Library/Application Support/aycorn/accounts.db"          # accounts, workspaces, memberships
+sqlite3 "$HOME/Library/Application Support/aycorn/workspaces/1/app.db"  # one workspace's projects and tasks
 
 # Linux
-sqlite3 "$HOME/.config/aycorn/app.db"
+sqlite3 "$HOME/.config/aycorn/accounts.db"
+sqlite3 "$HOME/.config/aycorn/workspaces/1/app.db"
 ```
 
 > `sqlite3` comes pre-installed on macOS. On Linux, install it with `sudo apt install sqlite3` (Ubuntu/Debian) or `sudo dnf install sqlite` (Fedora). A graphical alternative is [DB Browser for SQLite](https://sqlitebrowser.org/).
 
-**To use a custom database location** (useful for testing or running multiple instances):
+**To use a custom data directory** (useful for testing or running multiple instances):
 ```bash
-AYCORN_DB=/path/to/my.db aycorn
+AYCORN_DATA_DIR=/path/to/data aycorn
 ```
+
+Tools that act on a single workspace database — `aycorn-mcp` and the `aycorn backup`/`aycorn restore` commands below — take `AYCORN_WORKSPACE=<id>` instead, to pick one workspace out of the data directory, or `AYCORN_DB=/path/to/app.db` to point at an exact file.
 
 ---
 
@@ -254,25 +273,25 @@ AYCORN_BACKUP_KEEP=20 aycorn
 
 ### Manual backup
 
-Make an on-demand snapshot at any time:
+Make an on-demand snapshot of one workspace at any time (`AYCORN_WORKSPACE` isn't needed for a pre-accounts single-user install):
 
 ```bash
-aycorn backup                      # writes a timestamped file into the backups/ folder
-aycorn backup ~/aycorn-backup.db   # or write to a path you choose
+AYCORN_WORKSPACE=1 aycorn backup                      # writes a timestamped file into that workspace's backups/ folder
+AYCORN_WORKSPACE=1 aycorn backup ~/aycorn-backup.db   # or write to a path you choose
 ```
 
 ### Restore / move to new hardware
 
-To move your data to a new machine (or roll back to a snapshot):
+To move a workspace to a new machine (or roll back to a snapshot):
 
 ```bash
 # On the old machine — make a clean snapshot and copy it over
-aycorn backup ~/aycorn-snapshot.db
+AYCORN_WORKSPACE=1 aycorn backup ~/aycorn-snapshot.db
 scp ~/aycorn-snapshot.db newhost:~/
 
 # On the new machine — install Aycorn first, then:
-aycorn restore ~/aycorn-snapshot.db   # validates the snapshot, backs up any existing DB, installs it
-aycorn                                # start normally; the schema rolls forward automatically
+AYCORN_WORKSPACE=1 aycorn restore ~/aycorn-snapshot.db   # validates the snapshot, backs up any existing DB, installs it
+aycorn                                                   # start normally; the schema rolls forward automatically
 ```
 
 `restore` checks the snapshot is a healthy SQLite database, backs up your current database first (so the restore is itself reversible), then swaps the file in. **Stop any running Aycorn before restoring.**
@@ -285,17 +304,17 @@ aycorn                                # start normally; the schema rolls forward
 
 | Command | What it does |
 |---|---|
-| `make dev` | Build the frontend and run the Go server using your personal database, unless `AYCORN_DB` is explicitly set. |
-| `make dev-test` | Build and run against the separate test database at `server/app.db`. |
+| `make dev` | Build the frontend and run the Go server using your personal data directory, unless `AYCORN_DATA_DIR` is explicitly set. |
+| `make dev-test` | Build and run against the separate, disposable data directory at `server/data`. |
 | `make build` | Build the production binary (React + Go bundled together) at `./aycorn`. |
 | `make install` | Build and copy the binary to `/usr/local/bin/aycorn` so you can run it from anywhere. |
 | `make upgrade` | Rebuild, reinstall, and stop the running instance. Run after `git pull`. Then run `aycorn` to start the new version. |
 | `make stop` | Gracefully stop the running `aycorn` process. Does nothing if it isn't running. |
 | `make typecheck` | Run the TypeScript type checker on the frontend without building. |
 | `make clean` | Delete the built binary and frontend build artifacts. |
-| `make backup` | Snapshot the personal database, or the path selected by `AYCORN_DB`. Pass `DEST=path` to choose the snapshot destination. |
-| `make restore` | Restore the personal database, or the path selected by `AYCORN_DB`, from `SRC=path`. Stop its server before restoring. |
-| `make backup-test` / `make restore-test` | Snapshot or restore the separate test database at `server/app.db`. |
+| `make backup WORKSPACE=<id>` | Snapshot that workspace's database in your personal data directory, or the path selected by `AYCORN_DB`. Pass `DEST=path` to choose the snapshot destination. |
+| `make restore WORKSPACE=<id>` | Restore that workspace's database, or the path selected by `AYCORN_DB`, from `SRC=path`. Stop its server before restoring. |
+| `make backup-test WORKSPACE=<id>` / `make restore-test WORKSPACE=<id>` | Snapshot or restore one workspace of the disposable test data at `server/data`. |
 
 ---
 
@@ -362,14 +381,14 @@ If you don't need access from other devices, just leave `AYCORN_HOST` unset — 
 
 ### "My data is empty" / "I don't see my tasks"
 
-Aycorn is probably looking at a different database file than you expect. Check the startup log:
+Aycorn is probably looking at a different data directory than you expect. Check the startup log:
 ```
-Using database at /Users/you/Library/Application Support/aycorn/app.db
+Using data directory /Users/you/Library/Application Support/aycorn
 ```
 
-If it's pointing at the wrong file, use `AYCORN_DB` to tell it exactly where to look:
+If it's pointing at the wrong directory, use `AYCORN_DATA_DIR` to tell it exactly where to look:
 ```bash
-AYCORN_DB="/path/to/your/app.db" aycorn
+AYCORN_DATA_DIR="/path/to/data" aycorn
 ```
 
 ---

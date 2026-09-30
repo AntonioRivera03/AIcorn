@@ -12,17 +12,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { TruncatedText } from "@/components/truncated-text";
 import { ProjectContext } from "@/contexts/project/ProjectContext";
 import { TaskContext } from "@/contexts/task/TaskContext";
 import type { Task } from "@/types/types";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown, User, Users, X } from "lucide-react";
 import { useContext, useMemo, useState } from "react";
-import { SELF_ASSIGNEE } from "@/features/task/assignee-constants";
 import {
   createAssigneeOptions,
-  getAssigneeOptionState,
+  filterAssigneeOptions,
 } from "@/features/task/properties/task-assignee-options";
+import { useMembersQuery } from "@/features/workspaces/queries/workspace-queries";
+import { useWorkspace } from "@/features/workspaces/workspace-context";
 
 type Props = {
   onChange?: (task: Task) => void;
@@ -39,16 +41,20 @@ export function TaskAssignee({
 }: Props) {
   const { state: task, setState: setTask } = useContext(TaskContext);
   const { Tasks } = useContext(ProjectContext);
+  const { account, workspace } = useWorkspace();
+  const { data: members = [] } = useMembersQuery(workspace.id);
   const isControlled = onValueChange !== undefined;
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
   const currentValue = isControlled ? (value ?? "") : task.Assignee;
 
-  const options = useMemo(() => createAssigneeOptions(Tasks), [Tasks]);
-
-  const { filteredOptions, showCreate, trimmedSearch } = useMemo(
-    () => getAssigneeOptionState(options, searchValue),
+  const options = useMemo(
+    () => createAssigneeOptions(members.map((m) => m.name), Tasks),
+    [members, Tasks],
+  );
+  const filtered = useMemo(
+    () => filterAssigneeOptions(options, searchValue),
     [options, searchValue],
   );
 
@@ -69,6 +75,14 @@ export function TaskAssignee({
     if (!nextOpen) setSearchValue("");
   };
 
+  const renderOption = (option: string, isMember: boolean) => (
+    <CommandItem key={option} value={option} onSelect={() => selectAssignee(option)}>
+      {isMember ? <User className="size-4 shrink-0" /> : <Users className="size-4 shrink-0" />}
+      <TruncatedText text={isMember && option === account.name ? `${option} (you)` : option} />
+      {currentValue === option && <Check className="ml-auto size-4 shrink-0" />}
+    </CommandItem>
+  );
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -81,7 +95,7 @@ export function TaskAssignee({
           onKeyDown={(event) => {
             if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
               event.preventDefault();
-              selectAssignee(SELF_ASSIGNEE);
+              selectAssignee(account.name);
             }
           }}
         >
@@ -101,12 +115,12 @@ export function TaskAssignee({
       <PopoverContent className="w-60 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search assignees..."
+            placeholder="Search members..."
             value={searchValue}
             onValueChange={setSearchValue}
           />
           <CommandList>
-            <CommandEmpty>No assignees found.</CommandEmpty>
+            <CommandEmpty>No members found.</CommandEmpty>
             {currentValue && (
               <CommandGroup>
                 <CommandItem value="__clear__" onSelect={() => selectAssignee("")}>
@@ -115,39 +129,14 @@ export function TaskAssignee({
                 </CommandItem>
               </CommandGroup>
             )}
-            {filteredOptions.length > 0 && (
-              <CommandGroup>
-                {filteredOptions.map((option) => {
-                  const isMe = option === SELF_ASSIGNEE;
-                  return (
-                    <CommandItem
-                      key={option}
-                      value={option}
-                      onSelect={() => selectAssignee(option)}
-                    >
-                      {isMe ? (
-                        <User className="size-4 shrink-0" />
-                      ) : (
-                        <Users className="size-4 shrink-0" />
-                      )}
-                      <span>{isMe ? "Assign to Self" : option}</span>
-                      {currentValue === option && <Check className="ml-auto size-4 shrink-0" />}
-                    </CommandItem>
-                  );
-                })}
+            {filtered.members.length > 0 && (
+              <CommandGroup heading="Members">
+                {filtered.members.map((option) => renderOption(option, true))}
               </CommandGroup>
             )}
-            {showCreate && (
-              <CommandGroup>
-                <CommandItem
-                  value={`__create__${trimmedSearch}`}
-                  onSelect={() => selectAssignee(trimmedSearch)}
-                >
-                  <Users className="size-4 shrink-0" />
-                  <span>
-                    Assign to <span className="font-medium">"{trimmedSearch}"</span>
-                  </span>
-                </CommandItem>
+            {filtered.others.length > 0 && (
+              <CommandGroup heading="Other">
+                {filtered.others.map((option) => renderOption(option, false))}
               </CommandGroup>
             )}
           </CommandList>

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryClient } from "@/main";
@@ -11,7 +12,7 @@ type CreateRelationshipInput = {
 export function useCreateTaskRelationshipMutation() {
   return useMutation({
     mutationFn: async (input: CreateRelationshipInput) => {
-      const res = await fetch("/api/task-relationship", {
+      const res = await apiFetch("/api/task-relationship", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { isAgentWorking } from "@/features/agentJob/queries/useAgentJobs";
@@ -8,7 +9,7 @@ import type {
 } from "@/features/task/branches/types";
 
 const request = async <T>(url: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(url, init);
+  const response = await apiFetch(url, init);
   if (!response.ok) throw new Error((await response.text()).trim());
   return response.json() as Promise<T>;
 };

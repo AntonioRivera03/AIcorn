@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import type { WorkflowSummary } from "@/types/types";
 
@@ -7,7 +8,7 @@ export function useAllWorkflowsQuery() {
   >({
     queryKey: ["allWorkflows"],
     queryFn: async () => {
-      const res = await fetch("/api/workflow");
+      const res = await apiFetch("/api/workflow");
       return await res.json();
     },
   });

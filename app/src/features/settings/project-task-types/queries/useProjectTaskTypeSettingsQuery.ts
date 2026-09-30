@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { ProjectTaskTypeSettings } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -5,7 +6,7 @@ export function useProjectTaskTypeSettingsQuery(projectId: number) {
   return useQuery<ProjectTaskTypeSettings>({
     queryKey: ["projectTaskTypeSettings", projectId],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/project/${projectId}/settings/task-types`,
       );
       return res.json();
