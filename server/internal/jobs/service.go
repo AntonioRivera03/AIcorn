@@ -365,11 +365,10 @@ func (s *Service) prepare(ctx context.Context, j Job) (Template, *models.AIRunRe
 	if err = validateTemplateRefs(s.DB, j.ProjectID, t, true); err != nil {
 		return t, nil, err
 	}
-	settings, _, err := s.Conductor.Repo.Settings(j.ProjectID)
+	// Enabling or firing a Job is an actual use: resolve Conductor's stages
+	// and persist an automatic pick if the project never chose them.
+	settings, err := s.Conductor.EnsureStages(j.ProjectID)
 	if err != nil {
-		return t, nil, err
-	}
-	if err = s.Conductor.Repo.ValidateStages(j.ProjectID, settings); err != nil {
 		return t, nil, err
 	}
 	coder, err := s.AI.ResolveAgent(ctx, j.AgentID)

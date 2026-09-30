@@ -15,7 +15,7 @@ func BuildContext(spec RunSpec) (developer, user string) {
 	if r.ProjectChat != nil {
 		d, _ := fleet.Lookup("chatter")
 		developer = d.Instructions()
-		payload, _ := json.Marshal(map[string]any{"projectId": r.ProjectID, "projectContext": r.ProjectChat.Context, "referencedTaskIds": r.ProjectChat.TaskIDs, "message": r.Instruction})
+		payload, _ := json.Marshal(map[string]any{"projectId": r.ProjectID, "projectContext": r.ProjectChat.Context, "referencedTasks": r.ProjectChat.ReferencedTasks, "message": r.Instruction})
 		return developer, string(payload)
 	}
 	if r.DispatchID > 0 {

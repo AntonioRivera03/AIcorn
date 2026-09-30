@@ -24,10 +24,45 @@ type SourceSnapshot struct {
 	Excluded []string `json:"excluded"`
 }
 
+// A remote branch (origin/<name> of a clone Aycorn manages) has no working
+// tree, and is Current when it's the remote's default branch.
 type BranchSource struct {
 	Name        string `json:"name"`
 	Current     bool   `json:"current"`
 	HasWorktree bool   `json:"hasWorktree"`
+	Remote      bool   `json:"remote"`
+}
+
+// RemoteBranchSources lists the remote-tracking branches of a clone Aycorn
+// manages, as origin/<name>, marking the remote's default branch Current.
+func RemoteBranchSources(ctx context.Context, root string) ([]BranchSource, error) {
+	out, err := gitOutput(ctx, root, "for-each-ref", "--format=%(refname:strip=2)%00%(symref)", "refs/remotes/origin/")
+	if err != nil {
+		return nil, err
+	}
+	defaultBranch, _ := gitOutput(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	result := []BranchSource{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		name, symref, _ := strings.Cut(line, "\x00")
+		if name == "" || symref != "" { // origin/HEAD points at the default branch
+			continue
+		}
+		result = append(result, BranchSource{Name: name, Current: name == strings.TrimSpace(defaultBranch), Remote: true})
+	}
+	return result, nil
+}
+
+// ResolveRemoteBranch returns the commit a remote-tracking branch
+// (origin/<name>) pointed at as of the last fetch.
+func ResolveRemoteBranch(ctx context.Context, root, name string) (string, error) {
+	if root == "" || !filepath.IsAbs(root) || !strings.HasPrefix(name, "origin/") || name == "origin/HEAD" || runGit(ctx, root, "check-ref-format", "refs/remotes/"+name) != nil {
+		return "", fmt.Errorf("%w: invalid remote branch", ErrBranchUnavailable)
+	}
+	out, err := gitOutput(ctx, root, "rev-parse", "--verify", "refs/remotes/"+name+"^{commit}")
+	if err != nil {
+		return "", fmt.Errorf("%w: %s no longer exists on the remote", ErrBranchUnavailable, name)
+	}
+	return strings.TrimSpace(out), nil
 }
 
 // Branch source choices describe Git's actual checkouts, not the server's cwd.
@@ -132,16 +167,7 @@ func SnapshotSource(ctx context.Context, root, branch, commit string, includeCha
 	if includeChanges && current != commit {
 		return nil, fmt.Errorf("source branch moved before snapshot; create a new preview")
 	}
-	entries, err := gitOutput(ctx, root, "ls-tree", "-r", commit)
-	if err != nil {
-		return nil, err
-	}
-	for _, line := range strings.Split(entries, "\n") {
-		if strings.HasPrefix(line, "160000 ") {
-			return nil, fmt.Errorf("submodules need an explicit export recipe; snapshot was not created")
-		}
-	}
-	if err = os.MkdirAll(destination, 0700); err != nil {
+	if err = prepareSnapshot(ctx, root, commit, destination); err != nil {
 		return nil, err
 	}
 	result := &SourceSnapshot{Commit: commit, Excluded: []string{}}
@@ -177,14 +203,49 @@ func SnapshotSource(ctx context.Context, root, branch, commit string, includeCha
 		}
 		return result, nil
 	}
+	return result, archiveCommit(ctx, root, commit, destination, result)
+}
+
+// SnapshotCommit captures one commit's files, as a Latest-commit preview does,
+// without a branch or working tree: the source of a preview built from a
+// remote branch of a clone Aycorn manages.
+func SnapshotCommit(ctx context.Context, root, commit, destination string) (*SourceSnapshot, error) {
+	mergeMu.Lock()
+	defer mergeMu.Unlock()
+	if !commitPattern.MatchString(commit) {
+		return nil, fmt.Errorf("invalid source commit %q", commit)
+	}
+	if err := prepareSnapshot(ctx, root, commit, destination); err != nil {
+		return nil, err
+	}
+	result := &SourceSnapshot{Commit: commit, Excluded: []string{}}
+	return result, archiveCommit(ctx, root, commit, destination, result)
+}
+
+func prepareSnapshot(ctx context.Context, root, commit, destination string) error {
+	entries, err := gitOutput(ctx, root, "ls-tree", "-r", commit)
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(entries, "\n") {
+		if strings.HasPrefix(line, "160000 ") {
+			return fmt.Errorf("submodules need an explicit export recipe; snapshot was not created")
+		}
+	}
+	return os.MkdirAll(destination, 0700)
+}
+
+// archiveCommit writes commit's files into destination, leaving out excluded
+// data and credentials, and records the digest in result.
+func archiveCommit(ctx context.Context, root, commit, destination string, result *SourceSnapshot) error {
 	cmd := exec.CommandContext(ctx, "git", "archive", "--format=tar", commit)
 	cmd.Dir = root
 	reader, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err = cmd.Start(); err != nil {
-		return nil, err
+		return err
 	}
 	archive := tar.NewReader(reader)
 	var total int64
@@ -235,13 +296,13 @@ func SnapshotSource(ctx context.Context, root, branch, commit string, includeCha
 	}
 	waitErr := cmd.Wait()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if waitErr != nil {
-		return nil, waitErr
+		return waitErr
 	}
 	result.Digest = hex.EncodeToString(hash.Sum(nil))
-	return result, nil
+	return nil
 }
 
 func snapshotWorkspace(ctx context.Context, workspace, destination string) (string, []string, error) {

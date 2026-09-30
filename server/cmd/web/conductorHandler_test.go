@@ -24,7 +24,7 @@ func conductorTestApp(t *testing.T) *app {
 			t.Fatal(err)
 		}
 	}
-	a.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: a.aiService, Runs: a.agentJobService.RunRepo}
+	a.conductorService = &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: a.aiService, Runs: a.agentJobService.RunRepo, Stages: &repos.StageRepo{DB: db}}
 	return a
 }
 

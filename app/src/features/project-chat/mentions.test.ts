@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   filterMentions,
   insertMention,
+  keepTaskLinks,
+  linkifyMarkdownMentions,
   mentionAt,
   referencedTasks,
+  splitMentionSegments,
 } from "./mentions";
 const tasks = [
   { id: 12, title: "Fix login" },
@@ -35,5 +38,37 @@ describe("project task mentions", () => {
     expect(referencedTasks("Use **#12** and #12 but not #999", tasks)).toEqual([
       tasks[0],
     ]);
+  });
+  it("splits plain text into runs and known #id runs for rendering", () => {
+    expect(splitMentionSegments("See #12 and #999, plus email#12 and #12x", tasks)).toEqual([
+      { type: "text", text: "See " },
+      { type: "task", id: 12, text: "#12" },
+      { type: "text", text: " and #999, plus email#12 and #12x" },
+    ]);
+    // No mentions at all: a single plain-text segment, not an empty list.
+    expect(splitMentionSegments("Nothing here", tasks)).toEqual([
+      { type: "text", text: "Nothing here" },
+    ]);
+  });
+  it("linkifies known #id mentions in markdown but leaves unknown ids, punctuation, and inside-word numbers alone", () => {
+    expect(linkifyMarkdownMentions("See #12, #999 and email#12.", tasks)).toBe(
+      "See [#12](aycorn-task:12), #999 and email#12.",
+    );
+    expect(linkifyMarkdownMentions("Not #12x", tasks)).toBe("Not #12x");
+  });
+  it("never linkifies mentions inside inline code spans or fenced code blocks", () => {
+    expect(linkifyMarkdownMentions("Use `#12` for now", tasks)).toBe("Use `#12` for now");
+    const fenced = "```\nconst id = 12; // #12\n```\nSee #12";
+    expect(linkifyMarkdownMentions(fenced, tasks)).toBe(
+      "```\nconst id = 12; // #12\n```\nSee [#12](aycorn-task:12)",
+    );
+  });
+  it("leaves markdown unchanged when no tasks are known", () => {
+    expect(linkifyMarkdownMentions("See #12", [])).toBe("See #12");
+  });
+  it("keeps task links through the markdown URL sanitizer and still blocks unsafe schemes", () => {
+    expect(keepTaskLinks("aycorn-task:12")).toBe("aycorn-task:12");
+    expect(keepTaskLinks("https://github.com/o/r/pull/1")).toBe("https://github.com/o/r/pull/1");
+    expect(keepTaskLinks("javascript:alert(1)")).toBe("");
   });
 });

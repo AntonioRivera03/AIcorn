@@ -159,6 +159,44 @@ func (repo *StageRepo) FirstByType(workflowId int, stageType string) (*models.St
 	return &s, nil
 }
 
+// InsertAfter inserts a new stage immediately after an existing one in the
+// same workflow, shifting every later stage's position by one. Used by
+// Conductor's "Add a Review stage" action, which needs an exact position
+// rather than the end of the list (see Create).
+func (repo *StageRepo) InsertAfter(workflowId, afterStageId int, name, description, color, icon, stageType string) (int64, error) {
+	tx, err := repo.DB.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var afterPosition int
+	if err := tx.QueryRow(`SELECT position FROM stage WHERE id = ? AND workflow = ?;`, afterStageId, workflowId).Scan(&afterPosition); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.Exec(`UPDATE stage SET position = position + 1 WHERE workflow = ? AND position > ?;`, workflowId, afterPosition); err != nil {
+		return 0, err
+	}
+
+	res, err := tx.Exec(`
+		INSERT INTO stage (workflow, name, description, color, icon, position, type)
+		VALUES (?, ?, ?, ?, ?, ?, ?);
+	`, workflowId, name, description, color, icon, afterPosition+1, stageType)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 func (repo *StageRepo) Create(stage *models.Stage) (int64, error) {
 	query := `
 		INSERT INTO stage (workflow, name, description, color, icon, position, type)

@@ -59,7 +59,7 @@ build-app-dev:
 build-md-convert:
 	cd $(APP_DIR) && npm run build:md-convert
 
-# The MCP stdio server (Documentation/phase-1-mcp-server.md). Point your MCP
+# The MCP stdio server (Documentation/mcp-tools.md). Point your MCP
 # host at server/bin/aycorn-mcp. Needs `node` on PATH at runtime.
 build-mcp: build-md-convert
 	cd $(SRV_DIR) && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/aycorn-mcp ./cmd/mcp

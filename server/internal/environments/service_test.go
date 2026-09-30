@@ -56,7 +56,7 @@ func repoFixture(t *testing.T, files map[string]string) string {
 }
 func configureFixture(t *testing.T, store *Store, root string) {
 	t.Helper()
-	if _, err := store.DB.Exec(`UPDATE project SET repoPath=? WHERE id=1`, root); err != nil {
+	if _, err := store.DB.Exec(`UPDATE project SET repoMode='personal', repoPath=? WHERE id=1`, root); err != nil {
 		t.Fatal(err)
 	}
 	s := Defaults()

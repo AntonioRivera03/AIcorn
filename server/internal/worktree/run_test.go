@@ -12,7 +12,7 @@ import (
 func TestCaptureIncludesCommitsAndUntrackedFilesWithoutChangingIndex(t *testing.T) {
 	root := initTempRepo(t)
 	ctx := context.Background()
-	w, base, err := CreateRun(ctx, root, strings.Repeat("a", 32))
+	w, base, err := CreateRun(ctx, root, strings.Repeat("a", 32), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestCaptureIncludesCommitsAndUntrackedFilesWithoutChangingIndex(t *testing.
 			t.Fatalf("missing %s in %s", content, patch)
 		}
 	}
-	if _, _, err := CreateRun(ctx, root, strings.Repeat("a", 32)); err == nil {
+	if _, _, err := CreateRun(ctx, root, strings.Repeat("a", 32), ""); err == nil {
 		t.Fatal("reused existing workspace")
 	}
 	if raw, err := os.ReadFile(filepath.Join(w.Path, "new.txt")); err != nil || string(raw) != "untracked content\n" {

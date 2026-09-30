@@ -71,9 +71,11 @@ type SendToConductorOutput struct {
 	Sent    int   `json:"sent"`
 	Skipped int   `json:"skipped"`
 	Failed  int   `json:"failed"`
-	// ConductorRunning is false while Conductor is paused: sent tasks wait
-	// until someone starts it.
+	// ConductorRunning is false while Conductor is paused or not yet
+	// configured: sent tasks are queued but wait until someone starts it.
 	ConductorRunning bool `json:"conductorRunning"`
+	// Note explains why, when ConductorRunning is false.
+	Note string `json:"note,omitempty"`
 }
 
 // sendToConductor is how Chatter gets work done without doing it: Conductor
@@ -91,8 +93,15 @@ func (t *toolset) sendToConductor(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, out, err
 	}
 	out.Sent, out.Skipped, out.Failed = result.Success, result.Skipped, result.Failed
-	if settings, _, err := t.conductorService.Repo.Settings(t.runProjectID); err == nil {
+	if settings, _, _, configError, err := t.conductorService.Configuration(t.runProjectID); err == nil {
 		out.ConductorRunning = settings.Enabled
+		if !out.ConductorRunning {
+			if configError != "" {
+				out.Note = "Tasks are queued, but Conductor isn't configured yet: " + configError
+			} else {
+				out.Note = "Tasks are queued, but Conductor is paused; start it in the project's Conductor settings."
+			}
+		}
 	}
 	return nil, out, nil
 }

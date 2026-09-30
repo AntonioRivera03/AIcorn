@@ -1,3 +1,5 @@
+import { defaultUrlTransform } from "react-markdown";
+
 export type MentionTask = { id: number; title: string };
 export type Mention = {
   start: number;
@@ -46,4 +48,67 @@ export function referencedTasks(text: string, tasks: MentionTask[]) {
     ),
   );
   return tasks.filter((task) => ids.has(task.id));
+}
+
+// A #123 token that isn't part of a longer word, e.g. not "email#12" or
+// "#12abc" — the same rule referencedTasks uses to collect ids.
+const mentionIdPattern = /(?<![A-Za-z0-9_])#(\d+)\b/g;
+
+export type MentionSegment =
+  | { type: "text"; text: string }
+  | { type: "task"; id: number; text: string };
+
+// Splits plain text (the user's own message, never parsed as markdown) into
+// runs of text and #id runs naming a real task in `tasks`; other numbers are
+// left as plain text.
+export function splitMentionSegments(text: string, tasks: MentionTask[]): MentionSegment[] {
+  const known = new Set(tasks.map((task) => task.id));
+  const segments: MentionSegment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(mentionIdPattern)) {
+    const id = Number(match[1]);
+    if (!known.has(id)) continue;
+    const start = match.index;
+    if (start > last) segments.push({ type: "text", text: text.slice(last, start) });
+    segments.push({ type: "task", id, text: match[0] });
+    last = start + match[0].length;
+  }
+  if (last < text.length || segments.length === 0) segments.push({ type: "text", text: text.slice(last) });
+  return segments;
+}
+
+// The scheme linkifyMarkdownMentions gives a resolved #id, so a markdown
+// renderer can tell a task mention apart from a real URL.
+export const taskLinkPrefix = "aycorn-task:";
+
+// react-markdown's default URL sanitizer blanks any scheme it doesn't know,
+// which would turn every task link into an empty href. Pass this as its
+// `urlTransform` wherever linkifyMarkdownMentions output is rendered.
+export const keepTaskLinks = (url: string) =>
+  url.startsWith(taskLinkPrefix) ? url : defaultUrlTransform(url);
+
+// A fenced code block (``` or ~~~) or an inline `code` span — skipped so
+// mentions inside code are never linked.
+const codeSegmentPattern = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/g;
+
+// Turns #id into a markdown link (`aycorn-task:<id>`) for every id in
+// `tasks`, everywhere except inside code spans/blocks; other numbers are
+// left alone. The renderer resolves the link target and any owner badge.
+export function linkifyMarkdownMentions(markdown: string, tasks: MentionTask[]): string {
+  const known = new Set(tasks.map((task) => task.id));
+  if (!known.size) return markdown;
+  let out = "";
+  let last = 0;
+  for (const code of markdown.matchAll(codeSegmentPattern)) {
+    out += linkifyMentionRun(markdown.slice(last, code.index), known);
+    out += code[0];
+    last = code.index + code[0].length;
+  }
+  return out + linkifyMentionRun(markdown.slice(last), known);
+}
+
+function linkifyMentionRun(text: string, known: Set<number>): string {
+  return text.replace(mentionIdPattern, (match, digits: string) =>
+    known.has(Number(digits)) ? `[${match}](${taskLinkPrefix}${digits})` : match,
+  );
 }

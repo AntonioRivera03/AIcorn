@@ -20,6 +20,7 @@ import (
 	"github.com/waseem-polus/aycorn/server/internal/models/repos"
 	"github.com/waseem-polus/aycorn/server/internal/models/services"
 	"github.com/waseem-polus/aycorn/server/internal/projectchat"
+	"github.com/waseem-polus/aycorn/server/internal/repolink"
 	"github.com/waseem-polus/aycorn/server/internal/worker"
 )
 
@@ -97,6 +98,12 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 	}()
 	cleanups = append(cleanups, func() { stopWorker(); <-backupLoopDone })
 
+	// One per workspace, shared by everything that clones or fetches, so
+	// they're serialized per project. Clones live in <workspace dir>/repos.
+	repositoryService := &repolink.Service{DB: db}
+	repositoryService.Start(workerCtx)
+	cleanups = append(cleanups, func() { stopWorker(); repositoryService.Wait() })
+
 	projectRepo := &repos.ProjectRepo{DB: db}
 	checklistRepo := &repos.ChecklistRepo{DB: db}
 	taskRepo := &repos.TaskRepo{DB: db}
@@ -124,6 +131,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 		WorkflowRepo:  workflowRepo,
 		StageRepo:     stageRepo,
 		TaskTypeRepo:  taskTypeRepo,
+		Repositories:  repositoryService,
 	}
 	checklistService := &services.ChecklistService{
 		ChecklistRepo: checklistRepo,
@@ -163,10 +171,11 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 	// In-flight work is interrupted on restart and requires an explicit recheck.
 	// WAL + busy_timeout already handles concurrent DB access.
 	aiService := &services.AIService{Jobs: agentJobRepo, Tasks: taskRepo, Projects: projectRepo, Presets: personaRepo, Converter: &markdown.Converter{}, MCPExecutable: cfg.mcpPath}
-	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo}
+	conductorService := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: aiService, Runs: agentRunRepo, Stages: stageRepo}
 	engine := &harness.Registry{Codex: &harness.Codex{MCPExecutable: cfg.mcpPath, DBPath: dbPath}}
 	w := worker.New(agentJobService, engine)
 	w.Conductor = conductorService
+	w.Sources = repositoryService
 	if !previewMode() {
 		if err := w.Start(workerCtx, 2*time.Second); err != nil {
 			return fail(fmt.Errorf("worker start: %w", err))
@@ -197,6 +206,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 
 	app := &app{
 		projectChatService:   projectChatService,
+		repositoryService:    repositoryService,
 		jobService:           jobService,
 		conductorService:     conductorService,
 		aiService:            aiService,
@@ -228,7 +238,7 @@ func startWorkspaceRuntime(ctx context.Context, cfg runtimeConfig, dbPath string
 			return fail(err)
 		}
 		runtime := &environments.Kubernetes{Token: token, MainURL: cfg.mainURL}
-		app.environmentService = &environments.Service{Store: store, Runtime: runtime, Root: filepath.Join(filepath.Dir(dbPath), "environments-"+token)}
+		app.environmentService = &environments.Service{Store: store, Runtime: runtime, Root: filepath.Join(filepath.Dir(dbPath), "environments-"+token), Sources: repositoryService}
 		if err := app.environmentService.Start(workerCtx); err != nil {
 			return fail(err)
 		}

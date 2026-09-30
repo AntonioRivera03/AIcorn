@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -37,7 +38,7 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
       </p>
     );
 
-  const { settings, configurationError } = conductor.data;
+  const { settings, configurationError, stagesAutoPicked, canAddReviewStage } = conductor.data;
   // Handing off to a human means the task isn't finished, so Done stages
   // can't hold either role.
   const stages = workflow.data.Stages.filter((stage) => stage.Type !== "done");
@@ -83,10 +84,28 @@ export function ConductorSettingsTab({ projectId }: { projectId: number }) {
             onChange={(completionStage) => save({ completionStage })}
           />
         </div>
-        {/* Until both stages are picked, the hints already say what's needed. */}
-        {configurationError && settings.workingStage > 0 && settings.completionStage > 0 && (
-          <p role="status" className="text-sm text-muted-foreground">
-            {configurationError}
+        {configurationError && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p role="status" className="text-sm text-muted-foreground">
+              {configurationError}
+            </p>
+            {canAddReviewStage && (
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-sm"
+                disabled={conductor.addReviewStage.isPending}
+                onClick={() => conductor.addReviewStage.mutate()}
+              >
+                <Plus className="size-3.5" />
+                Add a Review stage
+              </Button>
+            )}
+          </div>
+        )}
+        {!configurationError && stagesAutoPicked && (
+          <p className="text-xs text-muted-foreground">
+            Chosen automatically — change either to override.
           </p>
         )}
       </section>

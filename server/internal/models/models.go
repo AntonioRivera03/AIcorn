@@ -12,7 +12,12 @@ type Project struct {
 	Workflow     int
 	WorkflowName string
 	DefaultView  string
+	// The repository link (see internal/repolink). Read-only here: the
+	// project update ignores them, and PUT
+	// /api/project/{id}/settings/repository changes them.
+	RepoMode     string
 	RepoPath     string
+	RepoURL      string
 	TimeCreated  *time.Time
 	TimeModified *time.Time
 }

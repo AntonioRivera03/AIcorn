@@ -40,6 +40,24 @@ func (app *app) putConductor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, settings)
 }
 
+// addConductorReviewStage is the fix offered for Conductor's no-candidate
+// case (e.g. a plain Open, Doing, Done workflow): it inserts a Review stage
+// right after this project's working stage. Additive and user-triggered, so
+// it needs no confirmation.
+func (app *app) addConductorReviewStage(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("projectId"))
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid project", 400)
+		return
+	}
+	stage, err := app.conductorService.AddReviewStage(id)
+	if err != nil {
+		respondErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, stage)
+}
+
 func (app *app) bulkConductor(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("projectId"))
 	if err != nil || id <= 0 {

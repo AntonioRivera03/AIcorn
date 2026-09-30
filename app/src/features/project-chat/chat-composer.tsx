@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAISettings } from "@/features/ai/queries/use-ai";
 import { useTaskOwnership } from "@/features/ai/queries/use-task-ownership";
+import { decideComposerKey } from "@/features/project-chat/chat-composer/composer-keys";
 import { MentionPicker } from "@/features/project-chat/chat-composer/mention-picker";
 import {
   filterMentions,
@@ -152,26 +153,33 @@ export function ChatComposer({
             // Keep app shortcuts out of the message.
             event.stopPropagation();
             if (event.nativeEvent.isComposing) return;
-            if (pickerOpen && event.key === "Escape") {
-              event.preventDefault();
-              setDismissed(true);
-              return;
-            }
-            if (pickerOpen && options.length) {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            const action = decideComposerKey(
+              event.key,
+              { shift: event.shiftKey },
+              { open: pickerOpen, optionsCount: options.length, selected },
+            );
+            switch (action.type) {
+              case "close":
                 event.preventDefault();
-                setChoice((selected + (event.key === "ArrowDown" ? 1 : options.length - 1)) % options.length);
-                return;
-              }
-              if (event.key === "Enter" || event.key === "Tab") {
+                setDismissed(true);
+                break;
+              case "move":
+                event.preventDefault();
+                setChoice(action.index);
+                break;
+              case "choose":
                 event.preventDefault();
                 choose(options[selected]);
-                return;
-              }
-            }
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
+                break;
+              case "suppress":
+                event.preventDefault();
+                break;
+              case "submit":
+                event.preventDefault();
+                submit();
+                break;
+              case "none":
+                break;
             }
           }}
         />

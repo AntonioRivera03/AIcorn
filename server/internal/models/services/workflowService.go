@@ -26,6 +26,22 @@ const listStagePreviewLimit = 6
 
 var defaultWorkflowStageTypes = []string{"open", "doing", "done"}
 
+// reviewStageDefault is the stage Conductor hands finished work to when a
+// workflow doesn't already have one — inserted right after the working
+// stage by ConductorService.AddReviewStage, and included by default in every
+// new workflow (issue #32: a bare Open, Doing, Done workflow has nowhere for
+// Conductor to hand off). It isn't a distinct stage type — stage.type's CHECK
+// constraint is fixed to open/todo/doing/done — so it uses `todo`, the
+// closest of the four to "not started, not done"; the preview seed's "In
+// review" stage makes the same choice.
+var reviewStageDefault = repos.StageDefault{
+	Name:        "Review",
+	Description: "Conductor's finished tasks wait here for your review",
+	Color:       "blue",
+	Icon:        "eye",
+	Type:        "todo",
+}
+
 var ErrWorkflowInUse = errors.New("workflow is in use by one or more projects")
 
 func (s *WorkflowService) GetAllWorkflows() ([]WorkflowSummary, error) {
@@ -85,19 +101,30 @@ func (s *WorkflowService) GetWorkflowDetails(id int) (*WorkflowSummary, error) {
 	}, nil
 }
 
+func stageFromDefault(d repos.StageDefault, position int) models.Stage {
+	return models.Stage{
+		Name:        d.Name,
+		Description: d.Description,
+		Color:       d.Color,
+		Icon:        d.Icon,
+		Position:    position,
+		Type:        d.Type,
+	}
+}
+
+// defaultWorkflowStages is Open, Doing, Review, Done: the Review stage
+// between Doing and Done gives Conductor somewhere to hand off finished work
+// without a manual setup step (issue #32).
 func defaultWorkflowStages() []models.Stage {
-	stages := make([]models.Stage, 0, len(defaultWorkflowStageTypes))
-	for i, stageType := range defaultWorkflowStageTypes {
-		defaults := repos.StageDefaults[stageType]
-		stages = append(stages, models.Stage{
-			Workflow:    0,
-			Name:        defaults.Name,
-			Description: defaults.Description,
-			Color:       defaults.Color,
-			Icon:        defaults.Icon,
-			Position:    i + 1,
-			Type:        defaults.Type,
-		})
+	stages := make([]models.Stage, 0, len(defaultWorkflowStageTypes)+1)
+	position := 1
+	for _, stageType := range defaultWorkflowStageTypes {
+		stages = append(stages, stageFromDefault(repos.StageDefaults[stageType], position))
+		position++
+		if stageType == "doing" {
+			stages = append(stages, stageFromDefault(reviewStageDefault, position))
+			position++
+		}
 	}
 	return stages
 }

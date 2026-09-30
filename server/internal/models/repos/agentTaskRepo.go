@@ -2,6 +2,7 @@ package repos
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/waseem-polus/aycorn/server/internal/models"
 	"github.com/waseem-polus/aycorn/server/internal/taskownership"
@@ -18,10 +19,47 @@ type AgentTaskPatch struct {
 	TypeID      *int
 }
 
+// NotFoundError is what an agent-supplied id (task, checklist, stage, or task
+// type) resolves to when it doesn't exist — or, for a task, when it exists
+// outside this run's project scope, which must read identically so a scoped
+// run can never tell "no such task" apart from "that task belongs to a
+// project you can't see". The functions below construct it once, at the
+// query site that knows which entity was being looked up, instead of letting
+// a raw sql.ErrNoRows (or a driver constraint error) leak up to the MCP tool
+// caller as "sql: no rows in result set".
+type NotFoundError struct {
+	Entity string
+	ID     int
+}
+
+func (e NotFoundError) Error() string {
+	return fmt.Sprintf("%s %d not found", e.Entity, e.ID)
+}
+
+func NotFound(entity string, id int) error {
+	return NotFoundError{Entity: entity, ID: id}
+}
+
+// requireRow reports id as NotFound(entity) unless table has a row with it.
+// table is always a literal from this file, never caller input.
+func requireRow(q taskownership.Querier, table, entity string, id int) error {
+	var exists bool
+	if err := q.QueryRow("SELECT EXISTS(SELECT 1 FROM "+table+" WHERE id=?)", id).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return NotFound(entity, id)
+	}
+	return nil
+}
+
 func agentTaskProject(tx *sql.Tx, task, scope, job int, chatTurn ...int) (int, error) {
 	var project int
 	err := tx.QueryRow("SELECT c.project FROM task t JOIN checklist c ON c.id=t.checklist WHERE t.id=? AND (?=0 OR c.project=?)", task, scope, scope).Scan(&project)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, NotFound("task", task)
+		}
 		return 0, err
 	}
 	return project, taskownership.Check(tx, task, job, chatTurn...)
@@ -50,6 +88,9 @@ func (r *TaskRepo) UpdateByAgent(task, scope, job int, patch AgentTaskPatch, cha
 	if patch.ChecklistID != nil {
 		var dest int
 		if err = tx.QueryRow("SELECT project FROM checklist WHERE id=? AND (?=0 OR project=?)", *patch.ChecklistID, scope, scope).Scan(&dest); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return false, NotFound("checklist", *patch.ChecklistID)
+			}
 			return false, err
 		}
 		var valid bool
@@ -62,6 +103,9 @@ func (r *TaskRepo) UpdateByAgent(task, scope, job int, patch AgentTaskPatch, cha
 		project = dest
 	}
 	if patch.TypeID != nil {
+		if err = requireRow(tx, "task_type", "task type", *patch.TypeID); err != nil {
+			return false, err
+		}
 		var valid bool
 		if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM project_task_type WHERE project=? AND task_type=?)", project, *patch.TypeID).Scan(&valid); err != nil {
 			return false, err
@@ -89,6 +133,9 @@ func (r *TaskRepo) MoveByAgent(task, scope, job, from, to int, chatTurn ...int) 
 	defer tx.Rollback()
 	project, err := agentTaskProject(tx, task, scope, job, chatTurn...)
 	if err != nil {
+		return false, err
+	}
+	if err = requireRow(tx, "stage", "stage", to); err != nil {
 		return false, err
 	}
 	var valid bool
@@ -128,6 +175,12 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 	default:
 		return nil, fmt.Errorf("invalid priority")
 	}
+	if err = requireRow(tx, "checklist", "checklist", task.Checklist); err != nil {
+		return nil, err
+	}
+	if err = requireRow(tx, "stage", "stage", task.Stage); err != nil {
+		return nil, err
+	}
 	var valid bool
 	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM checklist c JOIN project p ON p.id=c.project JOIN stage s ON s.workflow=p.workflow WHERE c.id=? AND p.id=? AND s.id=?)", task.Checklist, project, task.Stage).Scan(&valid); err != nil {
 		return nil, err
@@ -139,6 +192,8 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 		if err = tx.QueryRow("SELECT tt.id FROM task_type tt JOIN project_task_type pt ON pt.task_type=tt.id WHERE pt.project=? ORDER BY tt.isDefault DESC,tt.id LIMIT 1", project).Scan(&task.Type.ID); err != nil {
 			return nil, err
 		}
+	} else if err = requireRow(tx, "task_type", "task type", task.Type.ID); err != nil {
+		return nil, err
 	}
 	if err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM project_task_type WHERE project=? AND task_type=?)", project, task.Type.ID).Scan(&valid); err != nil {
 		return nil, err
@@ -154,4 +209,23 @@ func (r *TaskRepo) CreateFromChat(project, turn int, task *models.ChecklistTask)
 		return nil, err
 	}
 	return task, tx.Commit()
+}
+
+// ValidateCreateRefs confirms a checklist, stage, and (if given) task type
+// exist before an unscoped agent's create_task call. CreateTask — the plain
+// insert this path uses, shared with the REST API — otherwise leans on the
+// checklist/stage/type foreign keys alone, which fail with an opaque driver
+// error ("constraint failed: FOREIGN KEY constraint failed") instead of
+// naming the id an agent got wrong.
+func (r *TaskRepo) ValidateCreateRefs(checklistID, stageID, typeID int) error {
+	if err := requireRow(r.DB, "checklist", "checklist", checklistID); err != nil {
+		return err
+	}
+	if err := requireRow(r.DB, "stage", "stage", stageID); err != nil {
+		return err
+	}
+	if typeID == 0 {
+		return nil
+	}
+	return requireRow(r.DB, "task_type", "task type", typeID)
 }

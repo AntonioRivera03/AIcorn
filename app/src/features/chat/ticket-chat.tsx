@@ -19,6 +19,7 @@ import {
   useAIMutations,
 } from "@/features/ai/queries/use-ai";
 import { usePersonasQuery } from "@/features/persona/queries/use-personas-query";
+import { hasLinkedRepository } from "@/features/repository/repository";
 import {
   isAgentWorking,
   useAgentJobs,
@@ -68,10 +69,10 @@ export function TicketChat({ taskId }: { taskId: number }) {
     .sort((a, b) => a.id - b.id);
   const last = turns.at(-1);
   const selectedAgent = presetId ?? last?.request?.agentId ?? 0;
+  const repositoryLinked = hasLinkedRepository(project);
   const useRepository =
     mode === "edit" ||
-    (repositoryChoice ??
-      (last ? !!last.request?.repoPath : !!project?.RepoPath));
+    (repositoryChoice ?? (last ? !!last.request?.repoPath : repositoryLinked));
   const active = (history.data?.jobs ?? []).find((j) => isAgentWorking([j]));
   const session = [...(history.data?.runs ?? [])]
     .sort((a, b) => b.id - a.id)
@@ -298,7 +299,7 @@ export function TicketChat({ taskId }: { taskId: number }) {
                 onChange={(e) => setMode(e.target.value as "ask" | "edit")}
               >
                 <option value="ask">Ask · read only</option>
-                <option value="edit" disabled={!project?.RepoPath}>
+                <option value="edit" disabled={!repositoryLinked}>
                   Edit files
                 </option>
               </select>
@@ -309,7 +310,7 @@ export function TicketChat({ taskId }: { taskId: number }) {
               <Checkbox
                 id={`${composerId}-repo`}
                 checked={useRepository}
-                disabled={busy || mode === "edit" || !project?.RepoPath}
+                disabled={busy || mode === "edit" || !repositoryLinked}
                 onCheckedChange={(v) => setRepositoryChoice(v === true)}
               />
               <Label htmlFor={`${composerId}-repo`}>

@@ -44,7 +44,11 @@ func requestAgentTestApp(t *testing.T, repoPath string) (*app, *services.TaskSer
 		}
 		projRepoPath = dir
 	}
-	if _, err := db.Exec(`INSERT INTO project (id, name, pinned, workflow, repoPath, defaultView) VALUES (1,'p',0,1, ?, '')`, projRepoPath); err != nil {
+	repoMode := ""
+	if projRepoPath != "" {
+		repoMode = "personal"
+	}
+	if _, err := db.Exec(`INSERT INTO project (id, name, pinned, workflow, repoMode, repoPath, defaultView) VALUES (1,'p',0,1, ?, ?, '')`, repoMode, projRepoPath); err != nil {
 		t.Fatalf("project: %v", err)
 	}
 	if _, err := db.Exec(`INSERT INTO checklist (id, project, name, isDefault) VALUES (1,1,'c',1)`); err != nil {

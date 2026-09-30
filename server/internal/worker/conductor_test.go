@@ -36,7 +36,7 @@ func conductorWorker(t *testing.T) (*Worker, *testEngine) {
 	ai := &services.AIService{Presets: &repos.PersonaRepo{DB: db}, Jobs: s.JobRepo, Tasks: &repos.TaskRepo{DB: db}, Projects: &repos.ProjectRepo{DB: db}, Converter: &markdown.Converter{}, Probe: func(context.Context, string) harness.EngineHealth {
 		return harness.EngineHealth{Ready: true, Executable: "test-engine", Version: "test"}
 	}}
-	c := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: ai, Runs: s.RunRepo}
+	c := &services.ConductorService{Repo: &repos.ConductorRepo{DB: db}, AI: ai, Runs: s.RunRepo, Stages: &repos.StageRepo{DB: db}}
 	settings := models.DefaultConductorSettings()
 	settings.Enabled = true
 	settings.UseRepository = false
